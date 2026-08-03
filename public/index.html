@@ -4,16 +4,38 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>PM2 Monitor</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="stylesheet" href="/style.css" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="/vendor/chart.umd.js"></script>
 <script>
   (function () {
-    var saved = localStorage.getItem("pm2-monitor-theme");
-    var theme = saved || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
-    document.documentElement.setAttribute("data-theme", theme);
+    try {
+      var saved = localStorage.getItem("pm2-monitor-theme");
+      var theme = saved || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+      document.documentElement.setAttribute("data-theme", theme);
+    } catch (e) {
+      // localStorage indisponible (navigation privée stricte, cookies bloqués...) : on garde le thème par défaut (:root)
+    }
   })();
+</script>
+<script>
+  // Filet de sécurité : si un JS plante, on l'affiche au lieu de laisser une page silencieusement figée.
+  window.addEventListener("error", function (e) {
+    showFatalError(e.message, e.filename, e.lineno);
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    showFatalError((e.reason && e.reason.message) || String(e.reason));
+  });
+  function showFatalError(msg, file, line) {
+    if (document.getElementById("fatal-error-banner")) return;
+    var el = document.createElement("div");
+    el.id = "fatal-error-banner";
+    el.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:9999;background:#3a1414;color:#ff8a8a;" +
+      "font-family:monospace;font-size:12px;padding:10px 16px;border-bottom:1px solid #ff4d4d;white-space:pre-wrap;";
+    el.textContent = "Erreur JS : " + msg + (file ? " (" + file + ":" + line + ")" : "") +
+      " — ouvre la console (F12) pour plus de détails, et signale ce message.";
+    document.body.appendChild(el);
+  }
 </script>
 </head>
 <body>
