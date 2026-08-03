@@ -1,14 +1,22 @@
 {
   "name": "pm2-monitor",
-  "version": "1.0.0",
-  "description": "Interface graphique de monitoring PM2 (liste des process + logs en direct)",
+  "version": "2.0.0",
+  "description": "Interface graphique de monitoring PM2 (liste des process + logs en direct) — frontend Vue 3 + Vite",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev:server": "node server.js",
+    "dev:client": "npm --prefix frontend run dev",
+    "dev": "concurrently -k -n SERVER,CLIENT -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
+    "build": "npm --prefix frontend install --no-audit --no-fund && npm --prefix frontend run build",
+    "postinstall": "npm --prefix frontend install --no-audit --no-fund"
   },
   "dependencies": {
     "express": "^4.19.2",
     "pm2": "^5.4.2",
     "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   }
 }

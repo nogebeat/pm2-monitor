@@ -1,0 +1,29 @@
+<script setup>
+import { computed } from "vue";
+import { state } from "../store";
+
+import MoreMenuModal from "./modals/MoreMenuModal.vue";
+import ScaleModal from "./modals/ScaleModal.vue";
+import EnvModal from "./modals/EnvModal.vue";
+import ConfigModal from "./modals/ConfigModal.vue";
+import FullTextSearchModal from "./modals/FullTextSearchModal.vue";
+import GotoDateModal from "./modals/GotoDateModal.vue";
+import ExportRangeModal from "./modals/ExportRangeModal.vue";
+
+const componentMap = {
+  more: MoreMenuModal,
+  scale: ScaleModal,
+  env: EnvModal,
+  config: ConfigModal,
+  fulltext: FullTextSearchModal,
+  gotodate: GotoDateModal,
+  exportrange: ExportRangeModal,
+};
+
+const current = computed(() => (state.modal ? componentMap[state.modal.type] : null));
+const process = computed(() => state.modal?.process || null);
+</script>
+
+<template>
+  <component :is="current" v-if="current" :process="process" />
+</template>

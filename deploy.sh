@@ -170,6 +170,15 @@ ensure_dependencies() {
   fi
 }
 
+ensure_frontend_build() {
+  title "Frontend (Vue 3 + Vite)"
+  cd "$SCRIPT_DIR"
+  info "Installation des dépendances frontend et build de production…"
+  npm --prefix frontend install --no-audit --no-fund >/dev/null
+  npm --prefix frontend run build
+  ok "Frontend construit dans public/."
+}
+
 random_password() {
   if command -v openssl >/dev/null 2>&1; then
     openssl rand -base64 18 | tr -dc 'A-Za-z0-9' | head -c 20
@@ -381,6 +390,7 @@ cmd_install() {
   ensure_nodejs
   ensure_pm2
   ensure_dependencies
+  ensure_frontend_build
   write_env
   start_app
   setup_startup
@@ -400,6 +410,7 @@ cmd_update() {
     info "Pas de dépôt git : remplace les fichiers du projet manuellement avant de relancer."
   fi
   npm install --omit=dev
+  ensure_frontend_build
   if command -v pm2 >/dev/null 2>&1 && pm2 describe "$APP_NAME" >/dev/null 2>&1; then
     pm2 restart "$APP_NAME" --update-env
     ok "Application redémarrée."
@@ -423,8 +434,8 @@ cmd_uninstall() {
   fi
 
   if [ -n "${1:-}" ] && [ "$1" = "--purge" ]; then
-    if confirm "Supprimer aussi .env et node_modules (irréversible) ?"; then
-      rm -rf "$SCRIPT_DIR/node_modules" "$ENV_FILE"
+    if confirm "Supprimer aussi .env, node_modules et le build frontend (irréversible) ?"; then
+      rm -rf "$SCRIPT_DIR/node_modules" "$SCRIPT_DIR/frontend/node_modules" "$SCRIPT_DIR/public" "$ENV_FILE"
       ok "Fichiers locaux supprimés."
     fi
     if [ -f "/etc/nginx/sites-available/${APP_NAME}.conf" ] || [ -f "/etc/nginx/conf.d/${APP_NAME}.conf" ]; then

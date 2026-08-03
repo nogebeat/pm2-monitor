@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PM2 Monitor</title>
+<meta name="description" content="Monitoring PM2 en temps réel : process, logs, système." />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<script>
+  // Applique le thème avant le premier rendu pour éviter le flash clair/sombre.
+  (function () {
+    try {
+      var saved = localStorage.getItem("pm2-monitor-theme");
+      var theme = saved || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+      document.documentElement.setAttribute("data-theme", theme);
+    } catch (e) {
+      // localStorage indisponible (navigation privée stricte…) : thème par défaut.
+    }
+  })();
+</script>
+<script>
+  // Filet de sécurité : si un JS plante, on l'affiche au lieu de laisser une page silencieusement figée.
+  window.addEventListener("error", function (e) {
+    showFatalError(e.message, e.filename, e.lineno);
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    showFatalError((e.reason && e.reason.message) || String(e.reason));
+  });
+  function showFatalError(msg, file, line) {
+    if (document.getElementById("fatal-error-banner")) return;
+    var el = document.createElement("div");
+    el.id = "fatal-error-banner";
+    el.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:9999;background:#3a1414;color:#ff8a8a;" +
+      "font-family:monospace;font-size:12px;padding:10px 16px;border-bottom:1px solid #ff4d4d;white-space:pre-wrap;";
+    el.textContent = "Erreur JS : " + msg + (file ? " (" + file + ":" + line + ")" : "") +
+      " — ouvre la console (F12) pour plus de détails.";
+    document.body.appendChild(el);
+  }
+</script>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

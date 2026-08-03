@@ -5,7 +5,35 @@ statut, CPU/mémoire, redémarrages, et **logs en direct** (stdout/stderr) via W
 
 Ce n'est pas une page web statique : c'est un petit serveur Node.js à faire
 tourner **sur la machine où PM2 gère déjà tes apps** (il se branche sur l'API
-programmatique de PM2, comme le ferait `pm2 monit` en ligne de commande).
+programmatique de PM2, comme le ferait `pm2 monit` en ligne de commande), avec
+un frontend **Vue 3 + Vite** qui consomme cette API en REST + WebSocket.
+
+## Stack technique
+
+- **Backend** : Node.js, Express, `pm2` (API programmatique), Socket.IO.
+- **Frontend** : Vue 3 (`<script setup>`), Vite, Chart.js, Socket.IO client.
+  Le frontend est **compilé** (`npm run build`) en fichiers statiques servis
+  directement par Express — il n'y a pas de serveur Node séparé à exposer
+  en production, un seul port suffit.
+- Aucune base de données : l'historique système et les logs persistés sont
+  stockés en fichiers locaux (`data/`).
+
+Structure du dépôt :
+
+```
+pm2-monitor/
+├── server.js            # serveur Express + API REST + WebSocket + bus PM2
+├── lib/                  # logique métier (actions PM2, stats système, logs, historique)
+├── frontend/              # source du frontend Vue 3 + Vite
+│   ├── src/
+│   │   ├── components/    # TopBar, ProcessSidebar, LogsPanel, SystemView, modales…
+│   │   ├── store.js       # état réactif partagé (process, logs, système)
+│   │   ├── socket.js, api.js, format.js
+│   │   └── style.css
+│   └── vite.config.js
+├── public/                # ⚠️ généré par `npm run build` — ne pas éditer à la main
+└── deploy.sh
+```
 
 ## Installation
 
@@ -22,12 +50,13 @@ chmod +x deploy.sh
 
 Ce script gère **toutes les situations** en une commande :
 - installe Node.js et PM2 s'ils sont absents (ne touche à rien s'ils sont déjà là)
-- installe les dépendances du projet
+- installe les dépendances du serveur **et** celles du frontend
+- **compile le frontend Vue 3 / Vite** (`frontend/` → `public/`)
 - génère un `.env` avec un mot de passe sécurisé si tu n'en fournis pas
 - démarre l'app sous PM2 et configure le redémarrage automatique au reboot
 - (optionnel) configure nginx en reverse proxy + HTTPS via Let's Encrypt si tu donnes un domaine
 - (optionnel) ouvre les bons ports dans le pare-feu (`ufw`) si présent
-- relançable sans risque : il détecte ce qui est déjà en place
+- relançable sans risque : il détecte ce qui est déjà en place et **rebuild le frontend à chaque `update`**
 
 **Exemples :**
 
@@ -49,9 +78,9 @@ Ce script gère **toutes les situations** en une commande :
 ./deploy.sh logs        # logs en direct
 ./deploy.sh restart     # redémarrer
 ./deploy.sh stop        # arrêter
-./deploy.sh update      # git pull (si dépôt git) + npm install + restart
+./deploy.sh update      # git pull (si dépôt git) + npm install + build frontend + restart
 ./deploy.sh uninstall           # retire le process PM2
-./deploy.sh uninstall --purge   # + supprime .env, node_modules, config nginx
+./deploy.sh uninstall --purge   # + supprime .env, node_modules (serveur + frontend), le build public/, config nginx
 ```
 
 Voir toutes les options : `./deploy.sh --help`
@@ -60,12 +89,16 @@ Voir toutes les options : `./deploy.sh --help`
 
 ```bash
 cd pm2-monitor
-npm install
+npm install        # installe les deps serveur + déclenche l'install des deps frontend (postinstall)
+npm run build       # compile le frontend Vue 3 / Vite dans public/
 ```
 
 ## Lancer le monitor
 
+### Production (frontend compilé, un seul port)
+
 ```bash
+npm run build   # si pas déjà fait
 npm start
 ```
 
@@ -76,6 +109,29 @@ Le port par défaut est `4200`, modifiable :
 ```bash
 PORT=8080 npm start
 ```
+
+### Développement (hot-reload frontend)
+
+```bash
+npm run dev
+```
+
+Ceci lance **en parallèle** le serveur Express (port `4200`, API + WebSocket)
+et le serveur de dev Vite (port `5173`, hot-reload instantané des composants
+Vue). Ouvre **http://localhost:5173** pendant que tu développes — Vite
+proxifie automatiquement `/api` et `/socket.io` vers le port `4200`
+(configuré dans `frontend/vite.config.js`).
+
+Tu peux aussi lancer les deux séparément si tu préfères deux terminaux :
+
+```bash
+npm run dev:server   # terminal 1 — Express sur :4200
+npm run dev:client   # terminal 2 — Vite sur :5173
+```
+
+> `public/` est un dossier **généré** par `npm run build` : ne modifie pas son
+> contenu directement, tes changements seraient écrasés au prochain build.
+> Tout le code source du frontend vit dans `frontend/`.
 
 ## Fonctionnalités
 
@@ -128,6 +184,9 @@ PORT=8080 npm start
 
 ### Général
 
+- **Interface Vue 3** entièrement componentisée (réactive, sans manipulation
+  manuelle du DOM), polices `Space Grotesk` / `JetBrains Mono` auto-hébergées
+  (aucune dépendance à un CDN de polices en production).
 - **Thème clair / sombre** : bouton ◐ en haut à droite, préférence mémorisée.
 - **Auth basique intégrée** : identifiant/mot de passe demandés par le
   navigateur (HTTP Basic Auth), sur les routes HTTP *et* la connexion WebSocket.
