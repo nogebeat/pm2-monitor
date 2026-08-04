@@ -120,7 +120,7 @@ function openExportRange() {
           <span class="log-time">{{ time(entry.at) }}</span>
           <span class="log-event">— {{ entry.event }} —</span>
         </div>
-        <div v-else class="log-line">
+        <div v-else class="log-line" :class="{ 'log-backlog': entry.backlog }">
           <span v-if="state.lineNumOn" class="log-line-num">{{ entry.n }}</span>
           <span class="log-time">{{ time(entry.at) }}</span>
           <span class="log-tag" :class="entry.type">{{ entry.type }}</span>

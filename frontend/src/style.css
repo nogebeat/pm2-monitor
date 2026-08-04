@@ -464,6 +464,7 @@ button, input, select, textarea { font-family: inherit; }
 }
 
 .log-line.log-hidden { display: none; }
+.log-line.log-backlog { opacity: 0.68; }
 .log-time { color: var(--text-faint); flex-shrink: 0; }
 
 .log-line-num {

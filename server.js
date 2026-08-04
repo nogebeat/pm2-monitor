@@ -278,6 +278,31 @@ function readLogSafe(filePath, label) {
   }
 }
 
+// Lit les dernières lignes d'un fichier log natif PM2 (sans tout charger en mémoire
+// pour les gros fichiers), utilisé pour l'historique affiché à la sélection d'un process.
+// C'est la même source que "pm2 logs" en CLI, donc indépendante du bus PM2 en temps réel.
+function readTailLinesSafe(filePath, maxLines) {
+  const MAX_BYTES = 300 * 1024; // largement suffisant pour ~maxLines lignes usuelles
+  try {
+    const size = fs.statSync(filePath).size;
+    const start = Math.max(0, size - MAX_BYTES);
+    const fd = fs.openSync(filePath, "r");
+    const length = size - start;
+    const buffer = Buffer.alloc(length);
+    fs.readSync(fd, buffer, 0, length, start);
+    fs.closeSync(fd);
+    let text = buffer.toString("utf8");
+    if (start > 0) {
+      // la première ligne peut être coupée en plein milieu : on la jette
+      const firstBreak = text.indexOf("\n");
+      text = firstBreak >= 0 ? text.slice(firstBreak + 1) : "";
+    }
+    return text.split("\n").filter(Boolean).slice(-maxLines);
+  } catch (e) {
+    return [];
+  }
+}
+
 // Recherche full-text / regex / niveau / date sur nos logs persistés (avec timestamp par ligne)
 app.get("/api/processes/:id/logs/search", (req, res) => {
   pm2.describe(req.params.id, (err, list) => {
@@ -314,6 +339,35 @@ app.get("/api/processes/:id/logs/export-range", (req, res) => {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.send(body || "(aucune ligne dans cette période)");
+  });
+});
+
+// Historique immédiat à afficher quand on sélectionne un process dans l'UI :
+// lit directement les fichiers de log natifs PM2 (out + err), exactement comme
+// le ferait `pm2 logs`, plutôt que d'attendre une nouvelle ligne en direct.
+app.get("/api/processes/:id/logs/tail", (req, res) => {
+  pm2.describe(req.params.id, (err, list) => {
+    if (err || !list || !list.length) {
+      return res.status(404).json({ error: "Process introuvable." });
+    }
+    const proc = list[0];
+    const env = proc.pm2_env || {};
+    const limit = req.query.lines ? Math.min(1000, Number(req.query.lines)) : 200;
+
+    // On borne chaque flux séparément (et pas leur concaténation) pour être sûr de
+    // représenter à la fois stdout et stderr, même si l'un des deux est très bavard.
+    const outLines = env.pm_out_log_path ? readTailLinesSafe(env.pm_out_log_path, limit) : [];
+    const errLines = env.pm_err_log_path ? readTailLinesSafe(env.pm_err_log_path, limit) : [];
+
+    // On ne connaît pas l'horodatage exact de chaque ligne native PM2 (pas de JSON structuré),
+    // donc on les restitue dans leur ordre de fichier respectif, stdout puis stderr,
+    // avec une étiquette "historique" côté frontend plutôt qu'une heure précise.
+    const results = [
+      ...outLines.map((text) => ({ type: "out", text })),
+      ...errLines.map((text) => ({ type: "err", text })),
+    ];
+
+    res.json({ results, pmId: proc.pm_id });
   });
 });
 

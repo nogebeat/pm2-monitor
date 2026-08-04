@@ -25,6 +25,7 @@ export function fmtUptime(ts) {
 }
 
 export function time(ts) {
+  if (!ts) return "·····";
   const d = new Date(ts);
   return d.toLocaleTimeString("fr-FR", { hour12: false });
 }

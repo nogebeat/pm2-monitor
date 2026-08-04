@@ -64,6 +64,33 @@ export function selectProcess(id) {
   state.paused = false;
   state.pausedQueue = [];
   loadLogsStats();
+  loadBacklog(id);
+}
+
+// Charge les dernières lignes déjà écrites dans les fichiers de log natifs PM2
+// (comme le ferait `pm2 logs`), affichées immédiatement au lieu d'attendre une
+// nouvelle ligne en direct — évite l'impression de "aucun log" sur une app calme.
+export function loadBacklog(id) {
+  apiGet(`/api/processes/${id}/logs/tail?lines=200`)
+    .then((r) => {
+      if (state.selected !== id) return; // l'utilisateur a changé de sélection entretemps
+      r.results.forEach((row) => {
+        pushLog({
+          kind: "log",
+          type: row.type,
+          data: row.text,
+          at: null, // pas d'horodatage exact disponible pour l'historique natif PM2
+          level: detectLevel(row.text),
+          backlog: true,
+        });
+      });
+      if (r.results.length) {
+        pushLog({ kind: "event", event: "flux en direct ci-dessous", at: Date.now() });
+      }
+    })
+    .catch(() => {
+      /* pas grave : on retombe simplement sur le flux en direct */
+    });
 }
 
 export function selectedProcess() {
