@@ -37,6 +37,8 @@ function loadDotEnv() {
 const PORT = process.env.PORT || 4200;
 
 const app = express();
+app.set("trust proxy", 1); // derrière nginx/un reverse proxy : IP réelle, X-Forwarded-* fiables
+
 const server = http.createServer(app);
 const io = new Server(server);
 
@@ -45,6 +47,15 @@ app.use(sessionMw);
 app.use(express.json());
 app.use(auth.loadCurrentUser);
 app.use(auth.requireAuth);
+
+// Empêche tout intermédiaire (CDN type Cloudflare, cache navigateur, proxy) de mettre
+// en cache une réponse API par URL : sans ça, un 401 obtenu avant connexion peut être
+// re-servi tel quel après un login réussi, avec le bon cookie envoyé mais ignoré.
+app.use("/api", (req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 // Le bus Socket.IO partage la même session que les requêtes HTTP (cookie envoyé
