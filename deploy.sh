@@ -480,7 +480,28 @@ cmd_update() {
   title "Mise à jour"
   if [ -d .git ]; then
     info "Dépôt git détecté, git pull…"
-    git pull --ff-only
+
+    # public/ est un dossier de build versionné dans le repo mais régénéré par
+    # `npm run build` juste après : on le vide avant de tirer pour éviter tout
+    # conflit avec des fichiers déjà présents localement (ex: builds précédents).
+    rm -rf public
+
+    # `chmod +x deploy.sh` (fait une fois à l'installation) change le mode du
+    # fichier : git le voit alors comme "modifié" même sans changement de
+    # contenu, et bloque le pull. On ignore ces diffs de permission…
+    git config core.fileMode false
+
+    # …et s'il reste de vraies modifications locales (contenu, pas juste le
+    # mode), on les met de côté plutôt que de planter la mise à jour.
+    if ! git diff --quiet -- . 2>/dev/null || ! git diff --quiet --cached -- . 2>/dev/null; then
+      warn "Modifications locales détectées, mises de côté (git stash) avant la mise à jour."
+      git stash push -m "deploy.sh: mis de côté avant update $(date +%F_%T)" || true
+    fi
+
+    if ! git pull --ff-only; then
+      error "git pull a échoué (historique divergent ?). Résous manuellement (git status / git log) puis relance."
+      exit 1
+    fi
   else
     info "Pas de dépôt git : remplace les fichiers du projet manuellement avant de relancer."
   fi
