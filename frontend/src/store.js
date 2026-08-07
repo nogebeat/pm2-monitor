@@ -9,6 +9,15 @@ export const state = reactive({
   connected: false,
   view: "process", // "process" | "system"
 
+  // ---------- Auth / permissions ----------
+  auth: {
+    ready: false, // /api/auth/me a répondu au moins une fois
+    authEnabled: true,
+    user: null, // { id, username, isAdmin, permissions: [{appName, action}] }
+    loginError: null,
+    loggingIn: false,
+  },
+
   processes: [],
   selected: null, // pm_id
   cpuHistory: {}, // pm_id -> [cpu%,…] mini sparkline
@@ -52,6 +61,62 @@ export function notifyError(err) {
       state.toast = null;
     }
   }, 5000);
+}
+
+// ---------- Auth / permissions ----------
+
+/**
+ * Réplique côté client la logique de lib/permissions.js (hasPermission), pour
+ * afficher/masquer les boutons d'action. La vérité vient toujours du serveur :
+ * ceci n'est qu'un confort d'UI, chaque requête est de toute façon revalidée côté API.
+ */
+export function can(action, appName) {
+  const user = state.auth.user;
+  if (!state.auth.authEnabled) return true;
+  if (!user) return false;
+  if (user.isAdmin) return true;
+  if (!Array.isArray(user.permissions)) return false;
+  return user.permissions.some((p) => {
+    if (p.action !== "*" && p.action !== action) return false;
+    if (appName === undefined || appName === null) return true; // action globale
+    return p.appName === "*" || p.appName === appName;
+  });
+}
+
+export function fetchMe() {
+  return apiGet("/api/auth/me")
+    .then((r) => {
+      state.auth.authEnabled = r.authEnabled;
+      state.auth.user = r.user;
+    })
+    .catch(() => {
+      state.auth.user = null;
+    })
+    .finally(() => {
+      state.auth.ready = true;
+    });
+}
+
+export function login(username, password) {
+  state.auth.loggingIn = true;
+  state.auth.loginError = null;
+  return apiPost("/api/auth/login", { username, password })
+    .then(() => fetchMe())
+    .then(() => bootstrap())
+    .catch((err) => {
+      state.auth.loginError = err.message || "Connexion impossible.";
+    })
+    .finally(() => {
+      state.auth.loggingIn = false;
+    });
+}
+
+export function logout() {
+  return fetch("/api/auth/logout", { method: "POST" }).finally(() => {
+    state.auth.user = null;
+    state.processes = [];
+    state.selected = null;
+  });
 }
 
 // ---------- Process ----------
@@ -245,6 +310,8 @@ socket.on("system", (snap) => {
 // ---------- Chargement initial ----------
 
 export function bootstrap() {
+  if (state.auth.authEnabled && !state.auth.user) return; // pas connecté : rien à charger
+
   fetch("/api/processes")
     .then((r) => r.json())
     .then((list) => {
@@ -255,9 +322,11 @@ export function bootstrap() {
       state.toast = { kind: "error", message: "Impossible de joindre le serveur." };
     });
 
-  apiGet("/api/system")
-    .then((snap) => {
-      state.system = snap;
-    })
-    .catch(() => {});
+  if (can("system")) {
+    apiGet("/api/system")
+      .then((snap) => {
+        state.system = snap;
+      })
+      .catch(() => {});
+  }
 }

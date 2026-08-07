@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from "vue";
-import { state } from "../store";
+import { state, logout, can } from "../store";
 
 const online = computed(() => state.processes.filter((p) => p.status === "online").length);
 const down = computed(() => state.processes.filter((p) => p.status !== "online").length);
@@ -24,6 +24,10 @@ function togglePm2Menu(e) {
   e.stopPropagation();
   state.pm2MenuOpen = !state.pm2MenuOpen;
 }
+
+function openUsers() {
+  state.modal = { type: "users" };
+}
 </script>
 
 <template>
@@ -40,7 +44,12 @@ function togglePm2Menu(e) {
       <button class="view-tab" :class="{ active: state.view === 'process' }" @click="setView('process')">
         Process
       </button>
-      <button class="view-tab" :class="{ active: state.view === 'system' }" @click="setView('system')">
+      <button
+        v-if="can('system')"
+        class="view-tab"
+        :class="{ active: state.view === 'system' }"
+        @click="setView('system')"
+      >
         Système
       </button>
     </nav>
@@ -63,9 +72,32 @@ function togglePm2Menu(e) {
         <span class="conn-label">{{ state.connected ? "connecté" : "déconnecté" }}</span>
       </div>
       <button class="icon-btn" title="Actions globales PM2" @click="togglePm2Menu">PM2 ⋯</button>
+      <button
+        v-if="state.auth.user && state.auth.user.isAdmin"
+        class="icon-btn"
+        title="Gérer les utilisateurs et permissions"
+        @click="openUsers"
+      >
+        👤 Utilisateurs
+      </button>
       <button class="theme-toggle" title="Changer de thème" aria-label="Changer de thème" @click="toggleTheme">
         <span class="theme-icon">◐</span>
       </button>
+      <div v-if="state.auth.authEnabled && state.auth.user" class="user-chip" :title="state.auth.user.username">
+        <span>{{ state.auth.user.username }}</span>
+        <button class="icon-btn" title="Se déconnecter" @click="logout">⏻</button>
+      </div>
     </div>
   </header>
 </template>
+
+<style scoped>
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+</style>

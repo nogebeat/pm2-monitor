@@ -4,17 +4,17 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>PM2 Monitor</title>
+<meta name="description" content="Monitoring PM2 en temps réel : process, logs, système." />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-<link rel="stylesheet" href="/style.css" />
-<script src="/vendor/chart.umd.js"></script>
 <script>
+  // Applique le thème avant le premier rendu pour éviter le flash clair/sombre.
   (function () {
     try {
       var saved = localStorage.getItem("pm2-monitor-theme");
       var theme = saved || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
       document.documentElement.setAttribute("data-theme", theme);
     } catch (e) {
-      // localStorage indisponible (navigation privée stricte, cookies bloqués...) : on garde le thème par défaut (:root)
+      // localStorage indisponible (navigation privée stricte…) : thème par défaut.
     }
   })();
 </script>
@@ -33,208 +33,14 @@
     el.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:9999;background:#3a1414;color:#ff8a8a;" +
       "font-family:monospace;font-size:12px;padding:10px 16px;border-bottom:1px solid #ff4d4d;white-space:pre-wrap;";
     el.textContent = "Erreur JS : " + msg + (file ? " (" + file + ":" + line + ")" : "") +
-      " — ouvre la console (F12) pour plus de détails, et signale ce message.";
+      " — ouvre la console (F12) pour plus de détails.";
     document.body.appendChild(el);
   }
 </script>
+  <script type="module" crossorigin src="/assets/index-B4crvcl_.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-COzmUflV.css">
 </head>
 <body>
-  <div class="app">
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true"></span>
-        <div>
-          <h1>PM2 Monitor</h1>
-          <p class="brand-sub">Vitaux des process, en direct</p>
-        </div>
-      </div>
-
-      <nav class="view-tabs" role="tablist" aria-label="Vue">
-        <button class="view-tab active" data-view="process">Process</button>
-        <button class="view-tab" data-view="system">Système</button>
-      </nav>
-
-      <div class="topbar-stats">
-        <div class="stat">
-          <span class="stat-value" id="stat-total">–</span>
-          <span class="stat-label">apps</span>
-        </div>
-        <div class="stat">
-          <span class="stat-value stat-online" id="stat-online">–</span>
-          <span class="stat-label">en ligne</span>
-        </div>
-        <div class="stat">
-          <span class="stat-value stat-down" id="stat-down">–</span>
-          <span class="stat-label">arrêtées</span>
-        </div>
-        <div class="conn" id="conn-indicator">
-          <span class="conn-dot"></span>
-          <span class="conn-label">connexion…</span>
-        </div>
-        <button class="icon-btn" id="pm2-menu-btn" title="Actions globales PM2">PM2 ⋯</button>
-        <button class="theme-toggle" id="theme-toggle" title="Changer de thème" aria-label="Changer de thème">
-          <span class="theme-icon">◐</span>
-        </button>
-      </div>
-    </header>
-
-    <!-- Menu déroulant des actions globales PM2 -->
-    <div class="pm2-menu" id="pm2-menu" hidden>
-      <button data-pm2action="save">💾 Sauvegarder (pm2 save)</button>
-      <button data-pm2action="resurrect">♻️ Resurrect</button>
-      <button data-pm2action="flush-all">🧹 Flush tous les logs</button>
-      <button data-pm2action="update">⬆️ Update PM2</button>
-      <button class="danger" data-pm2action="kill">☠️ Kill daemon PM2</button>
-    </div>
-
-    <main class="layout" id="view-process">
-      <aside class="sidebar">
-        <div class="sidebar-head">
-          <h2>Process</h2>
-          <span class="hint">clique pour voir les logs</span>
-        </div>
-        <div id="process-list" class="process-list">
-          <div class="empty-state">Connexion à PM2…</div>
-        </div>
-      </aside>
-
-      <section class="logs-panel">
-        <div class="logs-head">
-          <div class="logs-title">
-            <h2 id="logs-title">Sélectionne un process</h2>
-            <span class="logs-sub" id="logs-sub">Les logs stdout / stderr apparaîtront ici</span>
-          </div>
-        </div>
-
-        <div class="logs-toolbar">
-          <div class="logs-toolbar-row">
-            <input type="search" id="log-search" class="log-search" placeholder="Rechercher dans les logs…" />
-            <label class="chk-inline" title="Traiter la recherche comme une regex">
-              <input type="checkbox" id="log-regex" /> .*
-            </label>
-            <select id="log-level" class="export-type" title="Filtrer par niveau">
-              <option value="all">tous niveaux</option>
-              <option value="info">info</option>
-              <option value="warn">warn</option>
-              <option value="error">error</option>
-              <option value="debug">debug</option>
-            </select>
-            <div class="filter-group" role="group" aria-label="Filtrer les logs">
-              <button class="filter-btn active" data-filter="all">Tout</button>
-              <button class="filter-btn" data-filter="out">stdout</button>
-              <button class="filter-btn" data-filter="err">stderr</button>
-            </div>
-            <label class="chk-inline"><input type="checkbox" id="log-ansi" checked /> ANSI</label>
-            <label class="chk-inline"><input type="checkbox" id="log-linenum" /> N° ligne</label>
-            <label class="autoscroll">
-              <input type="checkbox" id="autoscroll" checked />
-              Auto-scroll
-            </label>
-            <button class="icon-btn" id="pause-logs" title="Mettre le flux en pause">⏸ Pause</button>
-            <button class="icon-btn" id="clear-logs" title="Vider l'affichage">Vider</button>
-          </div>
-          <div class="logs-toolbar-row">
-            <button class="icon-btn" id="open-fulltext" title="Recherche plein texte dans le fichier complet">🔎 Recherche complète</button>
-            <button class="icon-btn" id="open-goto-date" title="Aller à une date">📅 Aller à une date</button>
-            <div class="export-group">
-              <button class="icon-btn" id="export-logs" title="Télécharger les logs complets">Exporter</button>
-              <select id="export-type" class="export-type" title="Quoi exporter">
-                <option value="all">tout</option>
-                <option value="out">stdout</option>
-                <option value="err">stderr</option>
-              </select>
-            </div>
-            <button class="icon-btn" id="open-export-range" title="Télécharger une période précise">📥 Exporter période</button>
-            <span class="logs-stats" id="logs-stats"></span>
-          </div>
-        </div>
-
-        <div class="logs-body" id="logs-body">
-          <div class="empty-state">En attente de logs…</div>
-        </div>
-      </section>
-    </main>
-
-    <main class="system-view" id="view-system" hidden>
-      <div class="system-grid">
-        <div class="metric-card">
-          <span class="metric-label">Charge machine (load average)</span>
-          <div class="metric-value" id="m-load1">–</div>
-          <div class="metric-sub" id="m-load-sub">1m / 5m / 15m</div>
-        </div>
-        <div class="metric-card">
-          <span class="metric-label">RAM</span>
-          <div class="metric-value" id="m-mem">–</div>
-          <div class="bar"><div class="bar-fill" id="m-mem-bar"></div></div>
-        </div>
-        <div class="metric-card">
-          <span class="metric-label">Swap</span>
-          <div class="metric-value" id="m-swap">–</div>
-          <div class="bar"><div class="bar-fill warn" id="m-swap-bar"></div></div>
-        </div>
-        <div class="metric-card">
-          <span class="metric-label">Disque</span>
-          <div class="metric-value" id="m-disk">–</div>
-          <div class="bar"><div class="bar-fill" id="m-disk-bar"></div></div>
-        </div>
-        <div class="metric-card">
-          <span class="metric-label">Température CPU</span>
-          <div class="metric-value" id="m-temp">–</div>
-          <div class="metric-sub" id="m-temp-sub">Linux uniquement</div>
-        </div>
-        <div class="metric-card">
-          <span class="metric-label">Bande passante réseau</span>
-          <div class="metric-value" id="m-net">–</div>
-          <div class="metric-sub" id="m-net-sub">↓ down / ↑ up</div>
-        </div>
-        <div class="metric-card">
-          <span class="metric-label">Processus système</span>
-          <div class="metric-value" id="m-procs">–</div>
-          <div class="metric-sub">total OS (pas seulement PM2)</div>
-        </div>
-        <div class="metric-card">
-          <span class="metric-label">Cœurs CPU</span>
-          <div class="metric-value" id="m-cores">–</div>
-        </div>
-      </div>
-
-      <div class="chart-panel">
-        <div class="chart-head">
-          <h2>Historique CPU / RAM</h2>
-          <div class="filter-group" role="group" aria-label="Plage d'historique">
-            <button class="filter-btn active" data-range="1h">1h</button>
-            <button class="filter-btn" data-range="6h">6h</button>
-            <button class="filter-btn" data-range="24h">24h</button>
-          </div>
-        </div>
-        <canvas id="history-chart" height="90"></canvas>
-      </div>
-
-      <div class="chart-panel">
-        <div class="chart-head">
-          <h2>Historique réseau</h2>
-        </div>
-        <canvas id="network-chart" height="70"></canvas>
-      </div>
-    </main>
-  </div>
-
-  <!-- Modal générique pour les actions process (env, script/args/mode, scale, confirmations) -->
-  <div class="modal-overlay" id="modal-overlay" hidden>
-    <div class="modal" id="modal-box">
-      <div class="modal-head">
-        <h3 id="modal-title">Action</h3>
-        <button class="icon-btn" id="modal-close">✕</button>
-      </div>
-      <div class="modal-body" id="modal-body"></div>
-      <div class="modal-foot">
-        <button class="icon-btn" id="modal-cancel">Annuler</button>
-        <button class="icon-btn go" id="modal-confirm">Confirmer</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="/app.js"></script>
+  <div id="app"></div>
 </body>
 </html>

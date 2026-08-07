@@ -15,23 +15,34 @@ un frontend **Vue 3 + Vite** qui consomme cette API en REST + WebSocket.
   Le frontend est **compilé** (`npm run build`) en fichiers statiques servis
   directement par Express — il n'y a pas de serveur Node séparé à exposer
   en production, un seul port suffit.
-- Aucune base de données : l'historique système et les logs persistés sont
-  stockés en fichiers locaux (`data/`).
+- **Comptes / permissions** : base **SQLite** locale par défaut (zéro
+  dépendance externe, fichier dans `data/monitor.db`), ou **MySQL/MariaDB**
+  en option si tu as déjà un serveur SQL (`DB_DRIVER=mysql`). Voir
+  [Multi-utilisateurs & permissions](#multi-utilisateurs--permissions).
+- L'historique système et les logs persistés restent en fichiers locaux
+  (`data/`), indépendamment de la base choisie ci-dessus.
 
 Structure du dépôt :
 
 ```
 pm2-monitor/
-├── server.js            # serveur Express + API REST + WebSocket + bus PM2
-├── lib/                  # logique métier (actions PM2, stats système, logs, historique)
-├── frontend/              # source du frontend Vue 3 + Vite
+├── server.js              # serveur Express + API REST + WebSocket + bus PM2
+├── lib/
+│   ├── db/                 # abstraction base de données (sqlite-driver.js, mysql-driver.js)
+│   ├── auth.js              # sessions, middlewares requireAuth / requirePermission / requireAdmin
+│   ├── user-store.js        # CRUD utilisateurs + permissions
+│   ├── permissions.js        # catalogue des actions (par app / globales) + hasPermission()
+│   └── …                    # actions PM2, stats système, logs, historique
+├── bin/
+│   └── manage-users.js       # CLI de gestion des comptes (create, grant, revoke, promote…)
+├── frontend/                # source du frontend Vue 3 + Vite
 │   ├── src/
-│   │   ├── components/    # TopBar, ProcessSidebar, LogsPanel, SystemView, modales…
-│   │   ├── store.js       # état réactif partagé (process, logs, système)
+│   │   ├── components/        # TopBar, ProcessSidebar, LogsPanel, SystemView, LoginScreen, modales…
+│   │   ├── store.js            # état réactif partagé (process, logs, système, auth)
 │   │   ├── socket.js, api.js, format.js
 │   │   └── style.css
 │   └── vite.config.js
-├── public/                # ⚠️ généré par `npm run build` — ne pas éditer à la main
+├── public/                  # ⚠️ généré par `npm run build` — ne pas éditer à la main
 └── deploy.sh
 ```
 
@@ -61,7 +72,7 @@ Ce script gère **toutes les situations** en une commande :
 **Exemples :**
 
 ```bash
-# Accès direct par IP:port, sans nginx
+# Accès direct par IP:port, sans nginx (SQLite par défaut, zéro-config)
 ./deploy.sh install --port 4200 --user admin --pass "mon-mot-de-passe"
 
 # Avec nom de domaine + HTTPS automatique
@@ -69,6 +80,9 @@ Ce script gère **toutes les situations** en une commande :
 
 # Environnement minimal (conteneur, pas de pare-feu ni nginx à toucher)
 ./deploy.sh install --no-nginx --no-firewall --no-startup --yes
+
+# En centralisant comptes/permissions dans un serveur MySQL existant
+./deploy.sh install --db-driver mysql --db-host 127.0.0.1 --db-user pm2_monitor --db-pass "..." --db-name pm2_monitor
 ```
 
 **Autres commandes :**
@@ -79,6 +93,7 @@ Ce script gère **toutes les situations** en une commande :
 ./deploy.sh restart     # redémarrer
 ./deploy.sh stop        # arrêter
 ./deploy.sh update      # git pull (si dépôt git) + npm install + build frontend + restart
+./deploy.sh users …     # gérer comptes / permissions en ligne de commande (voir plus bas)
 ./deploy.sh uninstall           # retire le process PM2
 ./deploy.sh uninstall --purge   # + supprime .env, node_modules (serveur + frontend), le build public/, config nginx
 ```
@@ -188,8 +203,10 @@ npm run dev:client   # terminal 2 — Vite sur :5173
   manuelle du DOM), polices `Space Grotesk` / `JetBrains Mono` auto-hébergées
   (aucune dépendance à un CDN de polices en production).
 - **Thème clair / sombre** : bouton ◐ en haut à droite, préférence mémorisée.
-- **Auth basique intégrée** : identifiant/mot de passe demandés par le
-  navigateur (HTTP Basic Auth), sur les routes HTTP *et* la connexion WebSocket.
+- **Multi-utilisateurs avec permissions par app et par action** : chaque
+  compte se connecte par identifiant/mot de passe (session, plus de mot de
+  passe partagé) et ne voit / ne peut agir que sur ce qui lui a été accordé
+  — voir [Multi-utilisateurs & permissions](#multi-utilisateurs--permissions).
 - **Stats globales** : nombre total d'apps, en ligne, arrêtées, état de la connexion.
 
 ### Limites connues
@@ -202,35 +219,115 @@ npm run dev:client   # terminal 2 — Vite sur :5173
   basée sur des mots-clés dans le texte (`error`, `warn`, `exception`…), pas
   une vraie extraction de niveau structuré — utile en pratique, mais pas
   garanti à 100 % selon le format de logs de ton app.
+- Les sessions de connexion sont gardées **en mémoire du process** (pas de
+  store externe type Redis) : elles ne survivent pas à un redémarrage du
+  serveur (`./deploy.sh restart`, déploiement…), et ne sont pas partagées si
+  tu fais tourner plusieurs instances derrière un load-balancer. Suffisant
+  pour l'usage visé (un monitor par serveur), pas conçu pour du multi-instance.
 
-## Authentification
+## Multi-utilisateurs & permissions
 
-Par défaut, si tu ne configures rien, un mot de passe **aléatoire** est
-généré à chaque démarrage et affiché dans la console — pratique pour tester,
-mais il change à chaque redémarrage.
+Depuis la v3, le monitor gère **plusieurs comptes**, chacun avec ses propres
+droits, plutôt qu'un unique identifiant/mot de passe partagé (Basic Auth).
 
-Pour un accès stable, copie `.env.example` en `.env` et renseigne :
+### Comment ça marche
+
+- Connexion par **session** (cookie), via un vrai écran de login — plus de
+  popup navigateur.
+- Les comptes et leurs permissions sont stockés dans une **base de
+  données** : **SQLite** par défaut (fichier local `data/monitor.db`, aucune
+  dépendance externe — recommandé pour la plupart des installations), ou
+  **MySQL/MariaDB** en option si tu préfères centraliser ça dans un serveur
+  SQL existant (`DB_DRIVER=mysql` dans `.env`).
+- Un compte **admin** a tous les droits, sur toutes les apps.
+- Un compte **non-admin** ne voit et ne peut agir que sur ce qui lui a été
+  explicitement accordé, avec deux niveaux de granularité :
+  - **par app** : `nom-de-l-app` (une app précise) ou `*` (toutes les apps)
+  - **par action** : `restart`, `stop`, `logs`, `env`, `config`, `scale`,
+    `watch`, `flush`, `reset`, `delete`, `start`, `reload`, `view`
+    (visibilité dans la liste), ou `*` (toutes les actions sur cette app)
+
+  Exemple : accorder `demo-app` / `restart` permet **seulement** de
+  redémarrer `demo-app` — l'utilisateur ne verra même pas les autres apps
+  dans l'interface.
+
+  Il existe aussi des **actions globales**, non liées à une app précise :
+  `system` (vue Système), `pm2_save`, `pm2_resurrect`, `pm2_flush_all`,
+  `pm2_update`, `pm2_kill`, `manage_users` (gestion des comptes, admin
+  uniquement).
+
+- L'API et le WebSocket **revalident chaque requête** côté serveur : les
+  boutons masqués côté interface ne sont qu'un confort visuel, la sécurité
+  réelle est appliquée sur chaque route.
+
+### Premier démarrage
+
+Au tout premier démarrage (aucun utilisateur en base), un compte **admin**
+est créé automatiquement à partir de `PM2_MONITOR_USER` / `PM2_MONITOR_PASS`
+dans `.env` (ou `admin` + mot de passe généré si absents — affiché une seule
+fois dans les logs du serveur). Ces deux variables ne servent qu'à cette
+création initiale ; elles peuvent être retirées du `.env` ensuite.
 
 ```bash
 cp .env.example .env
 ```
 
 ```
-PORT=4200
 PM2_MONITOR_USER=admin
 PM2_MONITOR_PASS=un-mot-de-passe-solide
+SESSION_SECRET=une-chaine-aleatoire-longue   # à définir en production (voir plus bas)
+
+DB_DRIVER=sqlite    # ou "mysql" — voir .env.example pour la config MySQL complète
 ```
 
-Pour désactiver l'auth (déconseillé sauf en local strictement) :
-`PM2_MONITOR_DISABLE_AUTH=1`.
+### Gérer les comptes
+
+**Depuis l'interface** (admin uniquement) : bouton **"👤 Utilisateurs"** en
+haut de l'écran → créer un compte, cocher ses permissions par app/action
+dans un tableau, changer un mot de passe, promouvoir/rétrograder admin,
+supprimer un compte.
+
+**En ligne de commande** (pratique en SSH, ou pour scripter le provisioning) :
+
+```bash
+./deploy.sh users list
+./deploy.sh users create operateur "mot-de-passe-au-moins-8-car" [--admin]
+./deploy.sh users grant  operateur demo-app restart
+./deploy.sh users grant  operateur demo-app view
+./deploy.sh users revoke operateur demo-app restart
+./deploy.sh users promote operateur     # devient admin
+./deploy.sh users demote  operateur     # n'est plus admin
+./deploy.sh users passwd  operateur "nouveau-mot-de-passe"
+./deploy.sh users delete  operateur
+```
+
+(équivalent direct : `node bin/manage-users.js …` si tu n'utilises pas `deploy.sh`)
+
+### Désactiver l'auth (déconseillé)
+
+Pour un usage strictement local / de test : `PM2_MONITOR_DISABLE_AUTH=1`
+dans `.env` — toutes les vérifications de session et de permission sont
+alors désactivées, tout le monde a un accès admin complet.
+
+### Migration depuis une installation existante (v2 → v3)
+
+Rien à faire de spécial : au premier démarrage après mise à jour, si aucun
+utilisateur n'existe encore en base, l'ancien `PM2_MONITOR_USER` /
+`PM2_MONITOR_PASS` du `.env` est automatiquement repris pour créer le
+premier compte admin. Lance ensuite `./deploy.sh update` (qui fait tourner
+`npm install` et rebuild le frontend) puis crée d'autres comptes si besoin.
 
 ## Notes importantes
 
 - Le serveur doit tourner **là où PM2 est installé et gère les process**
   (même machine, même utilisateur). Il ne se connecte pas à un PM2 distant.
-- L'auth basique protège l'accès, mais le trafic n'est **pas chiffré** en HTTP
-  simple : si tu exposes le dashboard au-delà de `localhost`, mets-le derrière
-  un reverse proxy HTTPS (nginx + certificat) ou un VPN.
+- Les sessions sont protégées par `SESSION_SECRET` : défini-le explicitement
+  en production (sinon un secret aléatoire est généré à chaque redémarrage
+  du process, ce qui déconnecte tout le monde à chaque restart).
+- Le trafic n'est **pas chiffré** en HTTP simple : si tu exposes le
+  dashboard au-delà de `localhost`, mets-le derrière un reverse proxy HTTPS
+  (nginx + certificat, voir `./deploy.sh install --domain …`) ou un VPN, et
+  pense à `SESSION_COOKIE_SECURE=1` une fois en HTTPS.
 - Pour le faire tourner en continu, tu peux même le gérer... par PM2 :
   ```bash
   pm2 start server.js --name pm2-monitor

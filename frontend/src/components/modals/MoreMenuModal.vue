@@ -1,5 +1,5 @@
 <script setup>
-import { state, notifyError, loadLogsStats } from "../../store";
+import { state, notifyError, loadLogsStats, can } from "../../store";
 import { apiPost } from "../../api";
 import ModalBase from "../ModalBase.vue";
 
@@ -50,13 +50,27 @@ function del() {
   <ModalBase :title="`Actions — ${process.name}`" hide-confirm @close="close">
     <div class="hint-text">Actions rapides pour <b>{{ process.name }}</b> (#{{ process.id }})</div>
     <div class="more-actions">
-      <button class="icon-btn" @click="scale">📈 Scale (instances actuelles : {{ process.instances }})</button>
-      <button class="icon-btn" @click="toggleWatch">👁 Watch {{ process.watching ? "OFF" : "ON" }}</button>
-      <button class="icon-btn" @click="editEnv">🔧 Modifier les variables d'environnement</button>
-      <button class="icon-btn" @click="editConfig">⚙️ Modifier script / arguments / mode</button>
-      <button class="icon-btn" @click="flush">🧹 Flush les logs de cette app</button>
-      <button class="icon-btn" @click="reset">↺ Réinitialiser le compteur de restarts</button>
-      <button class="icon-btn danger-text" @click="del">🗑 Supprimer le process</button>
+      <button v-if="can('scale', process.name)" class="icon-btn" @click="scale">
+        📈 Scale (instances actuelles : {{ process.instances }})
+      </button>
+      <button v-if="can('watch', process.name)" class="icon-btn" @click="toggleWatch">
+        👁 Watch {{ process.watching ? "OFF" : "ON" }}
+      </button>
+      <button v-if="can('env', process.name)" class="icon-btn" @click="editEnv">
+        🔧 Modifier les variables d'environnement
+      </button>
+      <button v-if="can('config', process.name)" class="icon-btn" @click="editConfig">
+        ⚙️ Modifier script / arguments / mode
+      </button>
+      <button v-if="can('flush', process.name)" class="icon-btn" @click="flush">
+        🧹 Flush les logs de cette app
+      </button>
+      <button v-if="can('reset', process.name)" class="icon-btn" @click="reset">
+        ↺ Réinitialiser le compteur de restarts
+      </button>
+      <button v-if="can('delete', process.name)" class="icon-btn danger-text" @click="del">
+        🗑 Supprimer le process
+      </button>
     </div>
   </ModalBase>
 </template>

@@ -15,19 +15,31 @@
 #   ./deploy.sh install [options]
 #   ./deploy.sh update
 #   ./deploy.sh status | logs | restart | stop
+#   ./deploy.sh users <list|create|passwd|delete|grant|revoke|promote|demote> [args…]
 #   ./deploy.sh uninstall [--purge]
 #
 # Options d'installation :
-#   --port <n>          Port d'écoute (défaut : 4200)
-#   --user <nom>         Identifiant de connexion (défaut : admin)
-#   --pass <motdepasse>  Mot de passe (défaut : généré aléatoirement)
-#   --domain <domaine>   Domaine pour nginx + HTTPS (ex: pm2.mondomaine.fr)
-#   --email <email>      Email pour Let's Encrypt (requis si --domain)
-#   --no-nginx           Ne pas configurer nginx (accès direct par IP:port)
-#   --no-firewall        Ne pas toucher au pare-feu
-#   --no-startup         Ne pas configurer le démarrage automatique au boot
-#   --yes                Mode non-interactif (répond "oui" aux confirmations)
-#   -h, --help           Affiche cette aide
+#   --port <n>            Port d'écoute (défaut : 4200)
+#   --user <nom>           Identifiant du compte admin créé au premier démarrage (défaut : admin)
+#   --pass <motdepasse>    Mot de passe de ce compte admin (défaut : généré aléatoirement)
+#   --domain <domaine>     Domaine pour nginx + HTTPS (ex: pm2.mondomaine.fr)
+#   --email <email>        Email pour Let's Encrypt (requis si --domain)
+#   --no-nginx             Ne pas configurer nginx (accès direct par IP:port)
+#   --no-firewall          Ne pas toucher au pare-feu
+#   --no-startup           Ne pas configurer le démarrage automatique au boot
+#   --db-driver <driver>   sqlite (défaut, zéro-config) ou mysql
+#   --db-host <host>       Hôte MySQL (si --db-driver mysql, défaut : 127.0.0.1)
+#   --db-port <port>       Port MySQL (défaut : 3306)
+#   --db-user <user>       Utilisateur MySQL
+#   --db-pass <pass>       Mot de passe MySQL
+#   --db-name <name>       Base MySQL (défaut : pm2_monitor)
+#   --yes                  Mode non-interactif (répond "oui" aux confirmations)
+#   -h, --help             Affiche cette aide
+#
+# Gestion des comptes / permissions (users/roles multi-utilisateurs, par app
+# et par action) : une fois installé, utilise `./deploy.sh users …`, qui
+# délègue à `node bin/manage-users.js` — voir le README pour le détail des
+# actions disponibles (view, restart, stop, logs, env, config, scale…).
 #
 set -euo pipefail
 
@@ -48,6 +60,13 @@ USE_NGINX="1"
 USE_FIREWALL="1"
 USE_STARTUP="1"
 NON_INTERACTIVE="0"
+
+DB_DRIVER="sqlite"
+DB_HOST="127.0.0.1"
+DB_PORT="3306"
+DB_USER=""
+DB_PASS=""
+DB_NAME="pm2_monitor"
 
 # ---------------------------------------------------------------------
 # Utilitaires d'affichage
@@ -157,14 +176,32 @@ ensure_pm2() {
   fi
 }
 
+ensure_build_tools() {
+  # better-sqlite3 fournit des binaires précompilés pour la plupart des plateformes
+  # courantes, mais sur une archi/distribution rare npm doit compiler depuis les
+  # sources : on installe alors les outils nécessaires pour que ça ne casse pas.
+  title "Outils de compilation natifs (au besoin)"
+  case "$PKG_MANAGER" in
+    apt) pkg_install build-essential python3 >/dev/null 2>&1 || true ;;
+    dnf|yum) pkg_install gcc-c++ make python3 >/dev/null 2>&1 || true ;;
+    *) : ;;
+  esac
+  ok "Prêt (utilisés seulement si aucun binaire précompilé n'est disponible)."
+}
+
 ensure_dependencies() {
   title "Dépendances du projet"
   cd "$SCRIPT_DIR"
+  ensure_build_tools
   if [ -d node_modules ] && [ -f node_modules/.deploy-installed ]; then
     ok "Dépendances déjà installées."
   else
-    info "npm install…"
+    info "npm install… (inclut la base de données locale SQLite par défaut)"
     npm install --omit=dev
+    if [ "$DB_DRIVER" = "mysql" ]; then
+      info "DB_DRIVER=mysql : installation de la dépendance mysql2…"
+      npm install mysql2 --omit=dev --no-save || warn "Échec d'installation de mysql2, vérifie ta connexion npm."
+    fi
     touch node_modules/.deploy-installed
     ok "Dépendances installées."
   fi
@@ -177,6 +214,24 @@ ensure_frontend_build() {
   npm --prefix frontend install --no-audit --no-fund >/dev/null
   npm --prefix frontend run build
   ok "Frontend construit dans public/."
+}
+
+ensure_mysql_config() {
+  [ "$DB_DRIVER" = "mysql" ] || return 0
+  title "Configuration MySQL"
+  if [ -z "$DB_USER" ] && [ "$NON_INTERACTIVE" != "1" ]; then
+    read -r -p "Utilisateur MySQL : " DB_USER
+  fi
+  if [ -z "$DB_PASS" ] && [ "$NON_INTERACTIVE" != "1" ]; then
+    read -r -s -p "Mot de passe MySQL : " DB_PASS
+    echo ""
+  fi
+  if [ -z "$DB_USER" ]; then
+    error "DB_DRIVER=mysql requiert --db-user (et --db-pass) en mode --yes."
+    exit 1
+  fi
+  ok "Connexion MySQL configurée : ${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+  info "Assure-toi que cette base et cet utilisateur existent déjà (le script ne crée pas la base MySQL elle-même, seulement ses tables au premier démarrage)."
 }
 
 random_password() {
@@ -199,17 +254,36 @@ write_env() {
   fi
 
   [ -z "$AUTH_PASS" ] && AUTH_PASS="$(random_password)"
+  local session_secret
+  session_secret="$(random_password)"
 
-  cat > "$ENV_FILE" <<EOF
-PORT=${PORT}
-PM2_MONITOR_USER=${AUTH_USER}
-PM2_MONITOR_PASS=${AUTH_PASS}
-EOF
+  {
+    echo "PORT=${PORT}"
+    echo ""
+    echo "# Compte admin créé automatiquement au tout premier démarrage (voir README ->"
+    echo "# section Multi-utilisateurs). Peut être retiré du .env une fois ce compte créé."
+    echo "PM2_MONITOR_USER=${AUTH_USER}"
+    echo "PM2_MONITOR_PASS=${AUTH_PASS}"
+    echo ""
+    echo "SESSION_SECRET=${session_secret}"
+    echo ""
+    echo "DB_DRIVER=${DB_DRIVER}"
+    if [ "$DB_DRIVER" = "mysql" ]; then
+      echo "DB_HOST=${DB_HOST}"
+      echo "DB_PORT=${DB_PORT}"
+      echo "DB_USER=${DB_USER}"
+      echo "DB_PASS=${DB_PASS}"
+      echo "DB_NAME=${DB_NAME}"
+    fi
+  } > "$ENV_FILE"
+
   chmod 600 "$ENV_FILE"
-  ok "Fichier .env généré."
-  echo -e "   ${c_bold}Identifiant :${c_reset} ${AUTH_USER}"
+  ok "Fichier .env généré (base de données : ${DB_DRIVER})."
+  echo -e "   ${c_bold}Identifiant admin :${c_reset} ${AUTH_USER}"
   echo -e "   ${c_bold}Mot de passe :${c_reset} ${AUTH_PASS}"
   echo -e "   ${c_yellow}Note ces identifiants, ils ne seront plus réaffichés en clair.${c_reset}"
+  echo -e "   Gère ensuite les comptes/permissions via le menu \"Utilisateurs\" (admin) ou :"
+  echo -e "   ${c_bold}./deploy.sh users list${c_reset}"
 }
 
 start_app() {
@@ -387,6 +461,7 @@ print_summary() {
 cmd_install() {
   detect_privileges
   detect_pkg_manager
+  ensure_mysql_config
   ensure_nodejs
   ensure_pm2
   ensure_dependencies
@@ -424,6 +499,15 @@ cmd_logs()   { pm2 logs "$APP_NAME"; }
 cmd_restart(){ pm2 restart "$APP_NAME" --update-env; ok "Redémarré."; }
 cmd_stop()   { pm2 stop "$APP_NAME"; ok "Arrêté."; }
 
+cmd_users() {
+  cd "$SCRIPT_DIR"
+  if [ ! -d node_modules ]; then
+    error "Dépendances non installées. Lance d'abord ./deploy.sh install"
+    exit 1
+  fi
+  node bin/manage-users.js "$@"
+}
+
 cmd_uninstall() {
   detect_privileges
   title "Désinstallation"
@@ -451,7 +535,7 @@ cmd_uninstall() {
 }
 
 print_help() {
-  sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,43p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 # ---------------------------------------------------------------------
@@ -460,6 +544,11 @@ print_help() {
 
 COMMAND="${1:-}"
 [ $# -gt 0 ] && shift || true
+
+if [ "$COMMAND" = "users" ]; then
+  cmd_users "$@"
+  exit $?
+fi
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -471,12 +560,23 @@ while [ $# -gt 0 ]; do
     --no-nginx) USE_NGINX="0"; shift ;;
     --no-firewall) USE_FIREWALL="0"; shift ;;
     --no-startup) USE_STARTUP="0"; shift ;;
+    --db-driver) DB_DRIVER="$2"; shift 2 ;;
+    --db-host) DB_HOST="$2"; shift 2 ;;
+    --db-port) DB_PORT="$2"; shift 2 ;;
+    --db-user) DB_USER="$2"; shift 2 ;;
+    --db-pass) DB_PASS="$2"; shift 2 ;;
+    --db-name) DB_NAME="$2"; shift 2 ;;
     --purge) PURGE="--purge"; shift ;;
     --yes) NON_INTERACTIVE="1"; shift ;;
     -h|--help) print_help; exit 0 ;;
     *) error "Option inconnue : $1"; print_help; exit 1 ;;
   esac
 done
+
+if [ "$DB_DRIVER" != "sqlite" ] && [ "$DB_DRIVER" != "mysql" ]; then
+  error "--db-driver invalide : ${DB_DRIVER} (valeurs acceptées : sqlite, mysql)"
+  exit 1
+fi
 
 case "$COMMAND" in
   install)   cmd_install ;;

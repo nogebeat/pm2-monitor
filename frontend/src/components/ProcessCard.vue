@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from "vue";
-import { state, selectProcess, runProcessAction } from "../store";
+import { state, selectProcess, runProcessAction, can } from "../store";
 import { apiPost } from "../api";
 import { notifyError } from "../store";
 import { fmtMem, fmtUptime } from "../format";
@@ -32,6 +32,8 @@ function quickAction(action) {
 function openMore() {
   state.modal = { type: "more", process: props.process };
 }
+
+const canAny = (...actions) => actions.some((a) => can(a, props.process.name));
 </script>
 
 <template>
@@ -61,11 +63,17 @@ function openMore() {
     </div>
 
     <div class="proc-actions">
-      <button class="go" @click.stop="quickAction('start')">Start</button>
-      <button @click.stop="quickAction('restart')">Restart</button>
-      <button @click.stop="quickAction('reload')">Reload</button>
-      <button class="danger" @click.stop="quickAction('stop')">Stop</button>
-      <button class="more" @click.stop="openMore">⋯ Plus</button>
+      <button v-if="can('start', process.name)" class="go" @click.stop="quickAction('start')">Start</button>
+      <button v-if="can('restart', process.name)" @click.stop="quickAction('restart')">Restart</button>
+      <button v-if="can('reload', process.name)" @click.stop="quickAction('reload')">Reload</button>
+      <button v-if="can('stop', process.name)" class="danger" @click.stop="quickAction('stop')">Stop</button>
+      <button
+        v-if="canAny('scale', 'watch', 'env', 'config', 'flush', 'reset', 'delete')"
+        class="more"
+        @click.stop="openMore"
+      >
+        ⋯ Plus
+      </button>
     </div>
   </div>
 </template>

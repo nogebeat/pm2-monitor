@@ -10,6 +10,10 @@ const systemStats = require("./lib/system-stats");
 const { HistoryStore, SAMPLE_INTERVAL_MS } = require("./lib/history-store");
 const { LogStore } = require("./lib/log-store");
 const pm2Actions = require("./lib/pm2-actions");
+const db = require("./lib/db");
+const userStore = require("./lib/user-store");
+const permissions = require("./lib/permissions");
+const auth = require("./lib/auth");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -31,69 +35,25 @@ function loadDotEnv() {
 }
 
 const PORT = process.env.PORT || 4200;
-const AUTH_USER = process.env.PM2_MONITOR_USER || "admin";
-const AUTH_PASS = process.env.PM2_MONITOR_PASS || "";
-const AUTH_ENABLED = process.env.PM2_MONITOR_DISABLE_AUTH !== "1";
-
-if (AUTH_ENABLED && !AUTH_PASS) {
-  console.warn(
-    "\n⚠️  Aucun PM2_MONITOR_PASS défini : un mot de passe aléatoire a été généré pour cette session.\n" +
-      "   Définis PM2_MONITOR_USER / PM2_MONITOR_PASS (ou un fichier .env) pour un accès stable.\n"
-  );
-}
-const effectivePass = AUTH_PASS || crypto.randomBytes(9).toString("base64");
-if (AUTH_ENABLED && !AUTH_PASS) {
-  console.warn(`   Identifiants générés → utilisateur: ${AUTH_USER}  mot de passe: ${effectivePass}\n`);
-}
-
-function checkCredentials(user, pass) {
-  return safeEqual(user, AUTH_USER) && safeEqual(pass, effectivePass);
-}
-
-function safeEqual(a, b) {
-  const bufA = Buffer.from(String(a));
-  const bufB = Buffer.from(String(b));
-  if (bufA.length !== bufB.length) return false;
-  return crypto.timingSafeEqual(bufA, bufB);
-}
-
-function basicAuth(req, res, next) {
-  if (!AUTH_ENABLED) return next();
-
-  const header = req.headers.authorization || "";
-  const [scheme, encoded] = header.split(" ");
-
-  if (scheme === "Basic" && encoded) {
-    const decoded = Buffer.from(encoded, "base64").toString("utf8");
-    const sep = decoded.indexOf(":");
-    const user = decoded.slice(0, sep);
-    const pass = decoded.slice(sep + 1);
-    if (checkCredentials(user, pass)) return next();
-  }
-
-  res.set("WWW-Authenticate", 'Basic realm="PM2 Monitor"');
-  res.status(401).send("Authentification requise.");
-}
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-app.use(basicAuth);
+const sessionMw = auth.sessionMiddleware();
+app.use(sessionMw);
 app.use(express.json());
+app.use(auth.loadCurrentUser);
+app.use(auth.requireAuth);
 app.use(express.static(path.join(__dirname, "public")));
 
-// Même vérification pour les connexions WebSocket (le navigateur renvoie
-// l'en-tête Authorization mise en cache après le premier prompt HTTP).
+// Le bus Socket.IO partage la même session que les requêtes HTTP (cookie envoyé
+// automatiquement par le navigateur), pour appliquer les mêmes règles de visibilité.
+io.engine.use(sessionMw);
 io.use((socket, next) => {
-  if (!AUTH_ENABLED) return next();
-  const header = socket.handshake.headers.authorization || "";
-  const [scheme, encoded] = header.split(" ");
-  if (scheme === "Basic" && encoded) {
-    const decoded = Buffer.from(encoded, "base64").toString("utf8");
-    const sep = decoded.indexOf(":");
-    if (checkCredentials(decoded.slice(0, sep), decoded.slice(sep + 1))) return next();
-  }
+  if (!auth.AUTH_ENABLED) return next();
+  const sess = socket.request.session;
+  if (sess && sess.userId) return next();
   next(new Error("unauthorized"));
 });
 
@@ -101,6 +61,31 @@ io.use((socket, next) => {
 
 const historyStore = new HistoryStore();
 const logStore = new LogStore(path.join(__dirname, "data", "logs"));
+
+// --- Bootstrap : DB + migration douce depuis l'ancien mode mono-utilisateur ---
+
+async function ensureBootstrapAdmin() {
+  const n = await userStore.countUsers();
+  if (n > 0) return;
+
+  // Migration depuis l'ancien système (.env PM2_MONITOR_USER/PM2_MONITOR_PASS)
+  // ou génération d'un compte admin par défaut, pour ne pas laisser une
+  // installation existante sans accès après mise à jour.
+  const legacyUser = process.env.PM2_MONITOR_USER || "admin";
+  const legacyPass = process.env.PM2_MONITOR_PASS || crypto.randomBytes(9).toString("base64");
+
+  await userStore.createUser({ username: legacyUser, password: legacyPass, isAdmin: true });
+
+  console.warn(
+    `\n👤  Aucun utilisateur trouvé : un compte administrateur a été créé.\n` +
+      `   Identifiant : ${legacyUser}\n` +
+      (process.env.PM2_MONITOR_PASS
+        ? ""
+        : `   Mot de passe (généré, à noter) : ${legacyPass}\n`) +
+      `   Gère les comptes ensuite depuis l'UI (menu utilisateurs) ou via ` +
+      `\`node bin/manage-users.js\`.\n`
+  );
+}
 
 // --- Helpers ---------------------------------------------------------
 
@@ -140,37 +125,149 @@ function handleAction(promise, res) {
     .catch((err) => res.status(500).json({ error: err.message }));
 }
 
+/** Filtre une liste de process pm2 formatés selon ce que l'utilisateur peut "view". */
+function visibleProcesses(user, list) {
+  if (!auth.AUTH_ENABLED) return list;
+  if (user && user.isAdmin) return list;
+  return list.filter((p) => permissions.hasPermission(user, p.name, "view"));
+}
+
+/**
+ * Résout le nom d'app pm2 depuis un :id de route, puis vérifie la permission
+ * avant d'exécuter le handler. Renvoie 404 si le process n'existe pas et 403
+ * si l'action n'est pas autorisée sur cette app précise.
+ */
+function withAppPermission(action) {
+  return (req, res, next) => {
+    if (!auth.AUTH_ENABLED) return next();
+    pm2.describe(req.params.id, (err, list) => {
+      if (err || !list || !list.length) {
+        return res.status(404).json({ error: "Process introuvable." });
+      }
+      if (!permissions.hasPermission(req.user, list[0].name, action)) {
+        return res.status(403).json({ error: "Action non autorisée pour cette app." });
+      }
+      next();
+    });
+  };
+}
+
+// --- REST API : authentification -----------------------------------------
+
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    const user = await userStore.verifyCredentials(username, password);
+    if (!user) return res.status(401).json({ error: "Identifiants invalides." });
+    req.session.userId = user.id;
+    res.json({ ok: true, user: { username: user.username, isAdmin: user.isAdmin } });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/auth/logout", (req, res) => {
+  if (req.session) req.session.destroy(() => {});
+  res.json({ ok: true });
+});
+
+app.get("/api/auth/me", (req, res) => {
+  if (!auth.AUTH_ENABLED) {
+    return res.json({ authEnabled: false, user: { username: "anonyme", isAdmin: true, permissions: [] } });
+  }
+  if (!req.user) return res.status(401).json({ error: "Non authentifié." });
+  res.json({ authEnabled: true, user: req.user });
+});
+
+// --- REST API : gestion des utilisateurs (admin seulement) ---------------
+
+app.get("/api/users", auth.requireAdmin, async (req, res) => {
+  try {
+    res.json(await userStore.listUsers());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/users", auth.requireAdmin, async (req, res) => {
+  try {
+    const { username, password, isAdmin, permissions: perms } = req.body || {};
+    const user = await userStore.createUser({ username, password, isAdmin: !!isAdmin });
+    if (Array.isArray(perms) && perms.length) {
+      await userStore.replacePermissions(user.id, perms);
+    }
+    res.json(await userStore.getUserWithPermissions(user.id));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.put("/api/users/:id", auth.requireAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { password, isAdmin, permissions: perms } = req.body || {};
+    if (password) await userStore.setPassword(id, password);
+    if (isAdmin !== undefined) await userStore.setAdmin(id, !!isAdmin);
+    if (Array.isArray(perms)) await userStore.replacePermissions(id, perms);
+    const updated = await userStore.getUserWithPermissions(id);
+    if (!updated) return res.status(404).json({ error: "Utilisateur introuvable." });
+    res.json(updated);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete("/api/users/:id", auth.requireAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (req.user && req.user.id === id) {
+      return res.status(400).json({ error: "Impossible de supprimer son propre compte." });
+    }
+    await userStore.deleteUser(id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/permissions/catalog", auth.requireAdmin, (req, res) => {
+  res.json({
+    appActions: permissions.APP_ACTIONS,
+    globalActions: permissions.GLOBAL_ACTIONS,
+  });
+});
+
 // --- REST API : liste / actions de base sur les process ------------------
 
 app.get("/api/processes", (req, res) => {
   pm2.list((err, list) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json(list.map(fmtProcess));
+    res.json(visibleProcesses(req.user, list.map(fmtProcess)));
   });
 });
 
-app.post("/api/processes/:id/restart", (req, res) => {
+app.post("/api/processes/:id/restart", withAppPermission("restart"), (req, res) => {
   pm2.restart(req.params.id, (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ ok: true });
   });
 });
 
-app.post("/api/processes/:id/stop", (req, res) => {
+app.post("/api/processes/:id/stop", withAppPermission("stop"), (req, res) => {
   pm2.stop(req.params.id, (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ ok: true });
   });
 });
 
-app.post("/api/processes/:id/start", (req, res) => {
+app.post("/api/processes/:id/start", withAppPermission("start"), (req, res) => {
   pm2.start(req.params.id, (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ ok: true });
   });
 });
 
-app.post("/api/processes/:id/delete", (req, res) => {
+app.post("/api/processes/:id/delete", withAppPermission("delete"), (req, res) => {
   pm2.delete(req.params.id, (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ ok: true });
@@ -179,62 +276,62 @@ app.post("/api/processes/:id/delete", (req, res) => {
 
 // --- REST API : actions PM2 étendues --------------------------------------
 
-app.post("/api/processes/:id/reload", (req, res) => {
+app.post("/api/processes/:id/reload", withAppPermission("reload"), (req, res) => {
   handleAction(pm2Actions.reload(pm2, req.params.id), res);
 });
 
-app.post("/api/processes/:id/scale", (req, res) => {
+app.post("/api/processes/:id/scale", withAppPermission("scale"), (req, res) => {
   handleAction(pm2Actions.scale(pm2, req.params.id, req.body.instances), res);
 });
 
-app.post("/api/processes/:id/watch", (req, res) => {
+app.post("/api/processes/:id/watch", withAppPermission("watch"), (req, res) => {
   handleAction(pm2Actions.toggleWatch(pm2, req.params.id, !!req.body.enable), res);
 });
 
-app.post("/api/processes/:id/env", (req, res) => {
+app.post("/api/processes/:id/env", withAppPermission("env"), (req, res) => {
   handleAction(pm2Actions.editEnv(pm2, req.params.id, req.body.env || {}), res);
 });
 
-app.post("/api/processes/:id/config", (req, res) => {
+app.post("/api/processes/:id/config", withAppPermission("config"), (req, res) => {
   // { script, args, execMode, instances }
   handleAction(pm2Actions.editConfig(pm2, req.params.id, req.body || {}), res);
 });
 
-app.post("/api/pm2/save", (req, res) => {
+app.post("/api/pm2/save", auth.requirePermission("pm2_save"), (req, res) => {
   handleAction(pm2Actions.save(pm2), res);
 });
 
-app.post("/api/pm2/resurrect", (req, res) => {
+app.post("/api/pm2/resurrect", auth.requirePermission("pm2_resurrect"), (req, res) => {
   handleAction(pm2Actions.resurrect(pm2), res);
 });
 
-app.post("/api/processes/:id/flush", (req, res) => {
+app.post("/api/processes/:id/flush", withAppPermission("flush"), (req, res) => {
   handleAction(pm2Actions.flush(pm2, req.params.id), res);
 });
 
-app.post("/api/pm2/flush-all", (req, res) => {
+app.post("/api/pm2/flush-all", auth.requirePermission("pm2_flush_all"), (req, res) => {
   handleAction(pm2Actions.flush(pm2), res);
 });
 
-app.post("/api/processes/:id/reset", (req, res) => {
+app.post("/api/processes/:id/reset", withAppPermission("reset"), (req, res) => {
   handleAction(pm2Actions.resetCounter(pm2, req.params.id), res);
 });
 
-app.post("/api/pm2/update", (req, res) => {
+app.post("/api/pm2/update", auth.requirePermission("pm2_update"), (req, res) => {
   handleAction(pm2Actions.updatePM2(pm2), res);
 });
 
-app.post("/api/pm2/kill", (req, res) => {
+app.post("/api/pm2/kill", auth.requirePermission("pm2_kill"), (req, res) => {
   handleAction(pm2Actions.killDaemon(pm2), res);
 });
 
 // --- REST API : système & historique ---------------------------------------
 
-app.get("/api/system", (req, res) => {
+app.get("/api/system", auth.requirePermission("system"), (req, res) => {
   res.json(systemStats.snapshot());
 });
 
-app.get("/api/system/history", (req, res) => {
+app.get("/api/system/history", auth.requirePermission("system"), (req, res) => {
   const range = ["1h", "6h", "24h"].includes(req.query.range) ? req.query.range : "1h";
   res.json({ range, interval: SAMPLE_INTERVAL_MS, samples: historyStore.query(range) });
 });
@@ -243,7 +340,7 @@ app.get("/api/system/history", (req, res) => {
 
 // Export des logs complets bruts : lit directement les fichiers gérés par PM2
 // (out + err), pas seulement ce qui a été capturé en direct côté navigateur.
-app.get("/api/processes/:id/logs/export", (req, res) => {
+app.get("/api/processes/:id/logs/export", withAppPermission("logs"), (req, res) => {
   pm2.describe(req.params.id, (err, list) => {
     if (err || !list || !list.length) {
       return res.status(404).json({ error: "Process introuvable." });
@@ -304,7 +401,7 @@ function readTailLinesSafe(filePath, maxLines) {
 }
 
 // Recherche full-text / regex / niveau / date sur nos logs persistés (avec timestamp par ligne)
-app.get("/api/processes/:id/logs/search", (req, res) => {
+app.get("/api/processes/:id/logs/search", withAppPermission("logs"), (req, res) => {
   pm2.describe(req.params.id, (err, list) => {
     if (err || !list || !list.length) {
       return res.status(404).json({ error: "Process introuvable." });
@@ -325,7 +422,7 @@ app.get("/api/processes/:id/logs/search", (req, res) => {
 });
 
 // Export d'une période précise (date de début / fin en ms epoch)
-app.get("/api/processes/:id/logs/export-range", (req, res) => {
+app.get("/api/processes/:id/logs/export-range", withAppPermission("logs"), (req, res) => {
   pm2.describe(req.params.id, (err, list) => {
     if (err || !list || !list.length) {
       return res.status(404).json({ error: "Process introuvable." });
@@ -345,7 +442,7 @@ app.get("/api/processes/:id/logs/export-range", (req, res) => {
 // Historique immédiat à afficher quand on sélectionne un process dans l'UI :
 // lit directement les fichiers de log natifs PM2 (out + err), exactement comme
 // le ferait `pm2 logs`, plutôt que d'attendre une nouvelle ligne en direct.
-app.get("/api/processes/:id/logs/tail", (req, res) => {
+app.get("/api/processes/:id/logs/tail", withAppPermission("logs"), (req, res) => {
   pm2.describe(req.params.id, (err, list) => {
     if (err || !list || !list.length) {
       return res.status(404).json({ error: "Process introuvable." });
@@ -371,7 +468,7 @@ app.get("/api/processes/:id/logs/tail", (req, res) => {
   });
 });
 
-app.get("/api/processes/:id/logs/stats", (req, res) => {
+app.get("/api/processes/:id/logs/stats", withAppPermission("logs"), (req, res) => {
   pm2.describe(req.params.id, (err, list) => {
     if (err || !list || !list.length) {
       return res.status(404).json({ error: "Process introuvable." });
@@ -384,10 +481,16 @@ app.get("/api/processes/:id/logs/stats", (req, res) => {
 // --- Realtime: liste des process (polling léger) + logs (bus PM2) ------
 
 io.on("connection", (socket) => {
+  const sessUserId = auth.AUTH_ENABLED ? socket.request.session && socket.request.session.userId : 0;
+
   const interval = setInterval(() => {
-    pm2.list((err, list) => {
+    pm2.list(async (err, list) => {
       if (err) return;
-      socket.emit("processes", list.map(fmtProcess));
+      let user = null;
+      if (auth.AUTH_ENABLED) {
+        user = sessUserId ? await userStore.getUserWithPermissions(sessUserId) : null;
+      }
+      socket.emit("processes", visibleProcesses(user, list.map(fmtProcess)));
     });
   }, 1500);
 
@@ -402,58 +505,73 @@ setInterval(() => {
 }, SAMPLE_INTERVAL_MS);
 
 // Un seul bus de logs partagé, diffusé à tous les clients connectés
-withPm2((err) => {
-  if (err) {
-    console.error("Impossible de se connecter à PM2 :", err.message);
-    process.exit(1);
-  }
-
-  pm2.launchBus((err, bus) => {
+// (le filtrage par permission "logs" sur une app précise se fait déjà côté
+// REST pour l'historique/export ; en direct, le frontend n'affiche que les
+// logs de l'app sélectionnée, elle-même filtrée par la liste de process visible).
+function startPm2Bus() {
+  withPm2((err) => {
     if (err) {
-      console.error("Impossible d'ouvrir le bus de logs PM2 :", err.message);
-      return;
+      console.error("Impossible de se connecter à PM2 :", err.message);
+      process.exit(1);
     }
 
-    bus.on("log:out", (packet) => {
-      const at = Date.now();
-      logStore.appendPacket(packet.process.pm_id, packet.process.name, "out", packet.data, at);
-      io.emit("log", {
-        type: "out",
-        process: packet.process.name,
-        pm_id: packet.process.pm_id,
-        data: packet.data,
-        at,
+    pm2.launchBus((err, bus) => {
+      if (err) {
+        console.error("Impossible d'ouvrir le bus de logs PM2 :", err.message);
+        return;
+      }
+
+      bus.on("log:out", (packet) => {
+        const at = Date.now();
+        logStore.appendPacket(packet.process.pm_id, packet.process.name, "out", packet.data, at);
+        io.emit("log", {
+          type: "out",
+          process: packet.process.name,
+          pm_id: packet.process.pm_id,
+          data: packet.data,
+          at,
+        });
+      });
+
+      bus.on("log:err", (packet) => {
+        const at = Date.now();
+        logStore.appendPacket(packet.process.pm_id, packet.process.name, "err", packet.data, at);
+        io.emit("log", {
+          type: "err",
+          process: packet.process.name,
+          pm_id: packet.process.pm_id,
+          data: packet.data,
+          at,
+        });
+      });
+
+      bus.on("process:event", (packet) => {
+        io.emit("event", {
+          event: packet.event,
+          process: packet.process.name,
+          pm_id: packet.process.pm_id,
+          at: Date.now(),
+        });
       });
     });
 
-    bus.on("log:err", (packet) => {
-      const at = Date.now();
-      logStore.appendPacket(packet.process.pm_id, packet.process.name, "err", packet.data, at);
-      io.emit("log", {
-        type: "err",
-        process: packet.process.name,
-        pm_id: packet.process.pm_id,
-        data: packet.data,
-        at,
-      });
-    });
-
-    bus.on("process:event", (packet) => {
-      io.emit("event", {
-        event: packet.event,
-        process: packet.process.name,
-        pm_id: packet.process.pm_id,
-        at: Date.now(),
-      });
+    server.listen(PORT, () => {
+      console.log(`PM2 Monitor disponible sur http://localhost:${PORT}`);
     });
   });
+}
 
-  server.listen(PORT, () => {
-    console.log(`PM2 Monitor disponible sur http://localhost:${PORT}`);
+// --- Démarrage : DB puis bus PM2 --------------------------------------
+
+db.init()
+  .then(ensureBootstrapAdmin)
+  .then(startPm2Bus)
+  .catch((err) => {
+    console.error("Échec d'initialisation de la base de données :", err.message);
+    process.exit(1);
   });
-});
 
 process.on("SIGINT", () => {
   pm2.disconnect();
-  process.exit(0);
+  db.close().finally(() => process.exit(0));
 });

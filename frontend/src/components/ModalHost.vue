@@ -9,6 +9,7 @@ import ConfigModal from "./modals/ConfigModal.vue";
 import FullTextSearchModal from "./modals/FullTextSearchModal.vue";
 import GotoDateModal from "./modals/GotoDateModal.vue";
 import ExportRangeModal from "./modals/ExportRangeModal.vue";
+import UsersModal from "./modals/UsersModal.vue";
 
 const componentMap = {
   more: MoreMenuModal,
@@ -18,6 +19,7 @@ const componentMap = {
   fulltext: FullTextSearchModal,
   gotodate: GotoDateModal,
   exportrange: ExportRangeModal,
+  users: UsersModal,
 };
 
 const current = computed(() => (state.modal ? componentMap[state.modal.type] : null));
