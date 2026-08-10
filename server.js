@@ -15,6 +15,8 @@ const migrator = require("./lib/db/migrator");
 const userStore = require("./lib/user-store");
 const permissions = require("./lib/permissions");
 const auth = require("./lib/auth");
+const { engine: alertEngine } = require("./lib/services/alerts");
+const alertsRouter = require("./lib/routes/alerts");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -36,6 +38,13 @@ function loadDotEnv() {
 }
 
 const PORT = process.env.PORT || 4200;
+
+// --- Moteur d'alertes : activable/désactivable, aucun provider de notification
+// dans cette phase (voir lib/services/alerts/ et docs/alerts/README.md) -----
+const ALERTS_ENABLED = process.env.ALERTS_ENABLED !== "0";
+const ALERTS_EVAL_INTERVAL_MS = process.env.ALERTS_EVAL_INTERVAL_MS
+  ? Number(process.env.ALERTS_EVAL_INTERVAL_MS)
+  : 15000;
 
 const app = express();
 app.set("trust proxy", 1); // derrière nginx/un reverse proxy : IP réelle, X-Forwarded-* fiables
@@ -248,6 +257,10 @@ app.get("/api/permissions/catalog", auth.requireAdmin, (req, res) => {
     globalActions: permissions.GLOBAL_ACTIONS,
   });
 });
+
+// --- REST API : moteur d'alertes (lib/services/alerts/, lib/routes/alerts.js) ---
+
+app.use("/api/alerts", alertsRouter());
 
 // --- REST API : liste / actions de base sur les process ------------------
 
@@ -514,7 +527,28 @@ setInterval(() => {
   const snap = systemStats.snapshot();
   historyStore.push(snap);
   io.emit("system", snap);
+  if (ALERTS_ENABLED) {
+    alertEngine.evaluateSystemReading(snap).catch((e) => {
+      console.error("Erreur d'évaluation des alertes système :", e.message);
+    });
+  }
 }, SAMPLE_INTERVAL_MS);
+
+// Boucle dédiée à l'évaluation des règles d'alerte "process" (CPU/RAM/restarts/
+// statut par app). Indépendante du polling par socket ci-dessus (qui ne tourne
+// que si un client est connecté) : les alertes doivent continuer à s'évaluer
+// même sans personne devant le dashboard. Réutilise pm2.list() + fmtProcess(),
+// pas de second bus PM2.
+if (ALERTS_ENABLED) {
+  setInterval(() => {
+    pm2.list((err, list) => {
+      if (err) return; // PM2 momentanément indisponible : on retentera au prochain tick
+      alertEngine.evaluateProcessReadings(list.map(fmtProcess)).catch((e) => {
+        console.error("Erreur d'évaluation des alertes process :", e.message);
+      });
+    });
+  }, ALERTS_EVAL_INTERVAL_MS);
+}
 
 // Un seul bus de logs partagé, diffusé à tous les clients connectés
 // (le filtrage par permission "logs" sur une app précise se fait déjà côté

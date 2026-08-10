@@ -22,18 +22,21 @@ test("migrator", async (t) => {
     const migrator = require("../../lib/db/migrator");
     const { applied, pending } = await migrator.status();
     assert.equal(applied.length, 0);
-    assert.ok(pending.length >= 2, "au moins 001_initial_schema et 002_job_queue attendues");
+    assert.ok(
+      pending.length >= 3,
+      "au moins 001_initial_schema, 002_job_queue et 003_alert_engine attendues"
+    );
     assert.equal(pending[0].version, "001_initial_schema");
   });
 
   await t.test("up() applique toutes les migrations en attente, dans l'ordre", async () => {
     const migrator = require("../../lib/db/migrator");
     const applied = await migrator.up();
-    assert.deepEqual(applied, ["001_initial_schema", "002_job_queue"]);
+    assert.deepEqual(applied, ["001_initial_schema", "002_job_queue", "003_alert_engine"]);
 
     const status = await migrator.status();
     assert.equal(status.pending.length, 0);
-    assert.equal(status.applied.length, 2);
+    assert.equal(status.applied.length, 3);
   });
 
   await t.test("up() est idempotent : rejouer ne fait rien et ne plante pas", async () => {
@@ -53,6 +56,8 @@ test("migrator", async (t) => {
     assert.ok(tables.includes("users"));
     assert.ok(tables.includes("permissions"));
     assert.ok(tables.includes("jobs"));
+    assert.ok(tables.includes("alert_rules"));
+    assert.ok(tables.includes("alerts"));
     assert.ok(tables.includes("schema_migrations"));
   });
 
@@ -62,25 +67,26 @@ test("migrator", async (t) => {
     await migrator.up();
 
     const reverted = await migrator.down();
-    assert.deepEqual(reverted, ["002_job_queue"]);
+    assert.deepEqual(reverted, ["003_alert_engine"]);
 
     const status = await migrator.status();
     assert.deepEqual(
       status.applied.map((m) => m.version),
-      ["001_initial_schema"]
+      ["001_initial_schema", "002_job_queue"]
     );
 
     const tables = (
       await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])
     ).map((r) => r.name);
-    assert.ok(!tables.includes("jobs"), "la table jobs doit avoir disparu après down()");
+    assert.ok(!tables.includes("alerts"), "la table alerts doit avoir disparu après down()");
+    assert.ok(tables.includes("jobs"), "jobs ne doit pas être affectée par le rollback de 003");
   });
 
-  await t.test("down({ steps: 2 }) annule les deux dernières migrations", async () => {
+  await t.test("down({ steps: 3 }) annule les trois dernières migrations", async () => {
     const migrator = require("../../lib/db/migrator");
     await migrator.up();
-    const reverted = await migrator.down({ steps: 2 });
-    assert.deepEqual(reverted, ["002_job_queue", "001_initial_schema"]);
+    const reverted = await migrator.down({ steps: 3 });
+    assert.deepEqual(reverted, ["003_alert_engine", "002_job_queue", "001_initial_schema"]);
 
     const status = await migrator.status();
     assert.equal(status.applied.length, 0);

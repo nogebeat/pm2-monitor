@@ -30,7 +30,8 @@ test("bin/migrate.js CLI (process réel, pas juste la lib)", async (t) => {
     const { stdout } = await runMigrate(["status"], dbPath);
     assert.match(stdout, /001_initial_schema/);
     assert.match(stdout, /002_job_queue/);
-    assert.match(stdout, /en attente \(2\)/);
+    assert.match(stdout, /003_alert_engine/);
+    assert.match(stdout, /en attente \(3\)/);
   });
 
   await t.test("up puis status reflète la base à jour, ré-exécuter up est un no-op", async () => {
@@ -38,9 +39,10 @@ test("bin/migrate.js CLI (process réel, pas juste la lib)", async (t) => {
     const { stdout: upOut } = await runMigrate(["up"], dbPath);
     assert.match(upOut, /001_initial_schema/);
     assert.match(upOut, /002_job_queue/);
+    assert.match(upOut, /003_alert_engine/);
 
     const { stdout: statusOut } = await runMigrate(["status"], dbPath);
-    assert.match(statusOut, /appliquées \(2\)/);
+    assert.match(statusOut, /appliquées \(3\)/);
     assert.match(statusOut, /en attente \(0\)/);
 
     const { stdout: secondUpOut } = await runMigrate(["up"], dbPath);
@@ -80,6 +82,7 @@ test("bin/migrate.js CLI (process réel, pas juste la lib)", async (t) => {
     const { stdout } = await runMigrate(["up"], dbPath);
     assert.match(stdout, /001_initial_schema/);
     assert.match(stdout, /002_job_queue/);
+    assert.match(stdout, /003_alert_engine/);
 
     const verifyDb = new Database(dbPath);
     const admin = verifyDb.prepare("SELECT * FROM users WHERE username = 'admin'").get();
@@ -90,6 +93,8 @@ test("bin/migrate.js CLI (process réel, pas juste la lib)", async (t) => {
       .all()
       .map((r) => r.name);
     assert.ok(tables.includes("jobs"), "la nouvelle table jobs doit avoir été créée par la migration");
+    assert.ok(tables.includes("alert_rules"), "la nouvelle table alert_rules doit avoir été créée");
+    assert.ok(tables.includes("alerts"), "la nouvelle table alerts doit avoir été créée");
     verifyDb.close();
   });
 
@@ -97,10 +102,10 @@ test("bin/migrate.js CLI (process réel, pas juste la lib)", async (t) => {
     const dbPath = tmpDbPath();
     await runMigrate(["up"], dbPath);
     const { stdout: downOut } = await runMigrate(["down"], dbPath);
-    assert.match(downOut, /002_job_queue/);
+    assert.match(downOut, /003_alert_engine/);
 
     const { stdout: statusOut } = await runMigrate(["status"], dbPath);
-    assert.match(statusOut, /appliquées \(1\)/);
+    assert.match(statusOut, /appliquées \(2\)/);
     assert.match(statusOut, /en attente \(1\)/);
   });
 });
