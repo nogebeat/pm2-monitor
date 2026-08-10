@@ -29,12 +29,21 @@ pm2-monitor/
 ├── server.js              # serveur Express + API REST + WebSocket + bus PM2
 ├── lib/
 │   ├── db/                 # abstraction base de données (sqlite-driver.js, mysql-driver.js)
+│   │   ├── migrations/       # migrations versionnées (001_initial_schema.js, 002_job_queue.js…)
+│   │   └── migrator.js        # exécution des migrations (up/down/status)
+│   ├── services/
+│   │   └── queue/             # file d'attente persistante générique (voir README dédié)
 │   ├── auth.js              # sessions, middlewares requireAuth / requirePermission / requireAdmin
 │   ├── user-store.js        # CRUD utilisateurs + permissions
 │   ├── permissions.js        # catalogue des actions (par app / globales) + hasPermission()
 │   └── …                    # actions PM2, stats système, logs, historique
 ├── bin/
-│   └── manage-users.js       # CLI de gestion des comptes (create, grant, revoke, promote…)
+│   ├── manage-users.js       # CLI de gestion des comptes (create, grant, revoke, promote…)
+│   └── migrate.js             # CLI de migrations DB (up, down, status)
+├── test/
+│   ├── unit/, integration/, helpers/   # voir section Tests
+├── docs/
+│   └── ARCHITECTURE.md        # décisions d'architecture (migrations, queue, tests)
 ├── frontend/                # source du frontend Vue 3 + Vite
 │   ├── src/
 │   │   ├── components/        # TopBar, ProcessSidebar, LogsPanel, SystemView, LoginScreen, modales…
@@ -147,6 +156,69 @@ npm run dev:client   # terminal 2 — Vite sur :5173
 > `public/` est un dossier **généré** par `npm run build` : ne modifie pas son
 > contenu directement, tes changements seraient écrasés au prochain build.
 > Tout le code source du frontend vit dans `frontend/`.
+
+## Base de données : migrations
+
+Le schéma (tables `users`, `permissions`, `jobs`…) est géré par un système de
+migrations versionnées, plutôt que créé "en dur" au démarrage.
+
+```bash
+node bin/migrate.js status   # migrations appliquées / en attente
+node bin/migrate.js up       # applique les migrations en attente
+node bin/migrate.js down     # annule la dernière migration appliquée
+node bin/migrate.js down --steps 2   # annule les 2 dernières
+```
+
+Équivalent via `deploy.sh` (utilise le même `.env`) :
+
+```bash
+./deploy.sh migrate status
+./deploy.sh migrate up
+```
+
+**Tu n'as normalement rien à faire manuellement** : `server.js` applique les
+migrations en attente automatiquement à chaque démarrage (avant de créer le
+compte admin par défaut s'il n'existe pas encore), et `./deploy.sh install`
+/ `./deploy.sh update` le font aussi explicitement avant de (re)démarrer le
+process PM2. `migrate up` est idempotent : le relancer sur une base déjà à
+jour ne fait rien.
+
+Si tu mets à jour depuis une installation existante (base créée par une
+version antérieure du projet, sans système de migrations), c'est sans
+risque : les migrations réutilisent le même schéma et n'écrasent aucune
+donnée existante.
+
+Les fichiers de migration vivent dans `lib/db/migrations/` (un fichier par
+migration, `{ version, up(db), down(db) }`). Le détail des choix
+d'architecture (transactions, limites connues sous MySQL…) est documenté
+dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Tests
+
+```bash
+npm test               # tous les tests (unitaires + intégration)
+npm run test:unit       # tests unitaires seulement
+npm run test:integration  # tests d'intégration seulement (sous-process réels)
+```
+
+Basé sur `node:test` (natif, aucune dépendance ajoutée — voir
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) pour la justification face à
+Vitest). Chaque test utilise un fichier SQLite temporaire isolé (créé et
+détruit automatiquement), aucun test ne touche à une base de données réelle.
+
+## Architecture des services (`lib/services/`)
+
+Les futures fonctionnalités métier (alertes, notifications, métriques…)
+vivent dans `lib/services/`, séparées de `server.js` (qui reste la couche
+HTTP/WebSocket). Voir [`lib/services/README.md`](lib/services/README.md)
+pour le détail de ce qui existe et ce qui est prévu.
+
+Cette phase introduit uniquement `lib/services/queue/` : une file d'attente
+persistante générique (jobs stockés dans la table `jobs`, survivent à un
+redémarrage du process), sans dépendance externe (pas de Redis requis) —
+voir [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) pour la justification du
+choix face à `better-queue`/`bee-queue`. Aucune logique métier n'y est encore
+branchée : ce sera fait dans une phase ultérieure.
 
 ## Fonctionnalités
 

@@ -11,6 +11,7 @@ const { HistoryStore, SAMPLE_INTERVAL_MS } = require("./lib/history-store");
 const { LogStore } = require("./lib/log-store");
 const pm2Actions = require("./lib/pm2-actions");
 const db = require("./lib/db");
+const migrator = require("./lib/db/migrator");
 const userStore = require("./lib/user-store");
 const permissions = require("./lib/permissions");
 const auth = require("./lib/auth");
@@ -572,9 +573,17 @@ function startPm2Bus() {
   });
 }
 
-// --- Démarrage : DB puis bus PM2 --------------------------------------
+// --- Démarrage : DB, migrations, puis bus PM2 --------------------------
+
+async function runMigrationsAtBoot() {
+  const applied = await migrator.up();
+  if (applied.length) {
+    console.log(`🗄️  Migrations appliquées au démarrage : ${applied.join(", ")}`);
+  }
+}
 
 db.init()
+  .then(runMigrationsAtBoot)
   .then(ensureBootstrapAdmin)
   .then(startPm2Bus)
   .catch((err) => {

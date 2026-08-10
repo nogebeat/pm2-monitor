@@ -1,0 +1,106 @@
+"use strict";
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const { execFile } = require("node:child_process");
+const { promisify } = require("node:util");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+
+const execFileAsync = promisify(execFile);
+const PROJECT_ROOT = path.join(__dirname, "..", "..");
+const MIGRATE_BIN = path.join(PROJECT_ROOT, "bin", "migrate.js");
+
+function tmpDbPath() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm2-monitor-cli-test-"));
+  return path.join(dir, "monitor.db");
+}
+
+async function runMigrate(args, dbPath) {
+  return execFileAsync(process.execPath, [MIGRATE_BIN, ...args], {
+    cwd: PROJECT_ROOT,
+    env: { ...process.env, DB_SQLITE_PATH: dbPath, DB_DRIVER: "sqlite" },
+  });
+}
+
+test("bin/migrate.js CLI (process réel, pas juste la lib)", async (t) => {
+  await t.test("status sur base neuve liste les migrations en attente", async () => {
+    const dbPath = tmpDbPath();
+    const { stdout } = await runMigrate(["status"], dbPath);
+    assert.match(stdout, /001_initial_schema/);
+    assert.match(stdout, /002_job_queue/);
+    assert.match(stdout, /en attente \(2\)/);
+  });
+
+  await t.test("up puis status reflète la base à jour, ré-exécuter up est un no-op", async () => {
+    const dbPath = tmpDbPath();
+    const { stdout: upOut } = await runMigrate(["up"], dbPath);
+    assert.match(upOut, /001_initial_schema/);
+    assert.match(upOut, /002_job_queue/);
+
+    const { stdout: statusOut } = await runMigrate(["status"], dbPath);
+    assert.match(statusOut, /appliquées \(2\)/);
+    assert.match(statusOut, /en attente \(0\)/);
+
+    const { stdout: secondUpOut } = await runMigrate(["up"], dbPath);
+    assert.match(secondUpOut, /déjà à jour/);
+  });
+
+  await t.test("installation existante : DB legacy (tables déjà créées, pas de schema_migrations)", async () => {
+    const dbPath = tmpDbPath();
+
+    // Simule une base créée par une version antérieure du projet (avant le
+    // système de migrations), avec un compte admin déjà en place.
+    const Database = require("better-sqlite3");
+    const legacyDb = new Database(dbPath);
+    legacyDb.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        is_admin INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS permissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        app_name TEXT NOT NULL,
+        action TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        UNIQUE(user_id, app_name, action)
+      );
+    `);
+    legacyDb
+      .prepare("INSERT INTO users (username, password_hash, is_admin, created_at) VALUES (?, ?, ?, ?)")
+      .run("admin", "existing-hash", 1, Date.now());
+    legacyDb.close();
+
+    // La migration doit passer sans erreur et sans toucher aux données existantes.
+    const { stdout } = await runMigrate(["up"], dbPath);
+    assert.match(stdout, /001_initial_schema/);
+    assert.match(stdout, /002_job_queue/);
+
+    const verifyDb = new Database(dbPath);
+    const admin = verifyDb.prepare("SELECT * FROM users WHERE username = 'admin'").get();
+    assert.equal(admin.password_hash, "existing-hash", "le compte admin existant ne doit pas être perdu");
+
+    const tables = verifyDb
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all()
+      .map((r) => r.name);
+    assert.ok(tables.includes("jobs"), "la nouvelle table jobs doit avoir été créée par la migration");
+    verifyDb.close();
+  });
+
+  await t.test("down annule la dernière migration puis status le reflète", async () => {
+    const dbPath = tmpDbPath();
+    await runMigrate(["up"], dbPath);
+    const { stdout: downOut } = await runMigrate(["down"], dbPath);
+    assert.match(downOut, /002_job_queue/);
+
+    const { stdout: statusOut } = await runMigrate(["status"], dbPath);
+    assert.match(statusOut, /appliquées \(1\)/);
+    assert.match(statusOut, /en attente \(1\)/);
+  });
+});

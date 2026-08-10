@@ -16,6 +16,7 @@
 #   ./deploy.sh update
 #   ./deploy.sh status | logs | restart | stop
 #   ./deploy.sh users <list|create|passwd|delete|grant|revoke|promote|demote> [args…]
+#   ./deploy.sh migrate <up|down|status> [--to <version>] [--steps <n>]
 #   ./deploy.sh uninstall [--purge]
 #
 # Options d'installation :
@@ -214,6 +215,22 @@ ensure_frontend_build() {
   npm --prefix frontend install --no-audit --no-fund >/dev/null
   npm --prefix frontend run build
   ok "Frontend construit dans public/."
+}
+
+# Applique les migrations DB avant de démarrer/redémarrer l'application, pour
+# ne jamais servir du trafic sur un schéma obsolète. `migrate up` est
+# idempotent (il ne rejoue que les migrations réellement en attente), donc
+# relancer deploy.sh plusieurs fois de suite (install ou update) est sans
+# risque : aucune migration n'est appliquée deux fois. En cas d'échec d'une
+# migration, `set -euo pipefail` interrompt immédiatement le déploiement
+# (le service en cours, s'il tournait déjà, n'est pas redémarré sur un état
+# invalide).
+run_migrations() {
+  title "Migrations de base de données"
+  cd "$SCRIPT_DIR"
+  info "Vérification et application des migrations en attente…"
+  node bin/migrate.js up
+  ok "Base de données à jour."
 }
 
 ensure_mysql_config() {
@@ -467,6 +484,7 @@ cmd_install() {
   ensure_dependencies
   ensure_frontend_build
   write_env
+  run_migrations
   start_app
   setup_startup
   setup_nginx
@@ -507,6 +525,7 @@ cmd_update() {
   fi
   npm install --omit=dev
   ensure_frontend_build
+  run_migrations
   if command -v pm2 >/dev/null 2>&1 && pm2 describe "$APP_NAME" >/dev/null 2>&1; then
     pm2 restart "$APP_NAME" --update-env
     ok "Application redémarrée."
@@ -527,6 +546,15 @@ cmd_users() {
     exit 1
   fi
   node bin/manage-users.js "$@"
+}
+
+cmd_migrate() {
+  cd "$SCRIPT_DIR"
+  if [ ! -d node_modules ]; then
+    error "Dépendances non installées. Lance d'abord ./deploy.sh install"
+    exit 1
+  fi
+  node bin/migrate.js "$@"
 }
 
 cmd_uninstall() {
@@ -568,6 +596,11 @@ COMMAND="${1:-}"
 
 if [ "$COMMAND" = "users" ]; then
   cmd_users "$@"
+  exit $?
+fi
+
+if [ "$COMMAND" = "migrate" ]; then
+  cmd_migrate "$@"
   exit $?
 fi
 

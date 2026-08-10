@@ -9,7 +9,14 @@
     "dev:client": "npm --prefix frontend run dev",
     "dev": "concurrently -k -n SERVER,CLIENT -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
     "build": "npm --prefix frontend install --no-audit --no-fund && npm --prefix frontend run build",
-    "postinstall": "npm --prefix frontend install --no-audit --no-fund"
+    "postinstall": "npm --prefix frontend install --no-audit --no-fund",
+    "migrate": "node bin/migrate.js status",
+    "migrate:up": "node bin/migrate.js up",
+    "migrate:down": "node bin/migrate.js down",
+    "migrate:status": "node bin/migrate.js status",
+    "test": "node --test",
+    "test:unit": "node --test test/unit/",
+    "test:integration": "node --test test/integration/"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -24,5 +31,8 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
