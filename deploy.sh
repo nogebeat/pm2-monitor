@@ -23,6 +23,12 @@
 #   --port <n>            Port d'écoute (défaut : 4200)
 #   --user <nom>           Identifiant du compte admin créé au premier démarrage (défaut : admin)
 #   --pass <motdepasse>    Mot de passe de ce compte admin (défaut : généré aléatoirement)
+#   --env-file <chemin>    Charge un fichier .env déjà prêt (copié tel quel comme .env du
+#                           projet) au lieu de générer la config à partir des autres options.
+#                           Prioritaire sur --port/--user/--pass/--db-* : ces options sont
+#                           ignorées si --env-file est fourni (édite le fichier source à la
+#                           place). Le fichier doit exister et être lisible ; il est copié
+#                           avec des permissions restreintes (600).
 #   --domain <domaine>     Domaine pour nginx + HTTPS (ex: pm2.mondomaine.fr)
 #   --email <email>        Email pour Let's Encrypt (requis si --domain)
 #   --no-nginx             Ne pas configurer nginx (accès direct par IP:port)
@@ -652,7 +658,7 @@ cmd_uninstall() {
 }
 
 print_help() {
-  sed -n '2,43p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,48p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 # ---------------------------------------------------------------------
@@ -672,6 +678,49 @@ if [ "$COMMAND" = "migrate" ]; then
   exit $?
 fi
 
+# --env-file <chemin> : permet d'installer en fournissant un .env déjà prêt
+# (généré ailleurs, restauré depuis un secret manager, copié d'une autre
+# machine…) plutôt qu'en passant --port/--user/--pass/--db-* un par un.
+#
+# Pré-scan AVANT load_env_defaults() : ce dernier lit $ENV_FILE (le .env du
+# projet) pour préremplir PORT/DB_DRIVER/etc., donc un --env-file externe doit
+# être copié à cet emplacement avant cet appel pour être pris en compte. Le
+# scan ne consomme pas "$@" : --env-file reste géré normalement par la boucle
+# d'options juste après (elle se contente de le "sauter", déjà appliqué ici).
+ENV_FILE_SRC=""
+_args=("$@")
+for ((_i = 0; _i < ${#_args[@]}; _i++)); do
+  if [ "${_args[$_i]}" = "--env-file" ]; then
+    ENV_FILE_SRC="${_args[$((_i + 1))]:-}"
+    break
+  fi
+done
+
+if [ -n "$ENV_FILE_SRC" ]; then
+  if [ ! -f "$ENV_FILE_SRC" ]; then
+    error "--env-file : fichier introuvable : $ENV_FILE_SRC"
+    exit 1
+  fi
+  if [ ! -r "$ENV_FILE_SRC" ]; then
+    error "--env-file : fichier non lisible : $ENV_FILE_SRC"
+    exit 1
+  fi
+  title "Configuration (.env)"
+  cp "$ENV_FILE_SRC" "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+  ok "Fichier .env chargé depuis : $ENV_FILE_SRC"
+  if ! grep -qE '^PM2_MONITOR_(USER|PASS)=' "$ENV_FILE"; then
+    warn "Ce fichier ne contient pas PM2_MONITOR_USER/PM2_MONITOR_PASS : le compte" \
+         "admin ne sera créé automatiquement que si ces variables existent au" \
+         "premier démarrage — sinon crée-le ensuite via ./deploy.sh users create."
+  fi
+  if ! grep -qE '^SESSION_SECRET=.+' "$ENV_FILE"; then
+    warn "Ce fichier ne définit pas SESSION_SECRET : un secret aléatoire sera" \
+         "généré à chaque redémarrage du process, ce qui déconnecte tout le" \
+         "monde à chaque restart. Ajoute SESSION_SECRET dans ton .env source."
+  fi
+fi
+
 # Recharge PORT/DB_DRIVER/etc. depuis un .env existant avant de parser les
 # flags CLI, pour que install/update sur une install existante réutilisent
 # la config déjà en place (voir commentaire de load_env_defaults()).
@@ -682,6 +731,7 @@ while [ $# -gt 0 ]; do
     --port) PORT="$2"; shift 2 ;;
     --user) AUTH_USER="$2"; shift 2 ;;
     --pass) AUTH_PASS="$2"; shift 2 ;;
+    --env-file) shift 2 ;; # déjà appliqué ci-dessus (avant load_env_defaults)
     --domain) DOMAIN="$2"; shift 2 ;;
     --email) EMAIL="$2"; shift 2 ;;
     --no-nginx) USE_NGINX="0"; shift ;;
@@ -703,6 +753,15 @@ done
 if [ "$DB_DRIVER" != "sqlite" ] && [ "$DB_DRIVER" != "mysql" ]; then
   error "--db-driver invalide : ${DB_DRIVER} (valeurs acceptées : sqlite, mysql)"
   exit 1
+fi
+
+# --env-file est prioritaire sur --port/--user/--pass/--db-* : si d'autres
+# options de config ont aussi été passées, elles sont ignorées ici (recharge
+# depuis le .env copié, et AUTH_PASS forcé vide pour que write_env() garde ce
+# fichier tel quel au lieu d'en régénérer un avec un --pass fourni en plus).
+if [ -n "$ENV_FILE_SRC" ]; then
+  load_env_defaults
+  AUTH_PASS=""
 fi
 
 case "$COMMAND" in

@@ -29,10 +29,19 @@ pm2-monitor/
 ├── server.js              # serveur Express + API REST + WebSocket + bus PM2
 ├── lib/
 │   ├── db/                 # abstraction base de données (sqlite-driver.js, mysql-driver.js)
-│   │   ├── migrations/       # migrations versionnées (001_initial_schema.js, 002_job_queue.js…)
+│   │   ├── migrations/       # migrations versionnées :
+│   │   │   ├── 001_initial_schema.js    # users, permissions
+│   │   │   ├── 002_job_queue.js         # jobs (file d'attente persistante)
+│   │   │   ├── 003_alert_engine.js      # alert_rules, alerts
+│   │   │   ├── 004_process_metrics.js   # process_metrics_raw, process_metrics_rollup
+│   │   │   └── 005_process_events.js    # process_events (timeline)
 │   │   └── migrator.js        # exécution des migrations (up/down/status)
 │   ├── services/
-│   │   └── queue/             # file d'attente persistante générique (voir README dédié)
+│   │   ├── queue/             # file d'attente persistante générique (voir README dédié)
+│   │   ├── alerts/            # moteur d'alertes (seuils, cooldown, dédup)
+│   │   ├── process-history/   # historique CPU/RAM/restarts par process, multi-résolution
+│   │   └── events/            # timeline d'événements/crashs PM2
+│   ├── routes/                # routes REST par domaine (alerts.js, events.js, process-history.js…)
 │   ├── auth.js              # sessions, middlewares requireAuth / requirePermission / requireAdmin
 │   ├── user-store.js        # CRUD utilisateurs + permissions
 │   ├── permissions.js        # catalogue des actions (par app / globales) + hasPermission()
@@ -43,10 +52,13 @@ pm2-monitor/
 ├── test/
 │   ├── unit/, integration/, helpers/   # voir section Tests
 ├── docs/
-│   └── ARCHITECTURE.md        # décisions d'architecture (migrations, queue, tests)
+│   ├── ARCHITECTURE.md        # décisions d'architecture (migrations, queue, tests)
+│   ├── alerts/README.md       # détail du moteur d'alertes
+│   └── events/README.md       # détail de la timeline d'événements
 ├── frontend/                # source du frontend Vue 3 + Vite
 │   ├── src/
-│   │   ├── components/        # TopBar, ProcessSidebar, LogsPanel, SystemView, LoginScreen, modales…
+│   │   ├── components/        # TopBar, ProcessSidebar, LogsPanel, SystemView, EventsView,
+│   │   │                       # LoginScreen, modales…
 │   │   ├── store.js            # état réactif partagé (process, logs, système, auth)
 │   │   ├── socket.js, api.js, format.js
 │   │   └── style.css
@@ -92,7 +104,19 @@ Ce script gère **toutes les situations** en une commande :
 
 # En centralisant comptes/permissions dans un serveur MySQL existant
 ./deploy.sh install --db-driver mysql --db-host 127.0.0.1 --db-user pm2_monitor --db-pass "..." --db-name pm2_monitor
+
+# En fournissant un .env déjà prêt (généré ailleurs, secret manager, copié
+# d'une autre machine…) plutôt que de reconstruire la config via des flags
+./deploy.sh install --env-file /chemin/vers/mon.env --no-nginx --yes
 ```
+
+`--env-file <chemin>` copie ce fichier tel quel comme `.env` du projet
+(permissions restreintes à `600`) et **prend le pas** sur `--port` /
+`--user` / `--pass` / `--db-*` s'ils sont fournis en même temps — ces
+derniers sont alors ignorés, édite directement le fichier source à la
+place. Les options qui ne concernent pas le `.env` (`--domain`, `--email`,
+`--no-nginx`, `--no-firewall`, `--no-startup`, `--yes`) continuent, elles,
+de s'appliquer normalement.
 
 **Autres commandes :**
 
@@ -211,7 +235,9 @@ cooldown, déduplication, machine à états, acquittement — moteur d'alertes
 testé isolément, sans DB) ; `test/integration/alerts-api.test.js` (routes
 REST, permissions, DB réelle) ; `test/integration/process-history-api.test.js`
 et `process-history-volume.test.js` (collecte → requête, purge/rollup sous
-volume réaliste, taille disque et temps de requête bornés).
+volume réaliste, taille disque et temps de requête bornés) ;
+`test/integration/events-service.test.js` et `events-api.test.js`
+(normalisation des packets PM2, filtres, pagination, permissions).
 
 `./deploy.sh install`/`update` exécutent `npm test` avant de démarrer/
 redémarrer l'application (`run_tests` dans `deploy.sh`) : un test qui échoue
@@ -235,6 +261,9 @@ pour le détail de ce qui existe et ce qui est prévu.
 - `lib/services/process-history/` : historique CPU/RAM/restarts par process,
   multi-résolution avec purge automatique — voir
   [Historique par process](#historique-par-process).
+- `lib/services/events/` : timeline d'événements/crashs PM2 (start, stop,
+  restart, crash, statut) — voir [Timeline d'événements](#timeline-dévénements)
+  et [`docs/events/README.md`](docs/events/README.md).
 
 ## Fonctionnalités
 
@@ -314,6 +343,28 @@ automatique — pensé pour tourner sur un petit VPS sans exploser le disque.
 - Collecte réutilisant le même `pm2.list()` que le moteur d'alertes (aucun
   second poller PM2), rollup + purge sur un intervalle de maintenance séparé.
 
+### Timeline d'événements
+
+Journal chronologique des événements de cycle de vie PM2 par process :
+démarrage, arrêt, redémarrage, passage online/offline, crash, erreur —
+alimenté par le même bus PM2 que le reste du monitor (aucun second listener
+créé pour cette fonctionnalité).
+
+- **Activable/désactivable** : `EVENTS_ENABLED=0` dans `.env`.
+- Variables de configuration (optionnelles) : `EVENTS_RETENTION_MS` (durée de
+  conservation avant purge automatique, 90 jours par défaut),
+  `EVENTS_MAINTENANCE_INTERVAL_MS` (fréquence du cycle de purge, 1h par défaut).
+- **Types** : `started`, `stopped`, `restarted`, `online`, `offline`,
+  `crashed`, `errored`, avec une sévérité dérivée automatiquement
+  (`info` / `warning` / `critical`) — mêmes niveaux que le moteur d'alertes.
+- **Endpoints** : `GET /api/events` (filtres `process`, `type`, `severity`,
+  `start`/`end`, `limit`/`offset` — pagination bornée, jamais tout
+  l'historique en une requête), `GET /api/events/catalog` (types/sévérités
+  valides, pour construire les filtres côté frontend sans les dupliquer).
+- **Permissions** : `events_read`, permission **globale** (pas décomposée par
+  app dans cette phase, comme `alerts_read`).
+- **UI** : onglet "Events" avec filtre par type et code couleur par sévérité.
+
 ### Logs
 
 - **Flux en direct** : filtre "Tout / stdout / stderr", filtre par niveau
@@ -388,7 +439,10 @@ droits, plutôt qu'un unique identifiant/mot de passe partagé (Basic Auth).
   Il existe aussi des **actions globales**, non liées à une app précise :
   `system` (vue Système), `pm2_save`, `pm2_resurrect`, `pm2_flush_all`,
   `pm2_update`, `pm2_kill`, `manage_users` (gestion des comptes, admin
-  uniquement).
+  uniquement), ainsi que `alerts_read` / `alerts_create` / `alerts_update` /
+  `alerts_delete` / `alerts_acknowledge` (moteur d'alertes) et `events_read`
+  (timeline d'événements) — ces dernières ne sont pas décomposées par app
+  dans cette phase.
 
 - L'API et le WebSocket **revalident chaque requête** côté serveur : les
   boutons masqués côté interface ne sont qu'un confort visuel, la sécurité
@@ -413,6 +467,11 @@ SESSION_SECRET=une-chaine-aleatoire-longue   # à définir en production (voir p
 
 DB_DRIVER=sqlite    # ou "mysql" — voir .env.example pour la config MySQL complète
 ```
+
+> Tu peux aussi préparer ce fichier ailleurs (poste de travail, secret
+> manager…) et le charger directement à l'installation avec
+> `./deploy.sh install --env-file /chemin/vers/mon.env` plutôt que de le
+> copier manuellement sur le serveur — voir [Installation](#installation).
 
 ### Gérer les comptes
 
@@ -466,3 +525,4 @@ premier compte admin. Lance ensuite `./deploy.sh update` (qui fait tourner
   ```bash
   pm2 start server.js --name pm2-monitor
   ```
+  
