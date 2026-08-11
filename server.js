@@ -20,6 +20,7 @@ const alertsRouter = require("./lib/routes/alerts");
 const { ProcessHistoryService } = require("./lib/services/process-history");
 const { EventsService } = require("./lib/services/events");
 const eventsRouter = require("./lib/routes/events");
+const notificationsRouter = require("./lib/routes/notifications");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -280,6 +281,10 @@ app.use("/api/alerts", alertsRouter());
 // --- REST API : timeline d'événements/crashs (lib/services/events/, lib/routes/events.js) ---
 
 app.use("/api/events", eventsRouter(eventsService));
+
+// --- REST API : notification system, fondations Phase 5A (lib/services/notifications/, lib/routes/notifications.js) ---
+
+app.use("/api/notifications", notificationsRouter());
 
 // --- REST API : liste / actions de base sur les process ------------------
 
