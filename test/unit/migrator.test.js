@@ -32,11 +32,17 @@ test("migrator", async (t) => {
   await t.test("up() applique toutes les migrations en attente, dans l'ordre", async () => {
     const migrator = require("../../lib/db/migrator");
     const applied = await migrator.up();
-    assert.deepEqual(applied, ["001_initial_schema", "002_job_queue", "003_alert_engine"]);
+    assert.deepEqual(applied, [
+      "001_initial_schema",
+      "002_job_queue",
+      "003_alert_engine",
+      "004_process_metrics",
+      "005_process_events",
+    ]);
 
     const status = await migrator.status();
     assert.equal(status.pending.length, 0);
-    assert.equal(status.applied.length, 3);
+    assert.equal(status.applied.length, 5);
   });
 
   await t.test("up() est idempotent : rejouer ne fait rien et ne plante pas", async () => {
@@ -67,29 +73,32 @@ test("migrator", async (t) => {
     await migrator.up();
 
     const reverted = await migrator.down();
-    assert.deepEqual(reverted, ["003_alert_engine"]);
+    assert.deepEqual(reverted, ["005_process_events"]);
 
     const status = await migrator.status();
     assert.deepEqual(
       status.applied.map((m) => m.version),
-      ["001_initial_schema", "002_job_queue"]
+      ["001_initial_schema", "002_job_queue", "003_alert_engine", "004_process_metrics"]
     );
 
     const tables = (
       await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])
     ).map((r) => r.name);
-    assert.ok(!tables.includes("alerts"), "la table alerts doit avoir disparu après down()");
-    assert.ok(tables.includes("jobs"), "jobs ne doit pas être affectée par le rollback de 003");
+    assert.ok(
+      !tables.includes("process_events"),
+      "la table process_events doit avoir disparu après down()"
+    );
+    assert.ok(tables.includes("jobs"), "jobs ne doit pas être affectée par le rollback de 005");
   });
 
   await t.test("down({ steps: 3 }) annule les trois dernières migrations", async () => {
     const migrator = require("../../lib/db/migrator");
     await migrator.up();
     const reverted = await migrator.down({ steps: 3 });
-    assert.deepEqual(reverted, ["003_alert_engine", "002_job_queue", "001_initial_schema"]);
+    assert.deepEqual(reverted, ["005_process_events", "004_process_metrics", "003_alert_engine"]);
 
     const status = await migrator.status();
-    assert.equal(status.applied.length, 0);
+    assert.equal(status.applied.length, 2);
   });
 
   await t.test("down() sur une base vierge (rien d'appliqué) ne fait rien", async () => {
