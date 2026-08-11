@@ -18,6 +18,8 @@ const auth = require("./lib/auth");
 const { engine: alertEngine } = require("./lib/services/alerts");
 const alertsRouter = require("./lib/routes/alerts");
 const { ProcessHistoryService } = require("./lib/services/process-history");
+const { EventsService } = require("./lib/services/events");
+const eventsRouter = require("./lib/routes/events");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -52,6 +54,12 @@ const ALERTS_EVAL_INTERVAL_MS = process.env.ALERTS_EVAL_INTERVAL_MS
 // Instancié seulement après loadDotEnv() (le service lit process.env dans
 // son constructeur, voir lib/services/process-history/index.js).
 const processHistory = new ProcessHistoryService();
+
+// --- Timeline d'événements/crashs : activable/désactivable (voir
+// lib/services/events/ et EVENTS_* dans .env.example). Même contrainte
+// d'instanciation tardive que processHistory ci-dessus (lit process.env au
+// constructeur, doit donc être créé après loadDotEnv()).
+const eventsService = new EventsService();
 
 const app = express();
 app.set("trust proxy", 1); // derrière nginx/un reverse proxy : IP réelle, X-Forwarded-* fiables
@@ -268,6 +276,10 @@ app.get("/api/permissions/catalog", auth.requireAdmin, (req, res) => {
 // --- REST API : moteur d'alertes (lib/services/alerts/, lib/routes/alerts.js) ---
 
 app.use("/api/alerts", alertsRouter());
+
+// --- REST API : timeline d'événements/crashs (lib/services/events/, lib/routes/events.js) ---
+
+app.use("/api/events", eventsRouter(eventsService));
 
 // --- REST API : liste / actions de base sur les process ------------------
 
@@ -597,6 +609,10 @@ if (ALERTS_ENABLED || processHistory.config.enabled) {
 // intervalle (PROCESS_HISTORY_MAINTENANCE_INTERVAL_MS) indépendant du polling.
 processHistory.start();
 
+// Purge périodique de la timeline d'événements (rétention EVENTS_RETENTION_MS),
+// sur son propre intervalle indépendant — même découpage que processHistory ci-dessus.
+eventsService.start();
+
 // Un seul bus de logs partagé, diffusé à tous les clients connectés
 // (le filtrage par permission "logs" sur une app précise se fait déjà côté
 // REST pour l'historique/export ; en direct, le frontend n'affiche que les
@@ -645,6 +661,20 @@ function startPm2Bus() {
           pm_id: packet.process.pm_id,
           at: Date.now(),
         });
+
+        // Timeline d'événements/crashs (lib/services/events/) : même packet,
+        // pas de second listener PM2 (voir startPm2Bus). Normalise puis
+        // persiste ; ne fait rien si le packet ne correspond à aucun type
+        // retenu (ex: "delete") ou si le service est désactivé (voir
+        // normalizer.js#resolveType et EventsService#recordFromPacket).
+        eventsService
+          .recordFromPacket(packet)
+          .then((stored) => {
+            if (stored) io.emit("timeline_event", stored);
+          })
+          .catch((e) => {
+            console.error("Erreur d'enregistrement dans la timeline d'événements :", e.message);
+          });
       });
     });
 

@@ -52,6 +52,14 @@ function openUsers() {
       >
         Système
       </button>
+      <button
+        v-if="can('events_read')"
+        class="view-tab"
+        :class="{ active: state.view === 'events' }"
+        @click="setView('events')"
+      >
+        Timeline
+      </button>
     </nav>
 
     <div class="topbar-stats">

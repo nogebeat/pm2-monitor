@@ -39,6 +39,17 @@ export const state = reactive({
   system: null,
   historyRange: "1h",
 
+  // ---------- Timeline d'événements/crashs (onglet "Timeline") ----------
+  events: {
+    items: [], // { id, timestamp, type, severity, process, processId, server, status, exitCode, signal, metadata }
+    filter: "all", // all | started | stopped | restarted | crashed | errored
+    total: 0,
+    limit: 50,
+    offset: 0,
+    loading: false,
+    loaded: false, // au moins un chargement effectué (distingue "vide" de "pas encore chargé")
+  },
+
   pm2MenuOpen: false,
   toast: null, // { kind: "error"|"info", message }
 
@@ -275,6 +286,56 @@ export function loadProcessMetrics(processId, range) {
   return apiGet(`/api/processes/${processId}/metrics?start=${start}&end=${end}`);
 }
 
+// ---------- Timeline d'événements/crashs (GET /api/events) ----------
+
+// "All"/"Starts"/"Stops"/"Restarts"/"Crashes"/"Errors" — les filtres demandés par la spec de
+// phase. "online" existe dans le modèle mais n'a pas de bouton dédié (regroupé sous "All").
+const EVENTS_FILTER_TYPE = {
+  all: undefined,
+  started: "started",
+  stopped: "stopped",
+  restarted: "restarted",
+  crashed: "crashed",
+  errored: "errored",
+};
+
+export function loadEvents({ reset = true } = {}) {
+  if (reset) {
+    state.events.offset = 0;
+    state.events.items = [];
+  }
+  state.events.loading = true;
+  const type = EVENTS_FILTER_TYPE[state.events.filter];
+  const params = new URLSearchParams({ limit: state.events.limit, offset: state.events.offset });
+  if (type) params.set("type", type);
+
+  return apiGet(`/api/events?${params.toString()}`)
+    .then((r) => {
+      state.events.items = reset ? r.items : [...state.events.items, ...r.items];
+      state.events.total = r.total;
+    })
+    .catch((err) => {
+      if (reset) state.events.items = [];
+      notifyError(err);
+    })
+    .finally(() => {
+      state.events.loading = false;
+      state.events.loaded = true;
+    });
+}
+
+export function setEventsFilter(filter) {
+  if (state.events.filter === filter) return;
+  state.events.filter = filter;
+  loadEvents({ reset: true });
+}
+
+export function loadMoreEvents() {
+  if (state.events.loading || state.events.items.length >= state.events.total) return;
+  state.events.offset += state.events.limit;
+  loadEvents({ reset: false });
+}
+
 // ---------- Câblage WebSocket ----------
 
 socket.on("connect", () => {
@@ -321,6 +382,20 @@ socket.on("event", (entry) => {
 
 socket.on("system", (snap) => {
   state.system = snap;
+});
+
+// Timeline d'événements/crashs en direct (lib/services/events/, server.js#startPm2Bus).
+// Émis en plus de "event" (déjà utilisé par le panneau de logs, inchangé) — pas de
+// filtrage par permission ici, même choix que "processes"/"log" (voir le commentaire
+// au-dessus de bus.on("process:event") dans server.js) : le client n'affiche de toute
+// façon que ce que l'onglet Timeline montre déjà (visible pour cet utilisateur via can()).
+socket.on("timeline_event", (entry) => {
+  if (!state.events.loaded) return; // timeline jamais ouverte : rien à tenir à jour
+  if (state.events.offset !== 0) return; // pas sur la première page : un ajout en tête la désynchroniserait
+  const type = EVENTS_FILTER_TYPE[state.events.filter];
+  if (type && entry.type !== type) return;
+  state.events.items.unshift(entry);
+  state.events.total += 1;
 });
 
 // ---------- Chargement initial ----------

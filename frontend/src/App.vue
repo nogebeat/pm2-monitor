@@ -6,6 +6,7 @@ import Pm2Menu from "./components/Pm2Menu.vue";
 import ProcessSidebar from "./components/ProcessSidebar.vue";
 import LogsPanel from "./components/LogsPanel.vue";
 import SystemView from "./components/SystemView.vue";
+import EventsView from "./components/EventsView.vue";
 import ModalHost from "./components/ModalHost.vue";
 import LoginScreen from "./components/LoginScreen.vue";
 
@@ -32,6 +33,7 @@ onMounted(() => {
       </main>
 
       <SystemView v-if="state.view === 'system'" />
+      <EventsView v-if="state.view === 'events'" />
 
       <ModalHost v-if="state.modal" />
 
