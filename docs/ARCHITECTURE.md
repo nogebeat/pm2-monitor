@@ -1,10 +1,17 @@
-# Architecture — Fondations (Phase 1)
+# Architecture
 
-Ce document explique les choix techniques de la Phase 1 ("fondations") :
-migrations DB versionnées, squelette `lib/services/`, harness de tests, et
-file d'attente persistante. Aucune fonctionnalité métier (alertes,
-notifications…) n'est ajoutée dans cette phase — uniquement l'infrastructure
-que les phases suivantes vont réutiliser.
+Ce document explique les choix techniques structurants du projet, phase par
+phase.
+
+- **Phase 1 — Fondations** (ci-dessous) : migrations DB versionnées,
+  squelette `lib/services/`, harness de tests, file d'attente persistante.
+- **Phase 2 — Alertes** : voir [Décisions phase 2](#décisions-phase-2--alertes)
+  plus bas, et le détail fonctionnel dans
+  [`docs/alerts/README.md`](alerts/README.md).
+- **Phase 3 — Historique par process** : voir
+  [Décisions phase 3](#décisions-phase-3--historique-par-process) plus bas.
+
+## Fondations (Phase 1)
 
 ## 1. Migrations DB versionnées
 
@@ -162,3 +169,50 @@ Node distincts, `test/integration/queue-restart.test.js`.
 
 Cette file ne contient aucune logique métier : elle sera consommée par les
 futurs services (`alerts/`, `notifications/`) dans une phase ultérieure.
+
+## Décisions phase 2 — Alertes
+
+- **Machine à états en 4 états** (`trigger` → `active` → `resolved`,
+  `active` → `acknowledged` → `resolved`) plutôt que 2 (`ok`/`alert`) : l'état
+  `trigger` isole la période "condition vraie mais `duration_seconds` pas
+  encore écoulée" sans jamais créer de bruit si la condition retombe avant
+  l'échéance (la ligne est alors simplement supprimée, pas de "fausse
+  alerte" dans l'historique). Détail complet dans
+  [`lib/services/alerts/engine.js`](../lib/services/alerts/engine.js) (voir
+  le diagramme en tête de fichier) et [`docs/alerts/README.md`](alerts/README.md).
+- **Déduplication par clé `rule:targetType:targetValue:metric`** : une seule
+  occurrence "ouverte" par combinaison règle/cible/métrique à la fois — une
+  condition qui reste vraie met à jour (`touch`) l'occurrence existante au
+  lieu d'en créer une nouvelle (anti-spam), indépendamment du cooldown (qui,
+  lui, ne s'applique qu'*après* une résolution, pour bloquer un
+  redéclenchement immédiat).
+- **Permissions séparées par action** (`alerts_read/create/update/delete/
+  acknowledge`) plutôt qu'une permission unique `alerts` : cohérent avec le
+  découpage fin déjà en place pour les actions PM2 par app
+  (`lib/permissions.js`), permet par exemple un rôle "peut acquitter sans
+  pouvoir modifier les règles".
+- **Aucun provider de notification dans cette phase** (choix du prompt de
+  phase) : le moteur est utilisable et testable de bout en bout (règles →
+  alertes actives → historique → ACK) sans dépendance à un canal externe,
+  ce qui garde le projet 100% self-hosted à ce stade.
+
+## Décisions phase 3 — Historique par process
+
+- **Un seul poller PM2** : la collecte (`ProcessHistoryService.record()`)
+  et l'évaluation des règles d'alerte "process" partagent le même
+  `setInterval(() => pm2.list(...))` dans `server.js`, plutôt que deux
+  boucles indépendantes — évite un second appel `pm2.list()` par tick (coût
+  et charge PM2 inutiles) pour un besoin déjà couvert par la boucle
+  existante. Le rollup/purge, lui, tourne sur son propre intervalle
+  (`PROCESS_HISTORY_MAINTENANCE_INTERVAL_MS`), indépendant de la collecte.
+- **Deux tables** (`process_metrics_raw`, `process_metrics_rollup`) plutôt
+  que trois (une par résolution) : `process_metrics_rollup` porte une
+  colonne `resolution` (`medium`/`long`) pour éviter de dupliquer un schéma
+  quasi identique — voir migration `004_process_metrics.js`.
+- **`process_name` comme identifiant de cible** (pas le `pm_id` PM2, qui
+  change à chaque suppression/recréation du process) — même choix que la
+  table `alert_rules` (phase 2), pour rester cohérent dans tout le projet.
+- **Résolution auto côté API** : si `resolution` n'est pas fourni sur
+  `GET /processes/:id/metrics`, elle est déduite de la plage demandée
+  (`rawMaxSpanMs`/`mediumMaxSpanMs`), pour éviter qu'un client demandant "30
+  jours" reçoive par erreur des millions de points bruts.

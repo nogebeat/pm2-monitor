@@ -37,6 +37,10 @@
 #   --yes                  Mode non-interactif (répond "oui" aux confirmations)
 #   -h, --help             Affiche cette aide
 #
+# Variable d'environnement :
+#   DEPLOY_SKIP_TESTS=1    Ignore l'étape de tests avant démarrage (déconseillé) —
+#                           install/update refusent sinon de continuer si un test échoue.
+#
 # Gestion des comptes / permissions (users/roles multi-utilisateurs, par app
 # et par action) : une fois installé, utilise `./deploy.sh users …`, qui
 # délègue à `node bin/manage-users.js` — voir le README pour le détail des
@@ -231,6 +235,27 @@ run_migrations() {
   info "Vérification et application des migrations en attente…"
   node bin/migrate.js up
   ok "Base de données à jour."
+}
+
+# Exécute la suite de tests (node --test, voir test/unit/ et test/integration/)
+# avant de démarrer/redémarrer l'application. Toutes les dépendances utilisées
+# par les tests (express, better-sqlite3…) sont des dépendances de production
+# normales (pas devDependencies), donc déjà installées par ensure_dependencies
+# à ce stade — pas d'installation supplémentaire nécessaire ici.
+# `set -euo pipefail` fait échouer tout le script (donc refuse le déploiement)
+# si un test échoue : DEPLOY_SKIP_TESTS=1 permet de le contourner explicitement
+# (ex: environnement sans écriture disque pour SQLite temporaire), à utiliser
+# en connaissance de cause seulement.
+run_tests() {
+  title "Tests (node --test)"
+  cd "$SCRIPT_DIR"
+  if [ "${DEPLOY_SKIP_TESTS:-0}" = "1" ]; then
+    warn "DEPLOY_SKIP_TESTS=1 : tests ignorés (déconseillé)."
+    return 0
+  fi
+  info "Exécution de la suite de tests (unit + integration)…"
+  npm test
+  ok "Tous les tests passent."
 }
 
 ensure_mysql_config() {
@@ -521,6 +546,7 @@ cmd_install() {
   ensure_dependencies
   ensure_frontend_build
   write_env
+  run_tests
   run_migrations
   start_app
   setup_startup
@@ -566,6 +592,7 @@ cmd_update() {
     npm install mysql2 --omit=dev --no-save || warn "Échec d'installation de mysql2, vérifie ta connexion npm."
   fi
   ensure_frontend_build
+  run_tests
   run_migrations
   if command -v pm2 >/dev/null 2>&1 && pm2 describe "$APP_NAME" >/dev/null 2>&1; then
     pm2 restart "$APP_NAME" --update-env

@@ -206,6 +206,17 @@ Basé sur `node:test` (natif, aucune dépendance ajoutée — voir
 Vitest). Chaque test utilise un fichier SQLite temporaire isolé (créé et
 détruit automatiquement), aucun test ne touche à une base de données réelle.
 
+Couverture notable : `test/unit/alert-engine.test.js` (seuils, durée,
+cooldown, déduplication, machine à états, acquittement — moteur d'alertes
+testé isolément, sans DB) ; `test/integration/alerts-api.test.js` (routes
+REST, permissions, DB réelle) ; `test/integration/process-history-api.test.js`
+et `process-history-volume.test.js` (collecte → requête, purge/rollup sous
+volume réaliste, taille disque et temps de requête bornés).
+
+`./deploy.sh install`/`update` exécutent `npm test` avant de démarrer/
+redémarrer l'application (`run_tests` dans `deploy.sh`) : un test qui échoue
+bloque le déploiement (contournable via `DEPLOY_SKIP_TESTS=1`, déconseillé).
+
 ## Architecture des services (`lib/services/`)
 
 Les futures fonctionnalités métier (alertes, notifications, métriques…)
@@ -213,12 +224,17 @@ vivent dans `lib/services/`, séparées de `server.js` (qui reste la couche
 HTTP/WebSocket). Voir [`lib/services/README.md`](lib/services/README.md)
 pour le détail de ce qui existe et ce qui est prévu.
 
-Cette phase introduit uniquement `lib/services/queue/` : une file d'attente
-persistante générique (jobs stockés dans la table `jobs`, survivent à un
-redémarrage du process), sans dépendance externe (pas de Redis requis) —
-voir [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) pour la justification du
-choix face à `better-queue`/`bee-queue`. Aucune logique métier n'y est encore
-branchée : ce sera fait dans une phase ultérieure.
+- `lib/services/queue/` : file d'attente persistante générique (jobs stockés
+  dans la table `jobs`, survivent à un redémarrage du process), sans
+  dépendance externe (pas de Redis requis) — voir
+  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) pour la justification du
+  choix face à `better-queue`/`bee-queue`.
+- `lib/services/alerts/` : moteur d'alertes (règles CPU/RAM/disque/
+  température/restarts/statut) — voir [Alertes](#alertes) et
+  [`docs/alerts/README.md`](docs/alerts/README.md).
+- `lib/services/process-history/` : historique CPU/RAM/restarts par process,
+  multi-résolution avec purge automatique — voir
+  [Historique par process](#historique-par-process).
 
 ## Fonctionnalités
 
@@ -251,6 +267,52 @@ branchée : ce sera fait dans une phase ultérieure.
 - Sur un OS non-Linux ou en environnement conteneurisé, certaines métriques
   (température, swap) peuvent être indisponibles (`n/d`) — c'est normal, pas
   tous les OS les exposent.
+
+### Alertes
+
+Moteur d'alertes configurable (CPU/RAM/disque/température/restarts/statut,
+par process ou pour le système), avec seuils, durée avant déclenchement,
+cooldown anti-spam et déduplication. Fonctionne sans aucune notification
+configurée (aucun provider dans cette phase).
+
+- **Activable/désactivable** : `ALERTS_ENABLED=0` dans `.env` coupe tout le
+  moteur (évaluation + routes REST inchangées mais inertes).
+- `ALERTS_EVAL_INTERVAL_MS` (défaut `15000`) : fréquence d'évaluation des
+  règles "process" (règles "system" évaluées à chaque échantillon système).
+- **Endpoints** : `GET/POST /api/alerts/rules`, `GET/PUT/PATCH/DELETE
+  /api/alerts/rules/:id`, `GET /api/alerts/catalog`, `GET /api/alerts/active`,
+  `GET /api/alerts/history`, `POST /api/alerts/:id/acknowledge`.
+- **Permissions** : `alerts_read`, `alerts_create`, `alerts_update`,
+  `alerts_delete`, `alerts_acknowledge` (voir
+  [Multi-utilisateurs & permissions](#multi-utilisateurs--permissions)).
+- Détail complet (modèle de données, machine à états, cooldown, dédup) :
+  [`docs/alerts/README.md`](docs/alerts/README.md).
+
+### Historique par process
+
+En plus de l'historique système existant, chaque process a son propre
+historique CPU / mémoire / restarts / instances / statut, avec trois
+résolutions (`raw` court terme, `medium` horaire, `long` journalier) et purge
+automatique — pensé pour tourner sur un petit VPS sans exploser le disque.
+
+- **Activable/désactivable** : `PROCESS_HISTORY_ENABLED=0` dans `.env`.
+- Variables de configuration (toutes optionnelles, valeurs par défaut dans
+  `.env.example`) : `PROCESS_HISTORY_COLLECT_INTERVAL_MS`,
+  `PROCESS_HISTORY_MAINTENANCE_INTERVAL_MS`,
+  `PROCESS_HISTORY_SHORT_RETENTION_MS` (raw), `PROCESS_HISTORY_MEDIUM_RETENTION_MS`,
+  `PROCESS_HISTORY_LONG_RETENTION_MS`, `PROCESS_HISTORY_MEDIUM_BUCKET_MS`,
+  `PROCESS_HISTORY_LONG_BUCKET_MS`, `PROCESS_HISTORY_RAW_MAX_SPAN_MS`,
+  `PROCESS_HISTORY_MEDIUM_MAX_SPAN_MS` (choix auto de la résolution selon la
+  plage demandée), `PROCESS_HISTORY_MAX_POINTS` (borne le nombre de points
+  renvoyés par l'API, downsampling au-delà).
+- **Endpoint** : `GET /api/processes/:id/metrics?start=&end=&resolution=&metrics=`
+  (permission `view` sur l'app, comme la vue du process). `resolution` :
+  `raw`/`medium`/`long`, choisie automatiquement selon la plage si omise.
+  `metrics` : sous-ensemble `cpu,memory,restarts,instances,status`.
+- **UI** : onglet "Metrics" sur chaque carte de process (Chart.js),
+  sélecteur de période 1h / 6h / 24h / 7d / 30d.
+- Collecte réutilisant le même `pm2.list()` que le moteur d'alertes (aucun
+  second poller PM2), rollup + purge sur un intervalle de maintenance séparé.
 
 ### Logs
 

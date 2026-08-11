@@ -17,6 +17,7 @@ const permissions = require("./lib/permissions");
 const auth = require("./lib/auth");
 const { engine: alertEngine } = require("./lib/services/alerts");
 const alertsRouter = require("./lib/routes/alerts");
+const { ProcessHistoryService } = require("./lib/services/process-history");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -45,6 +46,12 @@ const ALERTS_ENABLED = process.env.ALERTS_ENABLED !== "0";
 const ALERTS_EVAL_INTERVAL_MS = process.env.ALERTS_EVAL_INTERVAL_MS
   ? Number(process.env.ALERTS_EVAL_INTERVAL_MS)
   : 15000;
+
+// --- Historique par process : activable/désactivable (voir
+// lib/services/process-history/ et PROCESS_HISTORY_* dans .env.example) ---
+// Instancié seulement après loadDotEnv() (le service lit process.env dans
+// son constructeur, voir lib/services/process-history/index.js).
+const processHistory = new ProcessHistoryService();
 
 const app = express();
 app.set("trust proxy", 1); // derrière nginx/un reverse proxy : IP réelle, X-Forwarded-* fiables
@@ -503,6 +510,30 @@ app.get("/api/processes/:id/logs/stats", withAppPermission("logs"), (req, res) =
   });
 });
 
+// Historique CPU/RAM/restarts d'un process (lib/services/process-history/).
+// Même permission que la vue du process ("view") : lecture seule, pas d'action PM2.
+app.get("/api/processes/:id/metrics", withAppPermission("view"), (req, res) => {
+  pm2.describe(req.params.id, async (err, list) => {
+    if (err || !list || !list.length) {
+      return res.status(404).json({ error: "Process introuvable." });
+    }
+    try {
+      const { start, end, resolution } = req.query;
+      const metrics = req.query.metrics ? String(req.query.metrics).split(",").filter(Boolean) : undefined;
+      const result = await processHistory.query({
+        processName: list[0].name,
+        start: start !== undefined ? Number(start) : undefined,
+        end: end !== undefined ? Number(end) : undefined,
+        resolution,
+        metrics,
+      });
+      res.json(result);
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+});
+
 // --- Realtime: liste des process (polling léger) + logs (bus PM2) ------
 
 io.on("connection", (socket) => {
@@ -534,21 +565,37 @@ setInterval(() => {
   }
 }, SAMPLE_INTERVAL_MS);
 
-// Boucle dédiée à l'évaluation des règles d'alerte "process" (CPU/RAM/restarts/
-// statut par app). Indépendante du polling par socket ci-dessus (qui ne tourne
-// que si un client est connecté) : les alertes doivent continuer à s'évaluer
-// même sans personne devant le dashboard. Réutilise pm2.list() + fmtProcess(),
-// pas de second bus PM2.
-if (ALERTS_ENABLED) {
+// Boucle dédiée au polling process, partagée par l'évaluation des règles
+// d'alerte "process" (CPU/RAM/restarts/statut par app) ET la collecte
+// d'historique par process (lib/services/process-history/). Indépendante du
+// polling par socket ci-dessus (qui ne tourne que si un client est connecté) :
+// les deux doivent continuer même sans personne devant le dashboard.
+// Réutilise un seul pm2.list() + fmtProcess() par tick — pas de second bus PM2
+// ni de second poller. Tourne à ALERTS_EVAL_INTERVAL_MS : c'est aussi la
+// valeur par défaut de PROCESS_HISTORY_COLLECT_INTERVAL_MS (15s), donc les
+// deux réglages restent cohérents sans config supplémentaire.
+if (ALERTS_ENABLED || processHistory.config.enabled) {
   setInterval(() => {
     pm2.list((err, list) => {
       if (err) return; // PM2 momentanément indisponible : on retentera au prochain tick
-      alertEngine.evaluateProcessReadings(list.map(fmtProcess)).catch((e) => {
-        console.error("Erreur d'évaluation des alertes process :", e.message);
-      });
+      const processes = list.map(fmtProcess);
+      if (ALERTS_ENABLED) {
+        alertEngine.evaluateProcessReadings(processes).catch((e) => {
+          console.error("Erreur d'évaluation des alertes process :", e.message);
+        });
+      }
+      if (processHistory.config.enabled) {
+        processHistory.record(processes).catch((e) => {
+          console.error("Erreur de collecte de l'historique process :", e.message);
+        });
+      }
     });
   }, ALERTS_EVAL_INTERVAL_MS);
 }
+
+// Maintenance (rollup + purge) de l'historique process, sur son propre
+// intervalle (PROCESS_HISTORY_MAINTENANCE_INTERVAL_MS) indépendant du polling.
+processHistory.start();
 
 // Un seul bus de logs partagé, diffusé à tous les clients connectés
 // (le filtrage par permission "logs" sur une app précise se fait déjà côté

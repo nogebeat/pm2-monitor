@@ -350,8 +350,16 @@ button, input, select, textarea { font-family: inherit; }
 }
 
 .proc-actions button.more { flex: 0 0 auto; padding: 6px 10px; }
+.proc-actions button.more.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
 .proc-actions button:hover { color: var(--text); border-color: var(--text-muted); }
 .proc-actions button.danger:hover { color: var(--down); border-color: var(--down); }
+
+.proc-metrics-panel {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.proc-chart-wrap { height: 140px; }
 .proc-actions button.go:hover { color: var(--online); border-color: var(--online); }
 
 .empty-state { color: var(--text-faint); font-size: 12.5px; padding: 24px 4px; }

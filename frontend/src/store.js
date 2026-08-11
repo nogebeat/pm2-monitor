@@ -259,6 +259,22 @@ export function loadHistoryChart(range) {
   return apiGet(`/api/system/history?range=${range}`);
 }
 
+// ---------- Historique par process (onglet "Metrics" d'une carte) ----------
+
+const PROCESS_RANGE_MS = {
+  "1h": 3600 * 1000,
+  "6h": 6 * 3600 * 1000,
+  "24h": 24 * 3600 * 1000,
+  "7d": 7 * 24 * 3600 * 1000,
+  "30d": 30 * 24 * 3600 * 1000,
+};
+
+export function loadProcessMetrics(processId, range) {
+  const end = Date.now();
+  const start = end - (PROCESS_RANGE_MS[range] || PROCESS_RANGE_MS["1h"]);
+  return apiGet(`/api/processes/${processId}/metrics?start=${start}&end=${end}`);
+}
+
 // ---------- Câblage WebSocket ----------
 
 socket.on("connect", () => {
