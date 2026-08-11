@@ -259,14 +259,51 @@ random_password() {
   fi
 }
 
+# ---------------------------------------------------------------------
+# Config depuis un .env existant (idempotence install/update)
+# ---------------------------------------------------------------------
+#
+# Sans ça : sur une réinstallation (`install` relancé sans flags) ou une
+# `update`, les étapes suivantes (ensure_mysql_config, ensure_dependencies,
+# nginx via $PORT…) voyaient les valeurs par défaut du script ("sqlite",
+# port 4200…) au lieu de la config réellement choisie au premier install —
+# silencieux mais faux : un `./deploy.sh update` sur une install MySQL, par
+# exemple, ne réinstallait jamais mysql2 et pouvait dériver de la config
+# réelle. On relit donc le .env existant ici, AVANT le parsing des options
+# CLI, pour que ces dernières restent prioritaires si explicitement passées
+# (--port, --db-driver, etc. continuent de gagner).
+env_file_get() {
+  # env_file_get CLE [défaut]
+  local key="$1" default="${2:-}" val
+  [ -f "$ENV_FILE" ] || { echo "$default"; return; }
+  val="$(grep -E "^${key}=" "$ENV_FILE" | tail -1 | cut -d= -f2- || true)"
+  [ -n "$val" ] && echo "$val" || echo "$default"
+}
+
+load_env_defaults() {
+  [ -f "$ENV_FILE" ] || return 0
+  PORT="$(env_file_get PORT "$PORT")"
+  AUTH_USER="$(env_file_get PM2_MONITOR_USER "$AUTH_USER")"
+  DB_DRIVER="$(env_file_get DB_DRIVER "$DB_DRIVER")"
+  DB_HOST="$(env_file_get DB_HOST "$DB_HOST")"
+  DB_PORT="$(env_file_get DB_PORT "$DB_PORT")"
+  DB_USER="$(env_file_get DB_USER "$DB_USER")"
+  DB_PASS="$(env_file_get DB_PASS "$DB_PASS")"
+  DB_NAME="$(env_file_get DB_NAME "$DB_NAME")"
+  # AUTH_PASS n'est volontairement JAMAIS relu ici : write_env() ne réécrit
+  # de toute façon pas le .env s'il existe déjà et qu'aucun --pass n'est
+  # fourni. Le relire romprait cette détection ("--pass fourni ?") et
+  # déclencherait une régénération involontaire du mot de passe admin.
+}
+
 write_env() {
   title "Configuration (.env)"
 
   if [ -f "$ENV_FILE" ] && [ -z "$AUTH_PASS" ]; then
     ok "Fichier .env déjà présent, conservé tel quel."
-    # On récupère le port déjà configuré pour la suite du script (nginx, firewall…)
-    PORT="$(grep -E '^PORT=' "$ENV_FILE" | tail -1 | cut -d= -f2- || true)"
-    PORT="${PORT:-4200}"
+    # PORT/DB_DRIVER/etc. déjà rechargés depuis ce même fichier par
+    # load_env_defaults() avant le parsing des options CLI (voir plus bas) :
+    # rien à refaire ici.
     return 0
   fi
 
@@ -524,6 +561,10 @@ cmd_update() {
     info "Pas de dépôt git : remplace les fichiers du projet manuellement avant de relancer."
   fi
   npm install --omit=dev
+  if [ "$DB_DRIVER" = "mysql" ]; then
+    info "DB_DRIVER=mysql (.env) : vérification de la dépendance mysql2…"
+    npm install mysql2 --omit=dev --no-save || warn "Échec d'installation de mysql2, vérifie ta connexion npm."
+  fi
   ensure_frontend_build
   run_migrations
   if command -v pm2 >/dev/null 2>&1 && pm2 describe "$APP_NAME" >/dev/null 2>&1; then
@@ -603,6 +644,11 @@ if [ "$COMMAND" = "migrate" ]; then
   cmd_migrate "$@"
   exit $?
 fi
+
+# Recharge PORT/DB_DRIVER/etc. depuis un .env existant avant de parser les
+# flags CLI, pour que install/update sur une install existante réutilisent
+# la config déjà en place (voir commentaire de load_env_defaults()).
+load_env_defaults
 
 while [ $# -gt 0 ]; do
   case "$1" in
