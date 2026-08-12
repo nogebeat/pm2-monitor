@@ -1,6 +1,6 @@
 {
   "name": "pm2-monitor",
-  "version": "3.5.b",
+  "version": "3.5.c",
   "description": "Interface graphique de monitoring PM2 (liste des process + logs en direct) — frontend Vue 3 + Vite",
   "main": "server.js",
   "scripts": {
