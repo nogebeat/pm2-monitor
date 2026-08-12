@@ -28,6 +28,10 @@ function togglePm2Menu(e) {
 function openUsers() {
   state.modal = { type: "users" };
 }
+
+function openNotifications() {
+  state.modal = { type: "notifications" };
+}
 </script>
 
 <template>
@@ -80,6 +84,14 @@ function openUsers() {
         <span class="conn-label">{{ state.connected ? "connecté" : "déconnecté" }}</span>
       </div>
       <button class="icon-btn" title="Actions globales PM2" @click="togglePm2Menu">PM2 ⋯</button>
+      <button
+        v-if="can('notifications_read')"
+        class="icon-btn"
+        title="Settings → Notifications → Providers"
+        @click="openNotifications"
+      >
+        🔔 Notifications
+      </button>
       <button
         v-if="state.auth.user && state.auth.user.isAdmin"
         class="icon-btn"

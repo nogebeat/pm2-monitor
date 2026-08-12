@@ -383,11 +383,13 @@ créé pour cette fonctionnalité).
 ### Notifications
 
 Système de notifications multi-providers, en construction par phases —
-architecture, modèles de données et cinq providers opérationnels
-(Email/SMTP, Discord, Telegram, Slack, Webhook générique). Pas encore
-d'interface d'administration ni de routing automatique depuis les
-alertes : voir [`docs/notifications/README.md`](docs/notifications/README.md)
-pour l'état exact et [`docs/notifications/providers/`](docs/notifications/providers/)
+architecture, modèles de données, cinq providers opérationnels
+(Email/SMTP, Discord, Telegram, Slack, Webhook générique) et désormais une
+interface d'administration complète (Settings → Notifications →
+Providers). Pas encore de routing automatique depuis les alertes (règles,
+templates — Phase 5D) ni de mise en file d'attente/retry (Phase 5E) : voir
+[`docs/notifications/README.md`](docs/notifications/README.md) pour
+l'état exact et [`docs/notifications/providers/`](docs/notifications/providers/)
 pour la configuration détaillée de chaque provider.
 
 - **Providers** : `email` (SMTP, host/port/security/identifiants),
@@ -401,10 +403,21 @@ pour la configuration détaillée de chaque provider.
   un log ou une erreur.
 - Secrets chiffrés au repos (AES-256-GCM) via `NOTIFICATIONS_ENCRYPTION_KEY`
   (voir [Notes importantes](#notes-importantes)).
-- **Endpoints actuels** : `GET /api/notifications/provider-types`,
-  `GET /api/notifications/providers` (permission `notifications_read`). Le
-  CRUD complet, le test exposé en HTTP et le routing par règles arrivent
-  dans une phase suivante.
+- **UI (Phase 5C)** : `Settings → Notifications → Providers` — liste des
+  configurations (statut 🟢/⚪), `+ Add notification provider` avec
+  formulaire dynamique selon le type choisi, `Edit`/`Test`/`Enable`/
+  `Disable`/`Delete` par configuration. Un mot de passe/webhook/token déjà
+  enregistré s'affiche masqué (`••••••••`) ; le laisser tel quel lors d'une
+  modification conserve la valeur existante ("Keep existing credential").
+  `Test` appelle réellement le provider et affiche `🟢 Notification sent
+  successfully` ou une erreur sûre (`🔴 …`, jamais de secret).
+- **Endpoints** : `GET /api/notifications/provider-types`,
+  `GET/POST /api/notifications/providers`, `GET/PATCH/PUT/DELETE
+  /api/notifications/providers/:id`, `POST
+  /api/notifications/providers/:id/test`. Permissions : `notifications_read`,
+  `notifications_create`, `notifications_update`, `notifications_delete`,
+  `notifications_test`. Le routing par règles et les templates arrivent en
+  Phase 5D.
 
 ### Logs
 

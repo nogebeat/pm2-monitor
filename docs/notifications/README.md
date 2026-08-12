@@ -188,19 +188,21 @@ l'orchestration `NotificationManager.send()`, prévue en Phase 5C).
 
 ## API REST
 
-Toutes les routes sont sous `/api/notifications`. **Seuls deux GET
-existent à ce stade** — le CRUD complet des providers
-(POST/PUT/DELETE), le test de configuration exposé en HTTP (`POST
-/providers/:id/test` — les providers savent déjà le faire en interne
-depuis la Phase 5B, voir `type.test()`), l'historique détaillé (`GET
-/history`) et le routing (CRUD `/routes`) sont prévus en Phase 5C. Les
-permissions correspondantes existent déjà dans `lib/permissions.js`
-pour éviter une migration de permissions supplémentaire à ce moment-là.
+Toutes les routes sont sous `/api/notifications`. Depuis la Phase 5C, le
+CRUD complet des providers et le test HTTP d'une configuration sont
+exposés. L'historique détaillé (`GET /history`) et le routing (CRUD
+`/routes`) restent prévus en Phase 5D/5E.
 
-| Méthode | Route                                | Permission            | Description |
-|----------|-----------------------------------------|--------------------------|----------------|
-| GET      | `/api/notifications/provider-types`       | `notifications_read`      | Catalogue des types de providers connus (`type`, `label`, `implemented: true` depuis la Phase 5B). |
-| GET      | `/api/notifications/providers`             | `notifications_read`      | Liste les configurations enregistrées. `?type=` filtre par type (`400` si type inconnu du registry). Ne renvoie jamais les secrets (`hasSecrets` uniquement). |
+| Méthode | Route                                       | Permission              | Description |
+|----------|---------------------------------------------|--------------------------|----------------|
+| GET      | `/api/notifications/provider-types`         | `notifications_read`      | Catalogue des types de providers connus (`type`, `label`, `implemented: true`). |
+| GET      | `/api/notifications/providers`              | `notifications_read`      | Liste les configurations enregistrées. `?type=` filtre par type (`400` si type inconnu du registry). Ne renvoie jamais les secrets (`hasSecrets` uniquement). |
+| GET      | `/api/notifications/providers/:id`          | `notifications_read`      | Détail d'une configuration (`404` si absente). Mêmes garanties que la liste : jamais de secret en clair. |
+| POST     | `/api/notifications/providers`              | `notifications_create`    | Crée une configuration. Body : `{ name, type, enabled?, fields }` — `fields` fusionne champs publics et secrets, scindés côté serveur via `provider.secretFields` (voir [Secrets](#secrets)). `400` si `type` inconnu ou si la configuration ne passe pas `validateConfig()` du provider. |
+| PATCH    | `/api/notifications/providers/:id`          | `notifications_update`    | Modification partielle. `fields` omis = configuration/secrets inchangés ; un champ secret absent de `fields` = credential conservé (case "Keep existing credential" côté UI) ; présent (même vide) = remplacé. Le `type` ne peut pas être changé (`400`). `404` si absente. |
+| PUT      | `/api/notifications/providers/:id`          | `notifications_update`    | Même contrat que PATCH (remplacement complet recommandé côté appelant : fournir tous les `fields`). |
+| DELETE   | `/api/notifications/providers/:id`          | `notifications_delete`    | Supprime la configuration. `404` si absente. |
+| POST     | `/api/notifications/providers/:id/test`     | `notifications_test`      | Envoie réellement une notification de test avec la configuration stockée (secrets déchiffrés en mémoire pour cet appel uniquement). Réponse = résultat normalisé du provider (`success`, `safeMessage`/`errorCode`…, jamais de secret). `404` si absente. |
 
 ## Permissions
 
@@ -211,14 +213,14 @@ même raisonnement que `alerts_*`/`events_read` :
 | Action                    | Description                                                | Vérifiée par une route à ce stade ? |
 |-----------------------------|------------------------------------------------------------|------------------------------------------|
 | `notifications_read`          | Voir les providers, leurs types et l'historique d'envoi.     | Oui                                        |
-| `notifications_create`        | Créer une configuration de provider.                         | Non — prévu Phase 5C                       |
-| `notifications_update`        | Modifier une configuration de provider.                      | Non — prévu Phase 5C                       |
-| `notifications_delete`        | Supprimer une configuration de provider.                     | Non — prévu Phase 5C                       |
-| `notifications_test`          | Envoyer une notification de test avec une configuration.     | Non — prévu Phase 5C (les providers savent déjà tester, `type.test()`, mais aucune route HTTP ne l'expose encore) |
-| `notifications_history`       | Voir l'historique détaillé des notifications envoyées.       | Non — prévu Phase 5C                    |
-| `notifications_manage`        | Gérer les règles de routing des notifications.               | Non — prévu Phase 5C                    |
+| `notifications_create`        | Créer une configuration de provider.                         | Oui (Phase 5C)                             |
+| `notifications_update`        | Modifier une configuration de provider.                      | Oui (Phase 5C)                             |
+| `notifications_delete`        | Supprimer une configuration de provider.                     | Oui (Phase 5C)                             |
+| `notifications_test`          | Envoyer une notification de test avec une configuration.     | Oui (Phase 5C)                             |
+| `notifications_history`       | Voir l'historique détaillé des notifications envoyées.       | Non — prévu Phase 5D/5E                    |
+| `notifications_manage`        | Gérer les règles de routing des notifications.               | Non — prévu Phase 5D                       |
 
-Toutes déclarées dès maintenant pour que le jeu de permissions complet
+Toutes déclarées dès la Phase 5A pour que le jeu de permissions complet
 soit disponible aux admins sans exiger une nouvelle migration de
 permissions à chaque sous-phase suivante.
 

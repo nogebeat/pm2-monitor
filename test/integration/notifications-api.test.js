@@ -139,6 +139,222 @@ test("API /api/notifications (fondations Phase 5A + providers Phase 5B)", async 
   delete process.env.PM2_MONITOR_DISABLE_AUTH;
 });
 
+const NOTIF_ADMIN = {
+  id: 4,
+  isAdmin: false,
+  permissions: [
+    { appName: "*", action: "notifications_read" },
+    { appName: "*", action: "notifications_create" },
+    { appName: "*", action: "notifications_update" },
+    { appName: "*", action: "notifications_delete" },
+    { appName: "*", action: "notifications_test" },
+  ],
+};
+
+test("API /api/notifications — CRUD providers (Phase 5C)", async (t) => {
+  const dbCtx = await freshDb();
+  const migrator = require("../../lib/db/migrator");
+  await migrator.up();
+
+  await t.test("POST /providers crée une configuration valide et scinde secrets/configuration", async () => {
+    const { server, baseUrl } = await startServer(NOTIF_ADMIN);
+    try {
+      const res = await fetch(`${baseUrl}/providers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Discord Production",
+          type: "discord",
+          fields: { webhookUrl: "https://discord.com/api/webhooks/123/abc", username: "PM2 Monitor" },
+        }),
+      });
+      assert.equal(res.status, 201);
+      const body = await res.json();
+      assert.equal(body.name, "Discord Production");
+      assert.equal(body.hasSecrets, true);
+      assert.equal(body.configuration.username, "PM2 Monitor");
+      assert.equal(body.secrets, undefined);
+
+      const db = require("../../lib/db");
+      const row = await db.get("SELECT configuration, secrets FROM notification_providers WHERE id = ?", [body.id]);
+      assert.equal(JSON.parse(row.configuration).webhookUrl, undefined);
+      assert.ok(!row.secrets.includes("discord.com/api/webhooks"));
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("POST /providers rejette une configuration invalide (validation backend)", async () => {
+    const { server, baseUrl } = await startServer(NOTIF_ADMIN);
+    try {
+      const res = await fetch(`${baseUrl}/providers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Bad Discord", type: "discord", fields: { webhookUrl: "not-a-url" } }),
+      });
+      assert.equal(res.status, 400);
+      const body = await res.json();
+      assert.match(body.error, /webhook Discord valide/);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("POST /providers rejette un type inconnu", async () => {
+    const { server, baseUrl } = await startServer(NOTIF_ADMIN);
+    try {
+      const res = await fetch(`${baseUrl}/providers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "x", type: "bogus", fields: {} }),
+      });
+      assert.equal(res.status, 400);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("POST /providers -> 403 sans permission notifications_create", async () => {
+    const { server, baseUrl } = await startServer(NOTIF_USER); // notifications_read seulement
+    try {
+      const res = await fetch(`${baseUrl}/providers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "x", type: "slack", fields: { webhookUrl: "https://hooks.slack.com/services/x" } }),
+      });
+      assert.equal(res.status, 403);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  let slackId;
+  await t.test("PATCH /providers/:id modifie un champ public sans toucher aux secrets", async () => {
+    const providerStore = require("../../lib/services/notifications/provider-store");
+    const created = await providerStore.create({
+      name: "Slack Prod",
+      type: "slack",
+      configuration: { channel: "#ops" },
+      secrets: { webhookUrl: "https://hooks.slack.com/services/aaa/bbb/ccc" },
+    });
+    slackId = created.id;
+
+    const { server, baseUrl } = await startServer(NOTIF_ADMIN);
+    try {
+      const res = await fetch(`${baseUrl}/providers/${slackId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fields: { channel: "#alerts" } }),
+      });
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      assert.equal(body.configuration.channel, "#alerts");
+
+      const secrets = await providerStore.getDecryptedSecrets(slackId);
+      assert.equal(secrets.webhookUrl, "https://hooks.slack.com/services/aaa/bbb/ccc"); // conservé ("keep existing")
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("PATCH /providers/:id refuse de changer le type", async () => {
+    const { server, baseUrl } = await startServer(NOTIF_ADMIN);
+    try {
+      const res = await fetch(`${baseUrl}/providers/${slackId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "discord" }),
+      });
+      assert.equal(res.status, 400);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("PATCH /providers/:id sur un id inconnu -> 404", async () => {
+    const { server, baseUrl } = await startServer(NOTIF_ADMIN);
+    try {
+      const res = await fetch(`${baseUrl}/providers/999999`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: false }),
+      });
+      assert.equal(res.status, 404);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("DELETE /providers/:id -> 403 sans permission notifications_delete", async () => {
+    const { server, baseUrl } = await startServer(NOTIF_USER);
+    try {
+      const res = await fetch(`${baseUrl}/providers/${slackId}`, { method: "DELETE" });
+      assert.equal(res.status, 403);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("DELETE /providers/:id supprime bien la configuration", async () => {
+    const { server, baseUrl } = await startServer(NOTIF_ADMIN);
+    try {
+      const res = await fetch(`${baseUrl}/providers/${slackId}`, { method: "DELETE" });
+      assert.equal(res.status, 200);
+      const providerStore = require("../../lib/services/notifications/provider-store");
+      assert.equal(await providerStore.getById(slackId), null);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("POST /providers/:id/test appelle réellement le provider et ne renvoie jamais de secret", async () => {
+    const providerStore = require("../../lib/services/notifications/provider-store");
+    const created = await providerStore.create({
+      name: "Discord Test",
+      type: "discord",
+      secrets: { webhookUrl: "https://discord.com/api/webhooks/000/does-not-exist" },
+    });
+
+    const { server, baseUrl } = await startServer(NOTIF_ADMIN);
+    try {
+      const res = await fetch(`${baseUrl}/providers/${created.id}/test`, { method: "POST" });
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      assert.equal(body.provider, "discord");
+      assert.equal(typeof body.success, "boolean");
+      assert.equal(JSON.stringify(body).includes("discord.com/api/webhooks/000"), false);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("POST /providers/:id/test -> 403 sans permission notifications_test", async () => {
+    const providerStore = require("../../lib/services/notifications/provider-store");
+    const created = await providerStore.create({ name: "Discord Test 2", type: "discord" });
+
+    const { server, baseUrl } = await startServer(NOTIF_USER);
+    try {
+      const res = await fetch(`${baseUrl}/providers/${created.id}/test`, { method: "POST" });
+      assert.equal(res.status, 403);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("POST /providers/:id/test sur un id inconnu -> 404", async () => {
+    const { server, baseUrl } = await startServer(NOTIF_ADMIN);
+    try {
+      const res = await fetch(`${baseUrl}/providers/999999/test`, { method: "POST" });
+      assert.equal(res.status, 404);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await cleanupDb(dbCtx);
+  delete process.env.PM2_MONITOR_DISABLE_AUTH;
+});
+
 test("provider-store (plusieurs configs du même type, secrets chiffrés)", async (t) => {
   const dbCtx = await freshDb();
   const migrator = require("../../lib/db/migrator");
