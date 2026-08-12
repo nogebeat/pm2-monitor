@@ -46,7 +46,7 @@ const ADMIN = { id: 1, isAdmin: true };
 const NO_PERMS_USER = { id: 2, isAdmin: false, permissions: [] };
 const NOTIF_USER = { id: 3, isAdmin: false, permissions: [{ appName: "*", action: "notifications_read" }] };
 
-test("API /api/notifications (Phase 5A)", async (t) => {
+test("API /api/notifications (fondations Phase 5A + providers Phase 5B)", async (t) => {
   const dbCtx = await freshDb();
   const migrator = require("../../lib/db/migrator");
   await migrator.up();
@@ -61,7 +61,7 @@ test("API /api/notifications (Phase 5A)", async (t) => {
     }
   });
 
-  await t.test("GET /provider-types : les 5 placeholders, non implémentés", async () => {
+  await t.test("GET /provider-types : les 5 providers réels, implémentés (Phase 5B)", async () => {
     const { server, baseUrl } = await startServer(NOTIF_USER);
     try {
       const res = await fetch(`${baseUrl}/provider-types`);
@@ -69,7 +69,7 @@ test("API /api/notifications (Phase 5A)", async (t) => {
       const body = await res.json();
       const types = body.map((p) => p.type).sort();
       assert.deepEqual(types, ["discord", "email", "slack", "telegram", "webhook"]);
-      assert.ok(body.every((p) => p.implemented === false));
+      assert.ok(body.every((p) => p.implemented === true));
     } finally {
       await stopServer(server);
     }

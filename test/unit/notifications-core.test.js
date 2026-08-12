@@ -47,34 +47,45 @@ test("ProviderRegistry", async (t) => {
   });
 });
 
-test("providers/index.js — placeholders réels du projet", async (t) => {
-  const placeholders = require("../../lib/services/notifications/providers");
+test("providers/index.js — providers réels du projet (Phase 5B)", async (t) => {
+  const providers = require("../../lib/services/notifications/providers");
 
   await t.test("les 5 providers attendus sont bien exportés", () => {
-    const types = placeholders.map((p) => p.type).sort();
+    const types = providers.map((p) => p.type).sort();
     assert.deepEqual(types, ["discord", "email", "slack", "telegram", "webhook"]);
   });
 
-  await t.test("chaque placeholder valide sa config minimale et rejette une config vide", () => {
-    for (const provider of placeholders) {
+  await t.test("chaque provider valide sa config minimale et rejette une config vide", () => {
+    for (const provider of providers) {
       const errors = provider.validateConfig({});
       assert.ok(Array.isArray(errors) && errors.length > 0, `${provider.type} doit rejeter {}`);
     }
   });
 
-  await t.test("chaque placeholder lève une erreur explicite sur send() (non implémenté Phase 5A)", async () => {
-    for (const provider of placeholders) {
-      await assert.rejects(() => provider.send({}, {}), /non implémenté/);
+  await t.test("chaque provider rejette send() avec une config invalide, sans exception (résultat normalisé)", async () => {
+    for (const provider of providers) {
+      const result = await provider.send({}, {});
+      assert.equal(result.success, false, `${provider.type} doit échouer proprement`);
+      assert.equal(result.errorCode, "INVALID_CONFIG");
+      assert.equal(typeof result.safeMessage, "string");
+    }
+  });
+
+  await t.test("chaque provider implémente réellement validateConfig()/test()/send() (voir Phase 5B — providers spécifiques testés dans notifications-providers.test.js)", () => {
+    for (const provider of providers) {
+      assert.equal(typeof provider.validateConfig, "function");
+      assert.equal(typeof provider.test, "function");
+      assert.equal(typeof provider.send, "function");
     }
   });
 });
 
 test("NotificationManager", async (t) => {
-  await t.test("listProviderTypes() délègue au registry, marque tout non implémenté", () => {
+  await t.test("listProviderTypes() délègue au registry (Phase 5B : implemented: true)", () => {
     const registry = new ProviderRegistry();
     registry.registerProvider(new NotificationProvider("dummy", "Dummy"));
     const manager = new NotificationManager({ registry });
-    assert.deepEqual(manager.listProviderTypes(), [{ type: "dummy", label: "Dummy", implemented: false }]);
+    assert.deepEqual(manager.listProviderTypes(), [{ type: "dummy", label: "Dummy", implemented: true }]);
   });
 
   await t.test("validateProviderConfig() renvoie une erreur pour un type inconnu", () => {
@@ -84,10 +95,10 @@ test("NotificationManager", async (t) => {
     assert.ok(errors.some((e) => /inconnu/.test(e)));
   });
 
-  await t.test("send() n'est pas implémenté en Phase 5A", async () => {
+  await t.test("send() (orchestration multi-provider) reste hors scope de la Phase 5B", async () => {
     const registry = new ProviderRegistry();
     const manager = new NotificationManager({ registry });
-    await assert.rejects(() => manager.send(), /non implémenté en Phase 5A/);
+    await assert.rejects(() => manager.send(), /Phase 5B/);
   });
 
   await t.test("constructeur exige un registry", () => {

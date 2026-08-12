@@ -1,20 +1,21 @@
-# Notification system — Phase 5A (fondations)
+# Notification system — Phase 5A (fondations) + Phase 5B (providers)
 
-Phase 5A du projet : architecture, modèles de données et registry des
-providers du futur système de notifications (Email/Discord/Telegram/
-Slack/Webhook générique). **Aucun envoi réel n'existe encore dans cette
-phase** — les providers sont des placeholders qui valident une
-configuration mais lèvent une erreur explicite sur `send()`/`test()`. Le
-routing par règles (`notification_routes`), l'historique automatique
-(`notification_history`), la file d'attente et l'intégration avec le
-moteur d'alertes (`lib/services/alerts/`) sont prévus pour les
-sous-phases suivantes (5B : providers réels, 5C : CRUD complet, secrets,
-routing engine).
+Phase 5A a posé l'architecture, les modèles de données et le registry
+des providers du système de notifications (Email/Discord/Telegram/
+Slack/Webhook générique). **Phase 5B implémente l'envoi réel** pour ces
+cinq providers (`validateConfig()`/`test()`/`send()`, `healthCheck()`
+pour email et telegram). Le routing par règles (`notification_routes`),
+l'écriture automatique de l'historique (`notification_history`), la
+file d'attente/retry et l'intégration avec le moteur d'alertes
+(`lib/services/alerts/`) restent hors scope et sont prévus en Phase 5C,
+de même que l'interface d'administration complète et le CRUD HTTP des
+providers.
 
 ## Sommaire
 
 - [Architecture](#architecture)
 - [Provider Registry](#provider-registry)
+- [Providers (Phase 5B)](#providers-phase-5b)
 - [Modèle de configuration de provider](#modèle-de-configuration-de-provider)
 - [Secrets](#secrets)
 - [Modèle de routing (à venir)](#modèle-de-routing-à-venir)
@@ -33,16 +34,17 @@ lib/services/notifications/
 ├── index.js              # point d'entrée : assemble registry + manager + stores (singleton)
 ├── manager.js             # NotificationManager : catalogue de types, validation — jamais les détails d'un provider
 ├── registry.js            # ProviderRegistry : registerProvider/getProvider/listProviders/hasProvider
-├── types.js               # classe abstraite NotificationProvider (validateConfig/test/send)
+├── types.js               # classe abstraite NotificationProvider (validateConfig, test() par défaut, send() abstrait, healthCheck() optionnel)
 ├── provider-store.js      # CRUD table notification_providers, secrets chiffrés
 ├── history-store.js       # CRUD table notification_history (modèle seul, rien n'écrit encore automatiquement)
 ├── providers/
 │   ├── index.js            # liste des providers à enregistrer au démarrage
-│   ├── email.js             # placeholder — validateConfig() seulement
-│   ├── discord.js
-│   ├── telegram.js
-│   ├── slack.js
-│   └── webhook.js
+│   ├── shared.js            # helpers communs : résultats normalisés, timeout fetch(), classification d'erreurs
+│   ├── email.js              # SMTP via nodemailer — send() + healthCheck() (verify())
+│   ├── discord.js             # Webhook Discord — send() + healthCheck() (GET webhook)
+│   ├── telegram.js            # Bot API Telegram — send() + healthCheck() (getMe())
+│   ├── slack.js                # Incoming Webhook Slack — send()
+│   └── webhook.js               # Webhook générique configurable — send()
 ├── routing/
 │   └── route-store.js      # CRUD table notification_routes (modèle seul, aucun moteur d'évaluation)
 └── utils/
@@ -50,6 +52,7 @@ lib/services/notifications/
 
 lib/routes/notifications.js   # routeur Express (/api/notifications/…), aucune logique métier dedans
 lib/db/migrations/006_notifications.js   # tables notification_providers, notification_routes, notification_history
+docs/notifications/providers/   # un fichier par provider (configuration, sécurité, tests, erreurs)
 ```
 
 Même découpage que `lib/services/alerts/` et `lib/services/events/` :
@@ -71,15 +74,54 @@ Chaque provider implémente la classe abstraite `NotificationProvider`
 (`types.js`) :
 
 ```text
-type            # identifiant unique, ex: "discord"
-validateConfig() # retourne un tableau d'erreurs (jamais d'exception)
-test()           # non implémenté en Phase 5A — prévu en Phase 5C
-send()           # non implémenté en Phase 5A — prévu en Phase 5C
+type              # identifiant unique, ex: "discord"
+label              # nom lisible, ex: "Discord"
+validateConfig()    # retourne un tableau d'erreurs (jamais d'exception)
+test()               # implémentation par défaut dans types.js : valide la config
+                       #   puis délègue à send() avec une notification de test standard
+send()                # abstrait dans types.js, implémenté par chaque provider (Phase 5B)
+healthCheck()          # optionnel — vérification de connectivité distincte d'un envoi
+                          #   (implémenté pour email et telegram uniquement, voir plus bas)
 ```
 
-Cinq providers sont déjà enregistrés comme placeholders : `email`,
-`discord`, `telegram`, `slack`, `webhook`. Seul `validateConfig()` est
-opérationnel pour l'instant.
+Cinq providers sont enregistrés et pleinement opérationnels :
+`email`, `discord`, `telegram`, `slack`, `webhook`. Voir
+[Providers (Phase 5B)](#providers-phase-5b) pour le détail de chacun.
+
+## Providers (Phase 5B)
+
+Documentation complète (configuration, prérequis, sécurité, test,
+erreurs communes) : [`docs/notifications/providers/`](./providers/).
+
+| Provider  | Fichier                     | Doc                                                       | `healthCheck()` |
+|-----------|------------------------------|------------------------------------------------------------|--------------------|
+| Email/SMTP | `providers/email.js`          | [providers/email.md](./providers/email.md)                  | Oui (`verify()`)     |
+| Discord    | `providers/discord.js`         | [providers/discord.md](./providers/discord.md)               | Oui (GET webhook)     |
+| Telegram   | `providers/telegram.js`         | [providers/telegram.md](./providers/telegram.md)              | Oui (`getMe()`)         |
+| Slack      | `providers/slack.js`             | [providers/slack.md](./providers/slack.md)                     | Non (webhook Slack sans introspection GET utile) |
+| Webhook générique | `providers/webhook.js`    | [providers/webhook.md](./providers/webhook.md)                  | Non (dépend du système externe) |
+
+Résultat normalisé, commun à tous les providers (`send()`, `test()`,
+`healthCheck()`) :
+
+```text
+succès : { success: true,  provider, messageId,             responseTime }
+échec  : { success: false, provider, errorCode, safeMessage, responseTime }
+```
+
+`errorCode` ∈ `INVALID_CONFIG`, `AUTH_ERROR`, `NOT_FOUND`,
+`RATE_LIMITED`, `TIMEOUT`, `NETWORK_ERROR`, `PROVIDER_ERROR`,
+`HTTP_ERROR`, `MALFORMED_RESPONSE`. `safeMessage` est **toujours** un
+message générique construit à partir d'un code d'erreur connu (statut
+HTTP, `err.code` nodemailer, timeout) — jamais le message brut d'une
+erreur réseau/SMTP, qui peut contenir l'URL appelée (donc un token de
+webhook) ou le host SMTP interne. Voir
+[`providers/shared.js`](../../lib/services/notifications/providers/shared.js).
+
+Notification envoyée par `send(notification, config)` : objet libre
+`{ title, message, severity, url? }` — le format exact (routing par
+règles, templates) est prévu en Phase 5C ; cette phase se contente de le
+transmettre tel quel au format attendu par chaque fournisseur.
 
 ## Modèle de configuration de provider
 
@@ -91,7 +133,7 @@ Admin" + "SMTP Developers") — pas de contrainte d'unicité sur `type`.
 |------------------|--------------------------|------------------------------------------------------------------------|
 | `name`            | string (requis)           | Nom lisible, ex. "Discord Production".                                |
 | `type`            | string (requis)           | Doit correspondre à un provider du registry (validé côté manager/routes, pas par le store lui-même). |
-| `enabled`         | bool (défaut `true`)      | Non exploité tant que l'envoi n'existe pas (Phase 5B/5C).             |
+| `enabled`         | bool (défaut `true`)      | Non exploité côté orchestration (routing/queue, Phase 5C) — un provider `enabled: false` peut toujours être appelé directement via `send()`/`test()`. |
 | `configuration`   | objet JSON                | Champs publics du provider (ex. `fromEmail`, `username`).             |
 | `secrets`         | objet JSON, **chiffré**   | Champs sensibles (mot de passe SMTP, webhook, bot token…). Jamais retourné en clair — voir [Secrets](#secrets). |
 
@@ -103,15 +145,17 @@ existe bien" se fait plus haut (manager, routes), pas dans le store.
 
 Le projet n'avait jusqu'ici que du hachage à sens unique (bcrypt, mots
 de passe utilisateurs). Inadapté ici : ces secrets doivent être
-déchiffrables pour être effectivement utilisés par un provider (Phase
-5B/5C). `lib/services/notifications/utils/crypto.js` introduit donc
-AES-256-GCM (confidentialité + intégrité, IV aléatoire par valeur
-chiffrée), utilisé uniquement pour ce besoin.
+déchiffrables pour être effectivement utilisés par un provider (mot de
+passe SMTP, webhook Discord/Slack, bot token Telegram — voir
+[Providers (Phase 5B)](#providers-phase-5b)). `lib/services/notifications/utils/crypto.js`
+introduit donc AES-256-GCM (confidentialité + intégrité, IV aléatoire
+par valeur chiffrée), utilisé uniquement pour ce besoin.
 
 - Clé : `NOTIFICATIONS_ENCRYPTION_KEY` (voir [Configuration](#configuration-env)), dérivée en 32 octets via SHA-256.
 - Si absente, une clé aléatoire est générée **en mémoire** au démarrage (même repli que `SESSION_SECRET`), avec un avertissement au démarrage — mais contrairement aux sessions, un redémarrage sans clé explicite rend **tous les secrets déjà stockés définitivement indéchiffrables**.
 - `GET /api/notifications/providers` ne renvoie jamais les secrets : uniquement `hasSecrets` (booléen).
-- `getDecryptedSecrets(id)` existe dans `provider-store.js` mais n'est exposé par aucune route en Phase 5A (usage interne réservé à l'envoi réel, Phase 5B/5C).
+- `getDecryptedSecrets(id)` existe dans `provider-store.js` mais n'est exposé par aucune route pour l'instant (usage interne réservé à l'orchestration, Phase 5C) — les providers eux-mêmes (Phase 5B) reçoivent une config déjà déchiffrée, fournie par l'appelant.
+- Chaque provider respecte la même règle au niveau du réseau : jamais de secret dans un log, jamais dans un message d'erreur renvoyé (`safeMessage` est toujours générique, voir [Providers (Phase 5B)](#providers-phase-5b)).
 - `notification_history.metadata` ne doit **jamais** contenir de credentials — uniquement des détails d'exécution (code retour HTTP, extrait de réponse).
 
 ## Modèle de routing (à venir)
@@ -129,8 +173,8 @@ données seul, **aucun moteur d'évaluation ne lit encore cette table**.
 ## Modèle d'historique (à venir)
 
 Table `notification_history` (`history-store.js`) — modèle de données
-seul, rien n'y écrit encore automatiquement (Phase 5B branchera
-l'écriture réelle au moment de l'envoi).
+seul, rien n'y écrit encore automatiquement (écriture automatique liée à
+l'orchestration `NotificationManager.send()`, prévue en Phase 5C).
 
 | Champ            | Type    | Description                                                        |
 |--------------------|-----------|-------------------------------------------------------------------------|
@@ -145,16 +189,17 @@ l'écriture réelle au moment de l'envoi).
 ## API REST
 
 Toutes les routes sont sous `/api/notifications`. **Seuls deux GET
-existent dans cette phase** — le CRUD complet des providers
-(POST/PUT/DELETE), le test de configuration (`POST
-/providers/:id/test`), l'historique détaillé (`GET /history`) et le
-routing (CRUD `/routes`) sont prévus en Phase 5B/5C. Les permissions
-correspondantes existent déjà dans `lib/permissions.js` pour éviter une
-migration de permissions supplémentaire à ce moment-là.
+existent à ce stade** — le CRUD complet des providers
+(POST/PUT/DELETE), le test de configuration exposé en HTTP (`POST
+/providers/:id/test` — les providers savent déjà le faire en interne
+depuis la Phase 5B, voir `type.test()`), l'historique détaillé (`GET
+/history`) et le routing (CRUD `/routes`) sont prévus en Phase 5C. Les
+permissions correspondantes existent déjà dans `lib/permissions.js`
+pour éviter une migration de permissions supplémentaire à ce moment-là.
 
 | Méthode | Route                                | Permission            | Description |
 |----------|-----------------------------------------|--------------------------|----------------|
-| GET      | `/api/notifications/provider-types`       | `notifications_read`      | Catalogue des types de providers connus (`type`, `label`, `implemented: false` en Phase 5A). |
+| GET      | `/api/notifications/provider-types`       | `notifications_read`      | Catalogue des types de providers connus (`type`, `label`, `implemented: true` depuis la Phase 5B). |
 | GET      | `/api/notifications/providers`             | `notifications_read`      | Liste les configurations enregistrées. `?type=` filtre par type (`400` si type inconnu du registry). Ne renvoie jamais les secrets (`hasSecrets` uniquement). |
 
 ## Permissions
@@ -163,15 +208,15 @@ Réutilise le système existant (`lib/permissions.js`, `hasPermission()`),
 sans nouveau mécanisme. Action **globale** (pas liée à une app précise),
 même raisonnement que `alerts_*`/`events_read` :
 
-| Action                    | Description                                                | Vérifiée par une route en Phase 5A ? |
+| Action                    | Description                                                | Vérifiée par une route à ce stade ? |
 |-----------------------------|------------------------------------------------------------|------------------------------------------|
 | `notifications_read`          | Voir les providers, leurs types et l'historique d'envoi.     | Oui                                        |
 | `notifications_create`        | Créer une configuration de provider.                         | Non — prévu Phase 5C                       |
 | `notifications_update`        | Modifier une configuration de provider.                      | Non — prévu Phase 5C                       |
 | `notifications_delete`        | Supprimer une configuration de provider.                     | Non — prévu Phase 5C                       |
-| `notifications_test`          | Envoyer une notification de test avec une configuration.     | Non — prévu Phase 5C                       |
-| `notifications_history`       | Voir l'historique détaillé des notifications envoyées.       | Non — prévu Phase 5B/5C                    |
-| `notifications_manage`        | Gérer les règles de routing des notifications.               | Non — prévu Phase 5B/5C                    |
+| `notifications_test`          | Envoyer une notification de test avec une configuration.     | Non — prévu Phase 5C (les providers savent déjà tester, `type.test()`, mais aucune route HTTP ne l'expose encore) |
+| `notifications_history`       | Voir l'historique détaillé des notifications envoyées.       | Non — prévu Phase 5C                    |
+| `notifications_manage`        | Gérer les règles de routing des notifications.               | Non — prévu Phase 5C                    |
 
 Toutes déclarées dès maintenant pour que le jeu de permissions complet
 soit disponible aux admins sans exiger une nouvelle migration de
@@ -190,16 +235,17 @@ node bin/manage-users.js grant <username> "*" notifications_read
 # hex de 64 caractères. Si absente, une clé aléatoire est générée en
 # mémoire au démarrage (avertissement affiché) : tout secret déjà stocké
 # devient alors illisible au prochain redémarrage. À définir avant de
-# configurer un vrai provider (Phase 5C) — cette phase ne fait qu'établir
-# l'abstraction, aucun provider n'est encore configurable via l'UI.
+# stocker une vraie configuration de provider (le CRUD persistant arrive
+# en Phase 5C — les providers Phase 5B peuvent déjà être appelés
+# directement avec une config en mémoire, sans passer par le store).
 NOTIFICATIONS_ENCRYPTION_KEY=
 ```
 
 Voir `.env.example` à la racine du projet. Contrairement à
 `SESSION_SECRET`, cette variable n'a aucun impact tant qu'aucune
-configuration de provider n'existe réellement (pas de CRUD exposé en
-Phase 5A) — mais mieux vaut la fixer dès maintenant plutôt que d'oublier
-au moment de la Phase 5C.
+configuration de provider n'est réellement persistée (pas de CRUD
+exposé en HTTP à ce stade) — mais mieux vaut la fixer dès maintenant
+plutôt que d'oublier au moment de la Phase 5C.
 
 ## Migration
 
@@ -221,27 +267,54 @@ déjà écrit) — à réserver au développement/tests.
 ## Ajouter un provider
 
 1. Créer `lib/services/notifications/providers/<type>.js`, classe
-   étendant `NotificationProvider` (`types.js`), au minimum
-   `validateConfig()`.
-2. L'ajouter à `lib/services/notifications/providers/index.js`.
-3. Rien d'autre à modifier : le registry, le manager et les routes
+   étendant `NotificationProvider` (`types.js`) et implémentant
+   `validateConfig()` + `send()` (obligatoires), `healthCheck()`
+   (optionnel — uniquement si le fournisseur a une vérification de
+   connectivité distincte d'un envoi). `test()` a une implémentation par
+   défaut dans la classe de base : pas besoin de la surcharger sauf
+   besoin spécifique.
+2. Réutiliser `providers/shared.js` pour les résultats normalisés
+   (`successResult`/`failureResult`), le fetch avec timeout
+   (`fetchWithTimeout`) et la classification d'erreurs
+   (`classifyHttpStatus`/`classifyFetchError`) — ne jamais renvoyer un
+   message d'erreur brut (voir [Providers (Phase 5B)](#providers-phase-5b)).
+3. L'ajouter à `lib/services/notifications/providers/index.js`.
+4. Rien d'autre à modifier : le registry, le manager et les routes
    restent inchangés (voir [Provider Registry](#provider-registry)).
-
-`test()`/`send()` restent volontairement non implémentés tant que la
-Phase 5B (providers réels) n'est pas en cours.
+5. Documenter dans `docs/notifications/providers/<type>.md` (configuration,
+   prérequis, sécurité, test, erreurs communes) et ajouter une ligne au
+   tableau de la section [Providers (Phase 5B)](#providers-phase-5b).
+6. Tester avec des mocks uniquement (`global.fetch`, ou `nodemailer` via
+   `t.mock.method` pour l'email) — voir `test/unit/notifications-providers.test.js`.
+   Aucun appel réseau réel dans la CI.
 
 ## Limites connues de cette phase
 
-- Aucun envoi réel de notification n'existe : `NotificationManager.send()`
-  lève une erreur explicite si appelé.
+- L'orchestration multi-provider (`NotificationManager.send()`) reste
+  hors scope : appeler un provider se fait directement
+  (`registry.getProvider(type).send(notification, config)`), sans
+  passer par le routing/la queue — prévus en Phase 5C.
 - Le routing (`notification_routes`) et l'historique
   (`notification_history`) ne sont que des modèles de données — rien ne
   les lit ni n'y écrit automatiquement.
+- Aucune route HTTP n'expose encore `test()`/`send()` : les providers
+  sont opérationnels au niveau du code (Phase 5B), mais rien n'est
+  configurable via l'UI ou l'API pour l'instant (CRUD providers, test
+  HTTP, prévus Phase 5C).
+- Le champ `to` du provider email (destinataire(s)) est une extension
+  pragmatique de cette phase — hors de la liste stricte des champs de la
+  tâche (host/port/security/username/password/fromName/fromEmail) mais
+  indispensable pour qu'un envoi SMTP soit possible ; le routing par
+  règles qui déterminera dynamiquement les destinataires reste prévu en
+  Phase 5C.
+- Le gabarit `payload` du webhook générique est une simple substitution
+  de chaînes (`{{title}}`, `{{message}}`, `{{severity}}`, `{{timestamp}}`,
+  `{{url}}`) — pas un moteur de templates avancé (hors scope).
 - `type` sur `notification_providers` n'est pas contraint par une clé
   étrangère vers le registry (contrôle applicatif uniquement) : une
   configuration peut techniquement référencer un type qui n'est plus
-  enregistré si un provider est retiré du code — traité comme
-  `implemented: false` côté catalogue, pas comme une erreur bloquante.
+  enregistré si un provider est retiré du code — traité comme absent du
+  catalogue, pas comme une erreur bloquante.
 - `providerIds` sur une route n'a pas de contrainte FK SQL (même raison
   que `alert_rules.target_value`) : supprimer un provider référencé par
   une règle ne bloque pas la suppression, ne casse pas la règle non plus

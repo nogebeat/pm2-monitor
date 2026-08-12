@@ -10,7 +10,8 @@ un frontend **Vue 3 + Vite** qui consomme cette API en REST + WebSocket.
 
 ## Stack technique
 
-- **Backend** : Node.js, Express, `pm2` (API programmatique), Socket.IO.
+- **Backend** : Node.js, Express, `pm2` (API programmatique), Socket.IO,
+  `nodemailer` (envoi SMTP pour le provider de notification Email).
 - **Frontend** : Vue 3 (`<script setup>`), Vite, Chart.js, Socket.IO client.
   Le frontend est **compilé** (`npm run build`) en fichiers statiques servis
   directement par Express — il n'y a pas de serveur Node séparé à exposer
@@ -34,13 +35,15 @@ pm2-monitor/
 │   │   │   ├── 002_job_queue.js         # jobs (file d'attente persistante)
 │   │   │   ├── 003_alert_engine.js      # alert_rules, alerts
 │   │   │   ├── 004_process_metrics.js   # process_metrics_raw, process_metrics_rollup
-│   │   │   └── 005_process_events.js    # process_events (timeline)
+│   │   │   ├── 005_process_events.js    # process_events (timeline)
+│   │   │   └── 006_notifications.js     # notification_providers, notification_routes, notification_history
 │   │   └── migrator.js        # exécution des migrations (up/down/status)
 │   ├── services/
 │   │   ├── queue/             # file d'attente persistante générique (voir README dédié)
 │   │   ├── alerts/            # moteur d'alertes (seuils, cooldown, dédup)
 │   │   ├── process-history/   # historique CPU/RAM/restarts par process, multi-résolution
-│   │   └── events/            # timeline d'événements/crashs PM2
+│   │   ├── events/            # timeline d'événements/crashs PM2
+│   │   └── notifications/     # providers Email/Discord/Telegram/Slack/Webhook, secrets chiffrés
 │   ├── routes/                # routes REST par domaine (alerts.js, events.js, process-history.js…)
 │   ├── auth.js              # sessions, middlewares requireAuth / requirePermission / requireAdmin
 │   ├── user-store.js        # CRUD utilisateurs + permissions
@@ -54,7 +57,10 @@ pm2-monitor/
 ├── docs/
 │   ├── ARCHITECTURE.md        # décisions d'architecture (migrations, queue, tests)
 │   ├── alerts/README.md       # détail du moteur d'alertes
-│   └── events/README.md       # détail de la timeline d'événements
+│   ├── events/README.md       # détail de la timeline d'événements
+│   └── notifications/
+│       ├── README.md            # architecture, registry, secrets, API, permissions
+│       └── providers/            # un .md par provider (config, sécurité, test, erreurs)
 ├── frontend/                # source du frontend Vue 3 + Vite
 │   ├── src/
 │   │   ├── components/        # TopBar, ProcessSidebar, LogsPanel, SystemView, EventsView,
@@ -264,6 +270,12 @@ pour le détail de ce qui existe et ce qui est prévu.
 - `lib/services/events/` : timeline d'événements/crashs PM2 (start, stop,
   restart, crash, statut) — voir [Timeline d'événements](#timeline-dévénements)
   et [`docs/events/README.md`](docs/events/README.md).
+- `lib/services/notifications/` : système de notifications (Email/Discord/
+  Telegram/Slack/Webhook générique) — providers opérationnels
+  (`validateConfig`/`test`/`send`), voir [Notifications](#notifications) et
+  [`docs/notifications/README.md`](docs/notifications/README.md). Le routing
+  par règles, la file d'attente d'envoi et l'intégration avec le moteur
+  d'alertes ne sont pas encore branchés.
 
 ## Fonctionnalités
 
@@ -301,8 +313,11 @@ pour le détail de ce qui existe et ce qui est prévu.
 
 Moteur d'alertes configurable (CPU/RAM/disque/température/restarts/statut,
 par process ou pour le système), avec seuils, durée avant déclenchement,
-cooldown anti-spam et déduplication. Fonctionne sans aucune notification
-configurée (aucun provider dans cette phase).
+cooldown anti-spam et déduplication. Fonctionne indépendamment des
+notifications : les providers (Email/Discord/Telegram/Slack/Webhook, voir
+[Notifications](#notifications)) sont opérationnels au niveau du code, mais
+ne sont pas encore branchés au moteur d'alertes (routing par règles,
+déclenchement automatique — prévu dans une phase suivante).
 
 - **Activable/désactivable** : `ALERTS_ENABLED=0` dans `.env` coupe tout le
   moteur (évaluation + routes REST inchangées mais inertes).
@@ -364,6 +379,32 @@ créé pour cette fonctionnalité).
 - **Permissions** : `events_read`, permission **globale** (pas décomposée par
   app dans cette phase, comme `alerts_read`).
 - **UI** : onglet "Events" avec filtre par type et code couleur par sévérité.
+
+### Notifications
+
+Système de notifications multi-providers, en construction par phases —
+architecture, modèles de données et cinq providers opérationnels
+(Email/SMTP, Discord, Telegram, Slack, Webhook générique). Pas encore
+d'interface d'administration ni de routing automatique depuis les
+alertes : voir [`docs/notifications/README.md`](docs/notifications/README.md)
+pour l'état exact et [`docs/notifications/providers/`](docs/notifications/providers/)
+pour la configuration détaillée de chaque provider.
+
+- **Providers** : `email` (SMTP, host/port/security/identifiants),
+  `discord` (webhook), `telegram` (bot token + chat id), `slack` (webhook),
+  `webhook` (générique — URL/méthode/headers/payload configurables, pour
+  connecter n'importe quel système externe).
+- Chaque provider implémente `validateConfig()`, `test()` et `send()`,
+  avec un résultat normalisé (`success`/`provider`/`messageId`/
+  `responseTime`, ou `success: false`/`errorCode`/`safeMessage`) — jamais
+  de secret (mot de passe SMTP, token de webhook, bot token…) exposé dans
+  un log ou une erreur.
+- Secrets chiffrés au repos (AES-256-GCM) via `NOTIFICATIONS_ENCRYPTION_KEY`
+  (voir [Notes importantes](#notes-importantes)).
+- **Endpoints actuels** : `GET /api/notifications/provider-types`,
+  `GET /api/notifications/providers` (permission `notifications_read`). Le
+  CRUD complet, le test exposé en HTTP et le routing par règles arrivent
+  dans une phase suivante.
 
 ### Logs
 
@@ -517,6 +558,12 @@ premier compte admin. Lance ensuite `./deploy.sh update` (qui fait tourner
 - Les sessions sont protégées par `SESSION_SECRET` : défini-le explicitement
   en production (sinon un secret aléatoire est généré à chaque redémarrage
   du process, ce qui déconnecte tout le monde à chaque restart).
+- Les secrets de providers de notification (mot de passe SMTP, webhook
+  Discord/Slack, bot token Telegram) sont chiffrés au repos via
+  `NOTIFICATIONS_ENCRYPTION_KEY` : même logique que `SESSION_SECRET`, mais
+  un redémarrage sans clé explicite rend les secrets déjà stockés
+  **définitivement** indéchiffrables (voir
+  [`docs/notifications/README.md#secrets`](docs/notifications/README.md#secrets)).
 - Le trafic n'est **pas chiffré** en HTTP simple : si tu exposes le
   dashboard au-delà de `localhost`, mets-le derrière un reverse proxy HTTPS
   (nginx + certificat, voir `./deploy.sh install --domain …`) ou un VPN, et
