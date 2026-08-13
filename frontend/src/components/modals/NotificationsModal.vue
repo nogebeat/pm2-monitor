@@ -547,13 +547,13 @@ watch(tab, (t) => {
           </div>
 
           <label class="notif-field">
-            <span>Title template (optionnel — {{ '{{severity}}' }}, {{ '{{ruleName}}' }}, {{ '{{metric}}' }}, {{ '{{value}}' }}, {{ '{{targetValue}}' }}…)</span>
-            <input v-model="routeEditing.titleTemplate" type="text" placeholder="[{{severity}}] {{ruleName}}" />
+            <span v-pre>Title template (optionnel — {{ '{{severity}}' }}, {{ '{{ruleName}}' }}, {{ '{{metric}}' }}, {{ '{{value}}' }}, {{ '{{targetValue}}' }}…)</span>
+            <input v-pre v-model="routeEditing.titleTemplate" type="text" placeholder="'[{{severity}}] {{ruleName}}'" />
           </label>
 
           <label class="notif-field">
             <span>Message template (optionnel)</span>
-            <textarea v-model="routeEditing.messageTemplate" rows="2" placeholder="{{metric}} {{operator}} {{threshold}} sur {{targetValue}} (valeur : {{value}})"></textarea>
+            <textarea v-pre v-model="routeEditing.messageTemplate" rows="2" placeholder="'{{metric}} {{operator}} {{threshold}} sur {{targetValue}} (valeur : {{value}})'"></textarea>
           </label>
 
           <label class="notif-field chk">
