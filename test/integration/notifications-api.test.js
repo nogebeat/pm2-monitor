@@ -413,7 +413,174 @@ test("provider-store (plusieurs configs du même type, secrets chiffrés)", asyn
   await cleanupDb(dbCtx);
 });
 
-test("routing/route-store (modèle uniquement, pas de moteur d'évaluation)", async (t) => {
+const NOTIF_MANAGER = {
+  id: 5,
+  isAdmin: false,
+  permissions: [
+    { appName: "*", action: "notifications_read" },
+    { appName: "*", action: "notifications_manage" },
+    { appName: "*", action: "notifications_history" },
+  ],
+};
+
+test("API /api/notifications — routing + historique (Phase 5D)", async (t) => {
+  const dbCtx = await freshDb();
+  const migrator = require("../../lib/db/migrator");
+  await migrator.up();
+
+  await t.test("notifications_read seul -> GET /routes et /history OK, écriture refusée (403)", async () => {
+    const { server, baseUrl } = await startServer(NOTIF_USER); // notifications_read uniquement
+    try {
+      assert.equal((await fetch(`${baseUrl}/routes`)).status, 200);
+      assert.equal((await fetch(`${baseUrl}/history`)).status, 403); // notifications_history requis
+      const res = await fetch(`${baseUrl}/routes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "x" }),
+      });
+      assert.equal(res.status, 403); // notifications_manage requis
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("aucune permission -> /routes et /history en 403", async () => {
+    const { server, baseUrl } = await startServer(NO_PERMS_USER);
+    try {
+      assert.equal((await fetch(`${baseUrl}/routes`)).status, 403);
+      assert.equal((await fetch(`${baseUrl}/history`)).status, 403);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("POST /routes crée une règle (conditions/providerIds/templates/notifyOnResolve)", async () => {
+    const { server, baseUrl } = await startServer(NOTIF_MANAGER);
+    try {
+      const res = await fetch(`${baseUrl}/routes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Critical CPU to Discord",
+          conditions: { severity: ["critical"], alertType: ["cpu"] },
+          providerIds: [1],
+          titleTemplate: "[{{severity}}] {{ruleName}}",
+          messageTemplate: "{{metric}} = {{value}}",
+          notifyOnResolve: true,
+        }),
+      });
+      assert.equal(res.status, 201);
+      const body = await res.json();
+      assert.equal(body.name, "Critical CPU to Discord");
+      assert.deepEqual(body.providerIds, [1]);
+      assert.equal(body.titleTemplate, "[{{severity}}] {{ruleName}}");
+      assert.equal(body.notifyOnResolve, true);
+      assert.equal(body.enabled, true);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("POST /routes sans name -> 400", async () => {
+    const { server, baseUrl } = await startServer(NOTIF_MANAGER);
+    try {
+      const res = await fetch(`${baseUrl}/routes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      assert.equal(res.status, 400);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("GET /routes/:id sur un id inconnu -> 404", async () => {
+    const { server, baseUrl } = await startServer(NOTIF_MANAGER);
+    try {
+      const res = await fetch(`${baseUrl}/routes/999999`);
+      assert.equal(res.status, 404);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("PATCH /routes/:id modifie partiellement (ex: enabled seul)", async () => {
+    const { server, baseUrl } = await startServer(NOTIF_MANAGER);
+    try {
+      const created = await (
+        await fetch(`${baseUrl}/routes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "To disable", enabled: true }),
+        })
+      ).json();
+
+      const res = await fetch(`${baseUrl}/routes/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: false }),
+      });
+      assert.equal(res.status, 200);
+      const updated = await res.json();
+      assert.equal(updated.enabled, false);
+      assert.equal(updated.name, "To disable"); // non touché
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("DELETE /routes/:id supprime, puis 404 sur un second appel", async () => {
+    const { server, baseUrl } = await startServer(NOTIF_MANAGER);
+    try {
+      const created = await (
+        await fetch(`${baseUrl}/routes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "To delete" }),
+        })
+      ).json();
+
+      assert.equal((await fetch(`${baseUrl}/routes/${created.id}`, { method: "DELETE" })).status, 200);
+      assert.equal((await fetch(`${baseUrl}/routes/${created.id}`, { method: "DELETE" })).status, 404);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test("GET /history renvoie l'historique écrit par routing/engine.js, jamais de secret", async () => {
+    const historyStore = require("../../lib/services/notifications/history-store");
+    await historyStore.create({
+      providerId: 1,
+      alertId: 42,
+      status: "success",
+      responseTimeMs: 12,
+    });
+    await historyStore.create({
+      providerId: 1,
+      alertId: 43,
+      status: "failed",
+      errorCode: "NETWORK_ERROR",
+    });
+
+    const { server, baseUrl } = await startServer(NOTIF_MANAGER);
+    try {
+      const res = await fetch(`${baseUrl}/history?status=failed`);
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      assert.equal(body.length, 1);
+      assert.equal(body[0].errorCode, "NETWORK_ERROR");
+      assert.equal(body[0].alertId, 43);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await cleanupDb(dbCtx);
+  delete process.env.PM2_MONITOR_DISABLE_AUTH;
+});
+
+test("routing/route-store — modèle + templates/notifyOnResolve (Phase 5A + 5D)", async (t) => {
   const dbCtx = await freshDb();
   const migrator = require("../../lib/db/migrator");
   await migrator.up();
@@ -439,10 +606,39 @@ test("routing/route-store (modèle uniquement, pas de moteur d'évaluation)", as
     assert.ok(!enabled.some((r) => r.name === "Disabled route"));
   });
 
+  await t.test("titleTemplate/messageTemplate/notifyOnResolve : round-trip et défauts (Phase 5D)", async () => {
+    const withTemplate = await routeStore.create({
+      name: "With template",
+      titleTemplate: "[{{severity}}] {{ruleName}}",
+      messageTemplate: "{{metric}} {{operator}} {{threshold}}",
+      notifyOnResolve: true,
+    });
+    const fetched = await routeStore.getById(withTemplate.id);
+    assert.equal(fetched.titleTemplate, "[{{severity}}] {{ruleName}}");
+    assert.equal(fetched.messageTemplate, "{{metric}} {{operator}} {{threshold}}");
+    assert.equal(fetched.notifyOnResolve, true);
+
+    const withoutTemplate = await routeStore.create({ name: "No template" });
+    assert.equal(withoutTemplate.titleTemplate, null);
+    assert.equal(withoutTemplate.messageTemplate, null);
+    assert.equal(withoutTemplate.notifyOnResolve, false);
+  });
+
+  await t.test("update() peut modifier uniquement notifyOnResolve sans toucher aux templates", async () => {
+    const route = await routeStore.create({
+      name: "Toggle resolve",
+      titleTemplate: "Custom title",
+      notifyOnResolve: false,
+    });
+    const updated = await routeStore.update(route.id, { notifyOnResolve: true });
+    assert.equal(updated.notifyOnResolve, true);
+    assert.equal(updated.titleTemplate, "Custom title");
+  });
+
   await cleanupDb(dbCtx);
 });
 
-test("history-store (modèle uniquement, pas d'écriture automatique en Phase 5A)", async (t) => {
+test("history-store (modèle + écriture par routing/engine.js depuis la Phase 5D)", async (t) => {
   const dbCtx = await freshDb();
   const migrator = require("../../lib/db/migrator");
   await migrator.up();

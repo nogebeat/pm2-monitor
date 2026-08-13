@@ -21,6 +21,7 @@ const { ProcessHistoryService } = require("./lib/services/process-history");
 const { EventsService } = require("./lib/services/events");
 const eventsRouter = require("./lib/routes/events");
 const notificationsRouter = require("./lib/routes/notifications");
+const { routingEngine: notificationRoutingEngine } = require("./lib/services/notifications");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -43,12 +44,46 @@ function loadDotEnv() {
 
 const PORT = process.env.PORT || 4200;
 
-// --- Moteur d'alertes : activable/désactivable, aucun provider de notification
-// dans cette phase (voir lib/services/alerts/ et docs/alerts/README.md) -----
+// --- Moteur d'alertes : activable/désactivable (voir lib/services/alerts/
+// et docs/alerts/README.md). Depuis la Phase 5D, une transition
+// trigger->active ou ->resolved déclenche en plus le routing des
+// notifications (voir plus bas, NOTIFICATIONS_DISPATCH_ENABLED) --------
 const ALERTS_ENABLED = process.env.ALERTS_ENABLED !== "0";
 const ALERTS_EVAL_INTERVAL_MS = process.env.ALERTS_EVAL_INTERVAL_MS
   ? Number(process.env.ALERTS_EVAL_INTERVAL_MS)
   : 15000;
+
+// --- Dispatch des notifications (Phase 5D) : indépendant de ALERTS_ENABLED
+// pour pouvoir couper uniquement l'envoi de notifications (debug, incident
+// fournisseur) sans désactiver le moteur d'alertes lui-même. Sans effet si
+// ALERTS_ENABLED=0 (pas de transition à dispatcher dans ce cas). Voir
+// lib/services/notifications/routing/engine.js#dispatch — ne lance jamais,
+// donc jamais bloquant pour la boucle de monitoring même en cas d'échec.
+const NOTIFICATIONS_DISPATCH_ENABLED = process.env.NOTIFICATIONS_DISPATCH_ENABLED !== "0";
+
+/**
+ * Détecte, sans modifier lib/services/alerts/engine.js, qu'un résultat
+ * d'evaluate() correspond à une transition "on vient de passer active"
+ * (triggeredAt vient d'être posé au même timestamp que lastSeenAt — un
+ * touch() ultérieur avance lastSeenAt sans toucher triggeredAt, donc cette
+ * égalité n'est vraie qu'au tick de la transition trigger->active, voir
+ * engine.js#trigger) ou "on vient de passer resolved" (resolve() est
+ * terminal pour une occurrence : dedupKey sort des OPEN_STATES, donc ce
+ * résultat n'est jamais revu par un futur evaluate() sur la même occurrence
+ * — pas besoin d'égalité de timestamp ici).
+ */
+function dispatchAlertTransition(alert) {
+  if (!NOTIFICATIONS_DISPATCH_ENABLED || !alert) return;
+  if (alert.state === "active" && alert.triggeredAt === alert.lastSeenAt) {
+    notificationRoutingEngine.dispatch(alert, "triggered").catch((e) => {
+      console.error("Erreur de dispatch de notification (déclenchement) :", e.message);
+    });
+  } else if (alert.state === "resolved") {
+    notificationRoutingEngine.dispatch(alert, "resolved").catch((e) => {
+      console.error("Erreur de dispatch de notification (résolution) :", e.message);
+    });
+  }
+}
 
 // --- Historique par process : activable/désactivable (voir
 // lib/services/process-history/ et PROCESS_HISTORY_* dans .env.example) ---
@@ -576,9 +611,12 @@ setInterval(() => {
   historyStore.push(snap);
   io.emit("system", snap);
   if (ALERTS_ENABLED) {
-    alertEngine.evaluateSystemReading(snap).catch((e) => {
-      console.error("Erreur d'évaluation des alertes système :", e.message);
-    });
+    alertEngine
+      .evaluateSystemReading(snap)
+      .then((results) => results.forEach(dispatchAlertTransition))
+      .catch((e) => {
+        console.error("Erreur d'évaluation des alertes système :", e.message);
+      });
   }
 }, SAMPLE_INTERVAL_MS);
 
@@ -597,9 +635,12 @@ if (ALERTS_ENABLED || processHistory.config.enabled) {
       if (err) return; // PM2 momentanément indisponible : on retentera au prochain tick
       const processes = list.map(fmtProcess);
       if (ALERTS_ENABLED) {
-        alertEngine.evaluateProcessReadings(processes).catch((e) => {
-          console.error("Erreur d'évaluation des alertes process :", e.message);
-        });
+        alertEngine
+          .evaluateProcessReadings(processes)
+          .then((results) => results.forEach(dispatchAlertTransition))
+          .catch((e) => {
+            console.error("Erreur d'évaluation des alertes process :", e.message);
+          });
       }
       if (processHistory.config.enabled) {
         processHistory.record(processes).catch((e) => {

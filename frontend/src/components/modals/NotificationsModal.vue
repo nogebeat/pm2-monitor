@@ -1,10 +1,16 @@
 <script setup>
 /**
- * Settings → Notifications → Providers (Phase 5C).
+ * Settings → Notifications — Providers (Phase 5C) + Routing (Phase 5D).
  *
- * Liste des configurations de providers de notification (Discord, SMTP,
- * Telegram, Slack, Webhook générique — Phase 5B) + formulaire dynamique
- * d'ajout/édition, test réel, activation/désactivation, suppression.
+ * Deux onglets dans la même modale :
+ *  - "Providers" : configurations de providers (Discord, SMTP, Telegram,
+ *    Slack, Webhook générique — Phase 5B/5C), inchangé.
+ *  - "Routing" : règles de routing (`notification_routes`) qui matchent une
+ *    alerte (severity/alertType/process/server/tag) et la routent vers un
+ *    ou plusieurs providers, avec un template de titre/message optionnel et
+ *    une option "notifier aussi à la résolution" — voir
+ *    lib/services/notifications/routing/ et
+ *    docs/notifications/README.md#routing-phase-5d.
  *
  * Les secrets (mot de passe SMTP, webhook URL, bot token…) ne sont jamais
  * reçus du backend en clair : seul `hasSecrets` (booléen) est renvoyé par
@@ -13,14 +19,16 @@
  * vides envoie `keepSecrets: true` (le backend conserve alors la valeur
  * déjà stockée pour ce champ précis, voir lib/routes/notifications.js).
  */
-import { reactive, ref, computed, onMounted } from "vue";
-import { state, notifyError } from "../../store";
+import { reactive, ref, computed, onMounted, watch } from "vue";
+import { state, notifyError, can } from "../../store";
 import { apiGet, apiPost } from "../../api";
 import ModalBase from "../ModalBase.vue";
 
 function close() {
   state.modal = null;
 }
+
+const tab = ref("providers"); // "providers" | "routing"
 
 // ---------- Description des formulaires par type de provider ----------
 // Champ : { key, label, kind, secret, placeholder, required, options }
@@ -219,10 +227,182 @@ function test(p) {
       testResults[p.id] = { pending: false, success: false, message: e.message };
     });
 }
+
+// ---------- Routing (Phase 5D) ----------
+// conditions : { severity?, alertType?, process?, server?, tag? }, chacun
+// un tableau de valeurs — voir lib/services/notifications/routing/engine.js#routeMatches.
+// Saisie utilisateur en champs texte "valeur1, valeur2" ; converti en
+// tableau au save() (parseListInput), reconverti en chaîne à l'édition
+// (joinListInput) — même approche que "Recipients" côté provider email.
+const SEVERITY_OPTIONS = ["info", "warning", "critical"];
+
+const routes = ref([]);
+const routesLoading = ref(true);
+const routingCanManage = computed(() => can("notifications_manage"));
+
+// null = liste ; { mode: "create"|"edit", id?, name, enabled, severity[], alertType, process, server, providerIds[], titleTemplate, messageTemplate, notifyOnResolve }
+const routeEditing = ref(null);
+const routeSaving = ref(false);
+
+function loadRoutes() {
+  routesLoading.value = true;
+  return apiGet("/api/notifications/routes")
+    .then((list) => {
+      routes.value = list;
+    })
+    .catch(notifyError)
+    .finally(() => {
+      routesLoading.value = false;
+    });
+}
+
+function joinListInput(arr) {
+  return Array.isArray(arr) ? arr.join(", ") : "";
+}
+
+function parseListInput(str) {
+  return String(str || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function startCreateRoute() {
+  routeEditing.value = {
+    mode: "create",
+    name: "",
+    enabled: true,
+    severity: [],
+    alertType: "",
+    process: "",
+    server: "",
+    providerIds: [],
+    titleTemplate: "",
+    messageTemplate: "",
+    notifyOnResolve: false,
+  };
+}
+
+function startEditRoute(r) {
+  const c = r.conditions || {};
+  routeEditing.value = {
+    mode: "edit",
+    id: r.id,
+    name: r.name,
+    enabled: r.enabled,
+    severity: Array.isArray(c.severity) ? [...c.severity] : [],
+    alertType: joinListInput(c.alertType),
+    process: joinListInput(c.process),
+    server: joinListInput(c.server),
+    providerIds: Array.isArray(r.providerIds) ? [...r.providerIds] : [],
+    titleTemplate: r.titleTemplate || "",
+    messageTemplate: r.messageTemplate || "",
+    notifyOnResolve: !!r.notifyOnResolve,
+  };
+}
+
+function cancelEditRoute() {
+  routeEditing.value = null;
+}
+
+function toggleRouteSeverity(sev) {
+  const e = routeEditing.value;
+  const i = e.severity.indexOf(sev);
+  if (i === -1) e.severity.push(sev);
+  else e.severity.splice(i, 1);
+}
+
+function toggleRouteProvider(id) {
+  const e = routeEditing.value;
+  const i = e.providerIds.indexOf(id);
+  if (i === -1) e.providerIds.push(id);
+  else e.providerIds.splice(i, 1);
+}
+
+function saveRoute() {
+  const e = routeEditing.value;
+  if (!e.name || !e.name.trim()) return notifyError(new Error("Le nom est requis."));
+
+  const body = {
+    name: e.name.trim(),
+    enabled: e.enabled,
+    conditions: {
+      severity: e.severity,
+      alertType: parseListInput(e.alertType),
+      process: parseListInput(e.process),
+      server: parseListInput(e.server),
+    },
+    providerIds: e.providerIds,
+    titleTemplate: e.titleTemplate.trim() || null,
+    messageTemplate: e.messageTemplate.trim() || null,
+    notifyOnResolve: e.notifyOnResolve,
+  };
+
+  routeSaving.value = true;
+  const req =
+    e.mode === "create"
+      ? apiPost("/api/notifications/routes", body)
+      : apiFetch(`/api/notifications/routes/${e.id}`, "PATCH", body);
+
+  req
+    .then(() => {
+      routeEditing.value = null;
+      return loadRoutes();
+    })
+    .catch(notifyError)
+    .finally(() => {
+      routeSaving.value = false;
+    });
+}
+
+function toggleRouteEnabled(r) {
+  apiFetch(`/api/notifications/routes/${r.id}`, "PATCH", { enabled: !r.enabled }).then(loadRoutes).catch(notifyError);
+}
+
+function deleteRoute(r) {
+  if (!confirm(`Supprimer la règle "${r.name}" ?`)) return;
+  apiFetch(`/api/notifications/routes/${r.id}`, "DELETE").then(loadRoutes).catch(notifyError);
+}
+
+function providerName(id) {
+  const p = providers.value.find((x) => x.id === id);
+  return p ? p.name : `#${id}`;
+}
+
+function conditionsSummary(r) {
+  const c = r.conditions || {};
+  const parts = [];
+  if (c.severity && c.severity.length) parts.push(`severity: ${c.severity.join(", ")}`);
+  if (c.alertType && c.alertType.length) parts.push(`alertType: ${c.alertType.join(", ")}`);
+  if (c.process && c.process.length) parts.push(`process: ${c.process.join(", ")}`);
+  if (c.server && c.server.length) parts.push(`server: ${c.server.join(", ")}`);
+  if (c.tag && c.tag.length) parts.push(`tag: ${c.tag.join(", ")}`);
+  return parts.length ? parts.join(" · ") : "Toutes les alertes";
+}
+
+// Charge la liste des routes (et les providers, nécessaires pour choisir la
+// cible d'une règle et afficher leur nom) au premier passage sur l'onglet
+// Routing plutôt qu'au montage — évite un appel réseau inutile si
+// l'utilisateur ne consulte que les providers.
+let routesLoaded = false;
+watch(tab, (t) => {
+  if (t === "routing" && !routesLoaded) {
+    routesLoaded = true;
+    loadRoutes();
+  }
+});
 </script>
 
 <template>
-  <ModalBase title="Notifications — Providers" hide-confirm @close="close">
+  <ModalBase title="Notifications" hide-confirm @close="close">
+    <div class="notif-tabs">
+      <button class="icon-btn" :class="{ active: tab === 'providers' }" type="button" @click="tab = 'providers'">Providers</button>
+      <button v-if="routingCanManage || can('notifications_read')" class="icon-btn" :class="{ active: tab === 'routing' }" type="button" @click="tab = 'routing'">
+        Routing
+      </button>
+    </div>
+
+    <template v-if="tab === 'providers'">
     <div v-if="loading" class="hint-text">Chargement…</div>
 
     <template v-else-if="editing">
@@ -307,10 +487,144 @@ function test(p) {
         </div>
       </div>
     </template>
+    </template>
+
+    <template v-else-if="tab === 'routing'">
+      <div v-if="routesLoading" class="hint-text">Chargement…</div>
+
+      <template v-else-if="routeEditing">
+        <div class="hint-text" style="margin-bottom: 10px">
+          {{ routeEditing.mode === "create" ? "Nouvelle règle de routing" : "Modifier la règle" }}
+        </div>
+
+        <div class="notif-form">
+          <label class="notif-field">
+            <span>Name</span>
+            <input v-model="routeEditing.name" type="text" placeholder="ex: Critical alerts to Discord" />
+          </label>
+
+          <label class="notif-field chk">
+            <input v-model="routeEditing.enabled" type="checkbox" />
+            <span>Enabled</span>
+          </label>
+
+          <div class="notif-field">
+            <span>Severity (vide = toutes)</span>
+            <div class="route-chip-row">
+              <label v-for="sev in SEVERITY_OPTIONS" :key="sev" class="chk route-chip">
+                <input type="checkbox" :checked="routeEditing.severity.includes(sev)" @change="toggleRouteSeverity(sev)" />
+                {{ sev }}
+              </label>
+            </div>
+          </div>
+
+          <label class="notif-field">
+            <span>Alert type (metric — ex: cpu, memory, disk, status), séparés par virgule</span>
+            <input v-model="routeEditing.alertType" type="text" placeholder="cpu, memory" />
+          </label>
+
+          <label class="notif-field">
+            <span>Process (nom exact), séparés par virgule — vide = tous</span>
+            <input v-model="routeEditing.process" type="text" placeholder="api-prod, worker" />
+          </label>
+
+          <label class="notif-field">
+            <span>Server (alertes système uniquement — moniteur mono-hôte), séparés par virgule</span>
+            <input v-model="routeEditing.server" type="text" placeholder="local" />
+          </label>
+
+          <div class="notif-field">
+            <span>Providers ciblés</span>
+            <div v-if="!providers.length" class="hint-text">
+              Aucun provider configuré — crée d'abord un provider dans l'onglet "Providers".
+            </div>
+            <div v-else class="route-chip-row">
+              <label v-for="p in providers" :key="p.id" class="chk route-chip">
+                <input type="checkbox" :checked="routeEditing.providerIds.includes(p.id)" @change="toggleRouteProvider(p.id)" />
+                {{ p.name }}
+              </label>
+            </div>
+          </div>
+
+          <label class="notif-field">
+            <span>Title template (optionnel — {{ '{{severity}}' }}, {{ '{{ruleName}}' }}, {{ '{{metric}}' }}, {{ '{{value}}' }}, {{ '{{targetValue}}' }}…)</span>
+            <input v-model="routeEditing.titleTemplate" type="text" placeholder="[{{severity}}] {{ruleName}}" />
+          </label>
+
+          <label class="notif-field">
+            <span>Message template (optionnel)</span>
+            <textarea v-model="routeEditing.messageTemplate" rows="2" placeholder="{{metric}} {{operator}} {{threshold}} sur {{targetValue}} (valeur : {{value}})"></textarea>
+          </label>
+
+          <label class="notif-field chk">
+            <input v-model="routeEditing.notifyOnResolve" type="checkbox" />
+            <span>Notifier aussi à la résolution de l'alerte</span>
+          </label>
+        </div>
+
+        <div class="notif-form-actions">
+          <button class="icon-btn" type="button" @click="cancelEditRoute">Annuler</button>
+          <button class="icon-btn go" type="button" :disabled="routeSaving" @click="saveRoute">
+            {{ routeSaving ? "Enregistrement…" : "Save" }}
+          </button>
+        </div>
+      </template>
+
+      <template v-else>
+        <div class="notif-add-row">
+          <span class="hint-text">Règles de routing — matchent une alerte et la routent vers un ou plusieurs providers.</span>
+          <button v-if="routingCanManage" class="icon-btn" type="button" @click="startCreateRoute">+ Add routing rule</button>
+        </div>
+
+        <div v-if="!routes.length" class="hint-text" style="margin-top: 12px">Aucune règle de routing configurée.</div>
+
+        <div class="notif-list">
+          <div v-for="r in routes" :key="r.id" class="notif-row">
+            <div class="notif-row-head">
+              <span class="notif-status">{{ r.enabled ? "🟢" : "⚪" }}</span>
+              <span class="label">{{ r.name }}</span>
+              <span class="hint-text">{{ conditionsSummary(r) }}</span>
+              <span style="flex: 1"></span>
+              <template v-if="routingCanManage">
+                <button class="icon-btn" type="button" @click="startEditRoute(r)">Edit</button>
+                <button class="icon-btn" type="button" @click="toggleRouteEnabled(r)">{{ r.enabled ? "Disable" : "Enable" }}</button>
+                <button class="icon-btn danger-text" type="button" @click="deleteRoute(r)">Delete</button>
+              </template>
+            </div>
+            <div class="notif-test-result">
+              <span class="hint-text">
+                Providers : {{ r.providerIds && r.providerIds.length ? r.providerIds.map(providerName).join(", ") : "aucun" }}
+                <template v-if="r.notifyOnResolve"> · notifie aussi à la résolution</template>
+              </span>
+            </div>
+          </div>
+        </div>
+      </template>
+    </template>
   </ModalBase>
 </template>
 
 <style scoped>
+.notif-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.notif-tabs .icon-btn.active {
+  background: var(--accent, #2f81f7);
+  color: #fff;
+  border-color: transparent;
+}
+.route-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.route-chip {
+  font-size: 13px;
+}
 .notif-add-row {
   display: flex;
   flex-wrap: wrap;

@@ -87,7 +87,7 @@ function openNotifications() {
       <button
         v-if="can('notifications_read')"
         class="icon-btn"
-        title="Settings → Notifications → Providers"
+        title="Settings → Notifications (Providers / Routing)"
         @click="openNotifications"
       >
         🔔 Notifications

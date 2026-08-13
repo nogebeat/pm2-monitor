@@ -384,10 +384,12 @@ créé pour cette fonctionnalité).
 
 Système de notifications multi-providers, en construction par phases —
 architecture, modèles de données, cinq providers opérationnels
-(Email/SMTP, Discord, Telegram, Slack, Webhook générique) et désormais une
+(Email/SMTP, Discord, Telegram, Slack, Webhook générique), une
 interface d'administration complète (Settings → Notifications →
-Providers). Pas encore de routing automatique depuis les alertes (règles,
-templates — Phase 5D) ni de mise en file d'attente/retry (Phase 5E) : voir
+Providers), et désormais le routing par règles depuis l'Alert Engine
+(conditions + templates). Pas encore de mise en file d'attente/retry
+(Phase 5E — un provider en panne ne fait pas l'objet d'une nouvelle
+tentative automatique) : voir
 [`docs/notifications/README.md`](docs/notifications/README.md) pour
 l'état exact et [`docs/notifications/providers/`](docs/notifications/providers/)
 pour la configuration détaillée de chaque provider.
@@ -403,7 +405,7 @@ pour la configuration détaillée de chaque provider.
   un log ou une erreur.
 - Secrets chiffrés au repos (AES-256-GCM) via `NOTIFICATIONS_ENCRYPTION_KEY`
   (voir [Notes importantes](#notes-importantes)).
-- **UI (Phase 5C)** : `Settings → Notifications → Providers` — liste des
+- **UI (Phase 5C)** : `Settings → Notifications` — onglet `Providers` —
   configurations (statut 🟢/⚪), `+ Add notification provider` avec
   formulaire dynamique selon le type choisi, `Edit`/`Test`/`Enable`/
   `Disable`/`Delete` par configuration. Un mot de passe/webhook/token déjà
@@ -411,13 +413,37 @@ pour la configuration détaillée de chaque provider.
   modification conserve la valeur existante ("Keep existing credential").
   `Test` appelle réellement le provider et affiche `🟢 Notification sent
   successfully` ou une erreur sûre (`🔴 …`, jamais de secret).
-- **Endpoints** : `GET /api/notifications/provider-types`,
+- **Endpoints providers** : `GET /api/notifications/provider-types`,
   `GET/POST /api/notifications/providers`, `GET/PATCH/PUT/DELETE
   /api/notifications/providers/:id`, `POST
   /api/notifications/providers/:id/test`. Permissions : `notifications_read`,
   `notifications_create`, `notifications_update`, `notifications_delete`,
-  `notifications_test`. Le routing par règles et les templates arrivent en
-  Phase 5D.
+  `notifications_test`.
+- **Routing par règles (Phase 5D)** : une règle (`notification_routes`)
+  matche une alerte sur `severity`/`alertType`/`process`/`server`/`tag`
+  (tableaux, vide/absent = toutes valeurs), cible une ou plusieurs
+  configurations de provider, et peut personnaliser le titre/message
+  envoyé via un template `{{placeholder}}` (`{{ruleName}}`,
+  `{{severity}}`, `{{metric}}`, `{{value}}`, `{{targetValue}}`…). Une
+  règle notifie toujours au déclenchement d'une alerte qui matche, et en
+  plus à la résolution si `notifyOnResolve` est activé. Branché
+  directement sur `lib/services/alerts/` (`server.js`) : dès qu'une
+  occurrence d'alerte passe active ou résolue, les règles concernées
+  envoient et chaque tentative est journalisée (`notification_history`,
+  `GET /api/notifications/history`). Pas de file d'attente ni de retry
+  automatique en cas d'échec provider dans cette phase (Phase 5E).
+  **UI** : `Settings → Notifications` — onglet `Routing` — liste des
+  règles (statut 🟢/⚪, résumé des conditions, providers ciblés),
+  `+ Add routing rule` avec sélection des conditions (chips
+  severity/providers), champs texte pour alertType/process/server,
+  templates de titre/message, case "notifier aussi à la résolution",
+  `Edit`/`Enable`/`Disable`/`Delete` par règle.
+  **Endpoints** : `GET/POST /api/notifications/routes`,
+  `GET/PATCH/PUT/DELETE /api/notifications/routes/:id`
+  (`notifications_manage` en écriture), `GET /api/notifications/history`
+  (`notifications_history`). Voir
+  [`docs/notifications/README.md`](docs/notifications/README.md#routing-phase-5d)
+  pour la sémantique exacte des conditions et des templates.
 
 ### Logs
 

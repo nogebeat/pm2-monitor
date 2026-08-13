@@ -1,15 +1,21 @@
-# Notification system — Phase 5A (fondations) + Phase 5B (providers)
+# Notification system — Phases 5A à 5D (fondations, providers, admin, routing)
 
 Phase 5A a posé l'architecture, les modèles de données et le registry
 des providers du système de notifications (Email/Discord/Telegram/
-Slack/Webhook générique). **Phase 5B implémente l'envoi réel** pour ces
+Slack/Webhook générique). Phase 5B a implémenté l'envoi réel pour ces
 cinq providers (`validateConfig()`/`test()`/`send()`, `healthCheck()`
-pour email et telegram). Le routing par règles (`notification_routes`),
-l'écriture automatique de l'historique (`notification_history`), la
-file d'attente/retry et l'intégration avec le moteur d'alertes
-(`lib/services/alerts/`) restent hors scope et sont prévus en Phase 5C,
-de même que l'interface d'administration complète et le CRUD HTTP des
-providers.
+pour email et telegram). Phase 5C a ajouté le CRUD HTTP complet des
+providers et l'interface d'administration (`Settings → Notifications →
+Providers`). **Phase 5D branche le routing par règles
+(`notification_routes`) sur l'Alert Engine** (`lib/services/alerts/`) :
+quand une alerte se déclenche (ou se résout, si la règle le demande),
+les règles activées dont les `conditions` matchent l'alerte envoient
+une notification (avec template optionnel) à chacun de leurs
+providers, et chaque tentative est journalisée dans
+`notification_history`. La mise en file d'attente/retry
+(`lib/services/queue/`) reste hors scope et prévue en Phase 5E : le
+dispatch de cette phase est direct (pas de retry automatique en cas
+d'échec provider).
 
 ## Sommaire
 
@@ -18,8 +24,9 @@ providers.
 - [Providers (Phase 5B)](#providers-phase-5b)
 - [Modèle de configuration de provider](#modèle-de-configuration-de-provider)
 - [Secrets](#secrets)
-- [Modèle de routing (à venir)](#modèle-de-routing-à-venir)
-- [Modèle d'historique (à venir)](#modèle-dhistorique-à-venir)
+- [Routing (Phase 5D)](#routing-phase-5d)
+- [Templates (Phase 5D)](#templates-phase-5d)
+- [Historique](#historique)
 - [API REST](#api-rest)
 - [Permissions](#permissions)
 - [Configuration (.env)](#configuration-env)
@@ -46,20 +53,46 @@ lib/services/notifications/
 │   ├── slack.js                # Incoming Webhook Slack — send()
 │   └── webhook.js               # Webhook générique configurable — send()
 ├── routing/
-│   └── route-store.js      # CRUD table notification_routes (modèle seul, aucun moteur d'évaluation)
+│   ├── route-store.js      # CRUD table notification_routes (conditions, providerIds, templates, notifyOnResolve)
+│   ├── templates.js         # rendu {{placeholder}} d'un titre/message à partir d'une occurrence d'alerte
+│   └── engine.js             # RoutingEngine (Phase 5D) : matching des conditions + dispatch vers les providers
 └── utils/
     └── crypto.js           # chiffrement AES-256-GCM des secrets au repos
 
 lib/routes/notifications.js   # routeur Express (/api/notifications/…), aucune logique métier dedans
 lib/db/migrations/006_notifications.js   # tables notification_providers, notification_routes, notification_history
+lib/db/migrations/007_notification_routing_templates.js   # + title_template/message_template/notify_on_resolve sur notification_routes
 docs/notifications/providers/   # un fichier par provider (configuration, sécurité, tests, erreurs)
 ```
 
 Même découpage que `lib/services/alerts/` et `lib/services/events/` :
 `lib/services/notifications/index.js` exporte un singleton (`registry`,
-`manager`, `providerStore`, `routeStore`, `historyStore`) partagé par
-`lib/routes/notifications.js` — un seul registry en mémoire pour tout le
-process.
+`manager`, `routingEngine`, `providerStore`, `routeStore`,
+`historyStore`) partagé par `lib/routes/notifications.js` et par
+`server.js` (boucle d'évaluation de l'Alert Engine) — un seul registry
+en mémoire pour tout le process.
+
+**Comment une alerte devient une notification (Phase 5D)** — voir
+`server.js` :
+
+```
+AlertEngine.evaluateSystemReading()/evaluateProcessReadings() (tick périodique)
+  → occurrence d'alerte transitionne trigger->active (ou ->resolved)
+  → server.js détecte cette transition précise (sans modifier engine.js,
+    voir le commentaire de dispatchAlertTransition() dans server.js)
+  → routingEngine.dispatch(alert, "triggered" | "resolved")
+      → routeStore.list({ enabledOnly: true })
+      → routeMatches(route, alert) pour chaque règle (severity/alertType/process/server)
+      → pour chaque route matchée × chaque providerId de la route :
+          templates.renderNotification(route, alert, event)
+          → registry.getProvider(provider.type).send(notification, config)
+          → historyStore.create({ providerId, alertId, status, errorCode, responseTimeMs })
+```
+
+`routingEngine.dispatch()` ne lance jamais : une erreur (provider en
+panne, DB indisponible pour l'historique…) est journalisée en console
+et ne remonte jamais jusqu'à la boucle de monitoring (voir
+[Limites connues](#limites-connues-de-cette-phase)).
 
 ## Provider Registry
 
@@ -118,10 +151,13 @@ erreur réseau/SMTP, qui peut contenir l'URL appelée (donc un token de
 webhook) ou le host SMTP interne. Voir
 [`providers/shared.js`](../../lib/services/notifications/providers/shared.js).
 
-Notification envoyée par `send(notification, config)` : objet libre
-`{ title, message, severity, url? }` — le format exact (routing par
-règles, templates) est prévu en Phase 5C ; cette phase se contente de le
-transmettre tel quel au format attendu par chaque fournisseur.
+Notification envoyée par `send(notification, config)` : objet
+`{ title, message, severity, timestamp }`, produit soit manuellement
+(ex. `POST /providers/:id/test`, via `buildTestNotification()`), soit
+par `routing/templates.js#renderNotification()` lors d'un dispatch
+déclenché par une alerte (voir [Routing](#routing-phase-5d)) — chaque
+provider le traduit ensuite au format attendu par son fournisseur
+(embed Discord, message Telegram, payload Slack…).
 
 ## Modèle de configuration de provider
 
@@ -158,40 +194,82 @@ par valeur chiffrée), utilisé uniquement pour ce besoin.
 - Chaque provider respecte la même règle au niveau du réseau : jamais de secret dans un log, jamais dans un message d'erreur renvoyé (`safeMessage` est toujours générique, voir [Providers (Phase 5B)](#providers-phase-5b)).
 - `notification_history.metadata` ne doit **jamais** contenir de credentials — uniquement des détails d'exécution (code retour HTTP, extrait de réponse).
 
-## Modèle de routing (à venir)
+## Routing (Phase 5D)
 
-Table `notification_routes` (`routing/route-store.js`) — modèle de
-données seul, **aucun moteur d'évaluation ne lit encore cette table**.
+Table `notification_routes` (`routing/route-store.js`), évaluée par
+`routing/engine.js#RoutingEngine` à chaque transition d'alerte
+(déclenchement, et résolution si `notifyOnResolve`).
 
-| Champ          | Type                     | Description                                                    |
-|-----------------|----------------------------|--------------------------------------------------------------------|
-| `name`           | string (requis)             | Nom lisible.                                                       |
-| `enabled`        | bool (défaut `true`)        |                                                                      |
-| `conditions`     | objet JSON                  | Libre : `{ severity?, alertType?, process?, server?, tag? }`, chacun un tableau (vide/absent = toutes valeurs). |
-| `providerIds`    | tableau d'ids               | Ids de `notification_providers`. Pas de FK SQL — validation applicative, pour ne pas empêcher de désactiver un provider référencé par une règle. |
+| Champ             | Type                  | Description                                                    |
+|--------------------|-------------------------|----------------------------------------------------------------|
+| `name`               | string (requis)          | Nom lisible.                                                       |
+| `enabled`            | bool (défaut `true`)     | Une règle désactivée n'est jamais évaluée (`routeStore.list({ enabledOnly: true })`). |
+| `conditions`         | objet JSON               | `{ severity?, alertType?, process?, server?, tag? }`, chacun un tableau (vide/absent = toutes valeurs) — voir sémantique exacte ci-dessous. |
+| `providerIds`        | tableau d'ids            | Ids de `notification_providers` ciblés par la règle. Pas de FK SQL (même raison que `alert_rules.target_value`) : désactiver/supprimer un provider référencé ne casse pas la règle, il est juste ignoré au dispatch (voir [Limites connues](#limites-connues-de-cette-phase)). |
+| `titleTemplate`      | string, nullable         | Voir [Templates](#templates-phase-5d). `null` = titre par défaut. |
+| `messageTemplate`    | string, nullable         | Idem pour le message.                                              |
+| `notifyOnResolve`    | bool (défaut `false`)    | Si `true`, la règle notifie aussi à la résolution de l'alerte (en plus du déclenchement, toujours notifié si la règle matche). |
 
-## Modèle d'historique (à venir)
+**Sémantique de `conditions`** (`routeMatches()` dans `routing/engine.js`) :
 
-Table `notification_history` (`history-store.js`) — modèle de données
-seul, rien n'y écrit encore automatiquement (écriture automatique liée à
-l'orchestration `NotificationManager.send()`, prévue en Phase 5C).
+- `severity` : matche `alert.severity` (`info`/`warning`/`critical`).
+- `alertType` : matche `alert.metric` (ex. `cpu`, `memory`, `disk`, `restart_count`, `status`) — c'est la métrique de la règle d'alerte à l'origine de l'occurrence, pas un champ dédié côté alerte.
+- `process` : ne matche que les alertes `targetType: "process"`, et seulement si `alert.targetValue` (le nom du process) est dans la liste.
+- `server` : ce moniteur est mono-hôte — ne matche que les alertes `targetType: "system"` (pas de notion de serveur distinct côté modèle d'alerte actuel). Accepté pour compatibilité future (déploiement multi-hôte).
+- `tag` : les règles d'alerte (`alert_rules`) ne portent pas de tag dans le modèle actuel — un filtre `tag` non vide **ne matche donc jamais aucune alerte** pour l'instant (limitation connue, pas un bug).
+- Plusieurs clés de `conditions` sont combinées en ET logique.
+
+## Templates (Phase 5D)
+
+`routing/templates.js#renderNotification(route, alert, event)` — sans
+template sur la route (`titleTemplate`/`messageTemplate` à `null`), un
+gabarit par défaut est généré à partir de l'alerte
+(`defaultTitle()`/`defaultMessage()`). Avec un template, les
+placeholders `{{nom}}` sont remplacés par les variables suivantes
+(`buildVariables()`) — toutes dérivées uniquement de l'occurrence
+d'alerte, **jamais** d'un secret de provider :
+
+| Placeholder       | Source                                                        |
+|---------------------|-----------------------------------------------------------------|
+| `{{ruleName}}`         | `alert.ruleName`                                                  |
+| `{{severity}}`         | `alert.severity`                                                   |
+| `{{metric}}`           | `alert.metric`                                                       |
+| `{{operator}}`         | `alert.operator`                                                       |
+| `{{threshold}}`        | `alert.threshold`                                                       |
+| `{{value}}`            | `alert.value` (valeur observée au moment du dispatch)                    |
+| `{{targetType}}`       | `"process"` ou `"system"`                                                  |
+| `{{targetValue}}`      | nom du process, ou `"system"` si `targetType === "system"`                    |
+| `{{state}}`            | état de l'occurrence (`active`, `resolved`…)                                     |
+| `{{event}}`            | `"triggered"` ou `"resolved"` — l'événement qui a causé ce dispatch précis          |
+| `{{alertId}}`          | id de l'occurrence (`alerts.id`)                                                       |
+
+Un placeholder inconnu (faute de frappe) est laissé tel quel dans le
+texte plutôt que de faire échouer le rendu — une notification mal
+formée vaut mieux qu'aucune notification.
+
+## Historique
+
+Table `notification_history` (`history-store.js`) — écrite
+automatiquement par `routing/engine.js#RoutingEngine` à chaque tentative
+d'envoi (une ligne par couple règle matchée × provider ciblé), en plus
+d'être disponible en lecture/écriture manuelle pour d'autres usages
+futurs (ex. Phase 5E : file d'attente/retry).
 
 | Champ            | Type    | Description                                                        |
 |--------------------|-----------|-------------------------------------------------------------------------|
 | `providerId`         | int, nullable | `ON DELETE SET NULL` — supprimer une config de provider ne fait pas disparaître l'historique déjà écrit. |
-| `alertId`            | int, nullable | `ON DELETE SET NULL` vers `alerts` — relie une notification à l'alerte qui l'a déclenchée, sans dépendance dure. |
-| `status`             | string (requis) | Ex. `success`, `failed`.                                              |
+| `alertId`            | int, nullable | `ON DELETE SET NULL` vers `alerts` — relie une notification à l'alerte qui l'a déclenchée. |
+| `status`             | string (requis) | `success` ou `failed` (jamais `pending` en Phase 5D — le dispatch est synchrone, pas de file d'attente). |
 | `timestamp`          | int          |                                                                          |
-| `responseTimeMs`     | int, optionnel |                                                                        |
-| `errorCode`          | string, optionnel |                                                                     |
-| `metadata`           | objet JSON   | Détails d'exécution uniquement — jamais de credentials.                |
+| `responseTimeMs`     | int, optionnel | Temps de réponse renvoyé par le provider, ou mesuré par le RoutingEngine à défaut. |
+| `errorCode`          | string, optionnel | Ex. `PROVIDER_NOT_FOUND`, `PROVIDER_DISABLED`, `UNKNOWN_PROVIDER_TYPE`, `INTERNAL_ERROR`, ou un code de `providers/shared.js` (`NETWORK_ERROR`, `TIMEOUT`…). |
+| `metadata`           | objet JSON   | Non renseigné par le RoutingEngine à ce stade — réservé à un usage futur. Jamais de credentials. |
 
 ## API REST
 
-Toutes les routes sont sous `/api/notifications`. Depuis la Phase 5C, le
-CRUD complet des providers et le test HTTP d'une configuration sont
-exposés. L'historique détaillé (`GET /history`) et le routing (CRUD
-`/routes`) restent prévus en Phase 5D/5E.
+Toutes les routes sont sous `/api/notifications`. CRUD complet des
+providers et test HTTP depuis la Phase 5C ; CRUD des règles de routing
+(`/routes`) et lecture de l'historique (`/history`) depuis la Phase 5D.
 
 | Méthode | Route                                       | Permission              | Description |
 |----------|---------------------------------------------|--------------------------|----------------|
@@ -203,6 +281,13 @@ exposés. L'historique détaillé (`GET /history`) et le routing (CRUD
 | PUT      | `/api/notifications/providers/:id`          | `notifications_update`    | Même contrat que PATCH (remplacement complet recommandé côté appelant : fournir tous les `fields`). |
 | DELETE   | `/api/notifications/providers/:id`          | `notifications_delete`    | Supprime la configuration. `404` si absente. |
 | POST     | `/api/notifications/providers/:id/test`     | `notifications_test`      | Envoie réellement une notification de test avec la configuration stockée (secrets déchiffrés en mémoire pour cet appel uniquement). Réponse = résultat normalisé du provider (`success`, `safeMessage`/`errorCode`…, jamais de secret). `404` si absente. |
+| GET      | `/api/notifications/routes`                 | `notifications_read`      | Liste les règles de routing. `?enabledOnly=1` filtre les règles activées. |
+| GET      | `/api/notifications/routes/:id`             | `notifications_read`      | Détail d'une règle (`404` si absente). |
+| POST     | `/api/notifications/routes`                 | `notifications_manage`    | Crée une règle. Body : `{ name, enabled?, conditions?, providerIds?, titleTemplate?, messageTemplate?, notifyOnResolve? }` (voir [Routing](#routing-phase-5d)). `400` si `name` absent ou si un champ a le mauvais type. |
+| PATCH    | `/api/notifications/routes/:id`             | `notifications_manage`    | Modification partielle — seuls les champs fournis sont changés. `404` si absente. |
+| PUT      | `/api/notifications/routes/:id`             | `notifications_manage`    | Même contrat que PATCH. |
+| DELETE   | `/api/notifications/routes/:id`             | `notifications_manage`    | Supprime la règle. `404` si absente. |
+| GET      | `/api/notifications/history`                | `notifications_history`   | Liste l'historique d'envoi, plus récent d'abord. Filtres `?providerId=`, `?alertId=`, `?status=`, `?limit=` (1 à 500, défaut 50). Ne renvoie jamais de secret (voir [Historique](#historique)). |
 
 ## Permissions
 
@@ -212,13 +297,13 @@ même raisonnement que `alerts_*`/`events_read` :
 
 | Action                    | Description                                                | Vérifiée par une route à ce stade ? |
 |-----------------------------|------------------------------------------------------------|------------------------------------------|
-| `notifications_read`          | Voir les providers, leurs types et l'historique d'envoi.     | Oui                                        |
+| `notifications_read`          | Voir les providers, leurs types, et les règles de routing.    | Oui                                        |
 | `notifications_create`        | Créer une configuration de provider.                         | Oui (Phase 5C)                             |
 | `notifications_update`        | Modifier une configuration de provider.                      | Oui (Phase 5C)                             |
 | `notifications_delete`        | Supprimer une configuration de provider.                     | Oui (Phase 5C)                             |
 | `notifications_test`          | Envoyer une notification de test avec une configuration.     | Oui (Phase 5C)                             |
-| `notifications_history`       | Voir l'historique détaillé des notifications envoyées.       | Non — prévu Phase 5D/5E                    |
-| `notifications_manage`        | Gérer les règles de routing des notifications.               | Non — prévu Phase 5D                       |
+| `notifications_history`       | Voir l'historique détaillé des notifications envoyées.       | Oui (Phase 5D, GET /history)               |
+| `notifications_manage`        | Gérer les règles de routing des notifications.               | Oui (Phase 5D, CRUD /routes)               |
 
 Toutes déclarées dès la Phase 5A pour que le jeu de permissions complet
 soit disponible aux admins sans exiger une nouvelle migration de
@@ -257,14 +342,25 @@ up      : crée notification_providers, notification_routes,
           notification_history (+ index dédiés)
 down    : DROP TABLE notification_history, puis notification_routes,
           puis notification_providers (ordre FK-safe pour MySQL/InnoDB)
-rollback : node bin/migrate.js down            # annule 006_notifications seule
-           node bin/migrate.js down --steps 6  # annule aussi 001 à 005
+
+version : 007_notification_routing_templates
+up      : ALTER TABLE notification_routes ADD COLUMN
+          title_template, message_template, notify_on_resolve
+down    : DROP COLUMN des 3 mêmes colonnes (MySQL et SQLite >= 3.35,
+          pas de contournement "recréer la table" nécessaire)
+
+rollback : node bin/migrate.js down            # annule 007 seule
+           node bin/migrate.js down --steps 2  # annule aussi 006
+           node bin/migrate.js down --steps 7  # annule tout (001 à 007)
 ```
 
-`up` est idempotent (`CREATE TABLE IF NOT EXISTS`) : relancer `node
-bin/migrate.js up` sur une base déjà à jour ne fait rien. `down` est
-destructif (perte des configurations de providers et de tout historique
-déjà écrit) — à réserver au développement/tests.
+`up` est idempotent pour 006 (`CREATE TABLE IF NOT EXISTS`) ; 007
+(`ALTER TABLE ADD COLUMN`) ne l'est pas nativement — relancer `up` sur
+une base où 007 est déjà appliquée est sans effet car `migrator.js` ne
+rejoue jamais une version déjà dans `schema_migrations` (voir
+`lib/db/migrator.js#status`). `down` est destructif (perte des
+configurations de providers, des règles de routing et de tout
+historique déjà écrit) — à réserver au développement/tests.
 
 ## Ajouter un provider
 
@@ -292,33 +388,54 @@ déjà écrit) — à réserver au développement/tests.
 
 ## Limites connues de cette phase
 
-- L'orchestration multi-provider (`NotificationManager.send()`) reste
-  hors scope : appeler un provider se fait directement
-  (`registry.getProvider(type).send(notification, config)`), sans
-  passer par le routing/la queue — prévus en Phase 5C.
-- Le routing (`notification_routes`) et l'historique
-  (`notification_history`) ne sont que des modèles de données — rien ne
-  les lit ni n'y écrit automatiquement.
-- Aucune route HTTP n'expose encore `test()`/`send()` : les providers
-  sont opérationnels au niveau du code (Phase 5B), mais rien n'est
-  configurable via l'UI ou l'API pour l'instant (CRUD providers, test
-  HTTP, prévus Phase 5C).
-- Le champ `to` du provider email (destinataire(s)) est une extension
-  pragmatique de cette phase — hors de la liste stricte des champs de la
-  tâche (host/port/security/username/password/fromName/fromEmail) mais
-  indispensable pour qu'un envoi SMTP soit possible ; le routing par
-  règles qui déterminera dynamiquement les destinataires reste prévu en
-  Phase 5C.
-- Le gabarit `payload` du webhook générique est une simple substitution
-  de chaînes (`{{title}}`, `{{message}}`, `{{severity}}`, `{{timestamp}}`,
-  `{{url}}`) — pas un moteur de templates avancé (hors scope).
+- **Pas de file d'attente / retry** : `RoutingEngine.dispatch()` envoie
+  directement via `provider.send()`, de façon synchrone par rapport à
+  l'appelant (`server.js`). Un provider indisponible produit une ligne
+  `notification_history` `failed`, mais **aucune nouvelle tentative
+  automatique** — prévu en Phase 5E, consommateur de
+  `lib/services/queue/` (déjà existante mais pas encore branchée ici).
+- **Anti-spam délégué à l'Alert Engine, pas au RoutingEngine** :
+  `dispatch()` est appelé une seule fois par transition d'état réelle
+  (trigger→active, →resolved), jamais à chaque tick d'évaluation — la
+  déduplication/cooldown déjà en place dans
+  `lib/services/alerts/engine.js` protège donc aussi les notifications,
+  sans code de rate-limiting dédié côté notifications dans cette phase.
+- **`tag` dans `conditions` ne matche jamais** : le modèle de règle
+  d'alerte actuel (`alert_rules`) ne porte pas de tag — voir
+  [Routing](#routing-phase-5d).
+- **`server` dans `conditions`** : accepté pour compatibilité future
+  (déploiement multi-hôte), mais ce moniteur reste mono-hôte — seules
+  les cibles `system` peuvent matcher un filtre `server` non vide, il
+  n'y a pas de distinction entre plusieurs hôtes.
+- **Détection de transition sans modifier `AlertEngine`** : `server.js`
+  détecte qu'une occurrence "vient de" passer active en comparant
+  `triggeredAt === lastSeenAt` sur le résultat d'`evaluate()` (les deux
+  ne sont égaux qu'au tick de la transition trigger→active, voir
+  `engine.js#trigger`) plutôt que par un événement explicite émis par
+  l'Alert Engine — un choix délibéré pour ne pas changer le contrat de
+  retour d'`evaluate()` (testé indépendamment,
+  `test/unit/alert-engine.test.js`) ni coupler les deux services.
+- `providerIds` sur une route n'a pas de contrainte FK SQL (même raison
+  que `alert_rules.target_value`) : supprimer/désactiver un provider
+  référencé par une règle ne bloque pas l'opération — au dispatch, ce
+  provider produit simplement une ligne d'historique `failed`
+  (`PROVIDER_NOT_FOUND`/`PROVIDER_DISABLED`) sans bloquer les autres
+  providers de la même règle.
+- `notification_history.metadata` n'est pas encore renseigné par le
+  RoutingEngine (toujours `null` pour une ligne écrite en Phase 5D) —
+  réservé à un usage futur (ex. extrait de réponse HTTP en Phase 5E).
+- Le champ `to` du provider email (destinataire(s)) reste une extension
+  pragmatique posée en Phase 5B — hors de la liste stricte des champs
+  de la tâche mais indispensable pour qu'un envoi SMTP soit possible.
+- Le gabarit `payload` du webhook générique (`providers/webhook.js`)
+  garde sa propre syntaxe de substitution (`{{title}}`, `{{message}}`,
+  `{{severity}}`, `{{timestamp}}`, `{{url}}`) — distincte du moteur de
+  templates de route (`routing/templates.js`, [Templates](#templates-phase-5d)) : le premier s'applique au payload brut envoyé au
+  webhook, le second au `notification` de haut niveau construit à
+  partir de l'alerte avant d'atteindre n'importe quel provider.
 - `type` sur `notification_providers` n'est pas contraint par une clé
   étrangère vers le registry (contrôle applicatif uniquement) : une
   configuration peut techniquement référencer un type qui n'est plus
-  enregistré si un provider est retiré du code — traité comme absent du
-  catalogue, pas comme une erreur bloquante.
-- `providerIds` sur une route n'a pas de contrainte FK SQL (même raison
-  que `alert_rules.target_value`) : supprimer un provider référencé par
-  une règle ne bloque pas la suppression, ne casse pas la règle non plus
-  (le routing engine, absent ici, devra ignorer les ids invalides le
-  moment venu).
+  enregistré si un provider est retiré du code — au dispatch, ce
+  provider produit une ligne d'historique `failed`
+  (`UNKNOWN_PROVIDER_TYPE`).
