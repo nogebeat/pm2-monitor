@@ -39,7 +39,9 @@ pm2-monitor/
 │   │   │   ├── 006_notifications.js     # notification_providers, notification_routes, notification_history
 │   │   │   ├── 007_notification_routing_templates.js  # colonnes de template sur notification_routes
 │   │   │   ├── 008_health_checks.js     # health_checks (Phase 6)
-│   │   │   └── 009_auto_healing.js      # auto_healing_settings/state/audit (Phase 7)
+│   │   │   ├── 009_auto_healing.js      # auto_healing_settings/state/audit (Phase 7)
+│   │   │   ├── 010_health_checks_process_name.js
+│   │   │   └── 011_audit_log.js         # audit_log append-only (Phase 9)
 │   │   └── migrator.js        # exécution des migrations (up/down/status)
 │   ├── services/
 │   │   ├── queue/             # file d'attente persistante générique (voir README dédié)
@@ -48,7 +50,8 @@ pm2-monitor/
 │   │   ├── events/            # timeline d'événements/crashs PM2
 │   │   ├── notifications/     # providers Email/Discord/Telegram/Slack/Webhook, secrets chiffrés
 │   │   ├── health-checks/     # sondes HTTP/TCP/Command indépendantes du statut PM2 (Phase 6)
-│   │   └── auto-healing/      # redémarrage automatique + garde-fous, désactivé par défaut (Phase 7)
+│   │   ├── auto-healing/      # redémarrage automatique + garde-fous, désactivé par défaut (Phase 7)
+│   │   └── audit/             # journal d'audit append-only des actions sensibles (Phase 9)
 │   ├── routes/                # routes REST par domaine (alerts.js, events.js, process-history.js…)
 │   ├── auth.js              # sessions, middlewares requireAuth / requirePermission / requireAdmin
 │   ├── user-store.js        # CRUD utilisateurs + permissions
@@ -65,6 +68,7 @@ pm2-monitor/
 │   ├── events/README.md       # détail de la timeline d'événements
 │   ├── health-checks/README.md  # détail des health checks HTTP/TCP/Command (Phase 6)
 │   ├── auto-healing/README.md   # détail Auto-Healing : garde-fous, activation, sécurité (Phase 7)
+│   ├── audit/README.md          # détail de l'audit log : événements, sanitization, sécurité, API (Phase 9)
 │   └── notifications/
 │       ├── README.md            # architecture, registry, secrets, API, permissions
 │       └── providers/            # un .md par provider (config, sécurité, test, erreurs)
@@ -254,7 +258,14 @@ volume réaliste, taille disque et temps de requête bornés) ;
 `test/unit/health-checks-runner.test.js` et `health-checks-engine.test.js`
 (sondes HTTP/TCP/Command mockées — aucun accès réseau réel, transitions de
 statut, feed vers l'Alert Engine) ; `test/integration/health-checks-api.test.js`
-(routes REST, permissions, DB réelle).
+(routes REST, permissions, DB réelle) ; `test/unit/audit-sanitize.test.js`
+et `audit-store.test.js` (`sanitizeAuditMetadata()`, pagination/filtres du
+store) ; `test/integration/audit-api.test.js` (routes REST, permissions,
+actions enregistrées `success`/`failed`/`denied`, et le test de sécurité
+obligatoire — injection de secrets, vérification qu'ils n'apparaissent
+jamais en base ni dans les réponses API, voir
+[`docs/audit/README.md`](docs/audit/README.md)) ; `test/unit/audit-retention.test.js`
+(purge par rétention, désactivée par défaut, opt-in via `AUDIT_RETENTION_MS`).
 
 `./deploy.sh install`/`update` exécutent `npm test` avant de démarrer/
 redémarrer l'application (`run_tests` dans `deploy.sh`) : un test qui échoue
@@ -595,6 +606,41 @@ sur détection d'un crash, d'un health check `DOWN`, ou de toute alerte
   l'application (`pm2.restart`) — jamais de commande shell.
 - Documentation complète (garde-fous, activation, configuration, sécurité) :
   [`docs/auto-healing/README.md`](docs/auto-healing/README.md).
+
+### Audit Log
+
+Journal d'audit **append-only** des actions sensibles : connexions,
+actions process (start/stop/restart/reload/delete), changements
+d'environnement/configuration, actions PM2 (save/resurrect/kill),
+alertes (création/modification/suppression/acquittement), configuration
+des notifications (providers + règles de routing), health checks, et
+actions Auto-Healing (administratives). Les actions de lecture ne sont
+volontairement **pas** journalisées.
+
+- **Chaque entrée** contient (quand disponible) : `timestamp`, `user`,
+  `action`, `target`/`targetType`, `server`, `status`
+  (`success`/`failed`/`denied`), `IP`, `metadata`.
+- **Sécurité — contrainte absolue** : aucun secret (mot de passe, JWT, clé
+  API, mot de passe SMTP, webhook Discord/Slack, token Telegram, clé
+  privée, header `Authorization`…) n'est **jamais** enregistré, y compris
+  dans `metadata`. `sanitizeAuditMetadata()`
+  ([`lib/services/audit/sanitize.js`](lib/services/audit/sanitize.js)) est
+  l'unique point de passage obligatoire de toute `metadata` avant stockage
+  (denylist de clés + détection de forme JWT/PEM/Bearer/webhook, en plus de
+  la discipline des routes qui ne journalisent que des **noms** de champs
+  modifiés, jamais leurs valeurs — voir `lib/routes/notifications.js`).
+- **Endpoints** : `GET /api/audit` (pagination, filtres : date range,
+  utilisateur, action, statut, cible), `GET /api/audit/:id`, `GET
+  /api/audit/catalog`.
+- **Permission** : `audit_read` (lecture seule — l'audit log n'est jamais
+  modifiable via l'API).
+- **UI** : `Settings → 🧾 Audit Log` — liste filtrable/paginée, clic sur une
+  entrée pour voir le détail (metadata déjà sanitisée).
+- **Rétention** : purge automatique optionnelle, désactivée par défaut
+  (`AUDIT_RETENTION_MS=0` dans `.env` — rien n'est supprimé tant qu'elle
+  n'est pas définie explicitement).
+- Documentation complète (événements, sanitization, rétention, sécurité,
+  API) : [`docs/audit/README.md`](docs/audit/README.md).
 
 ### Logs
 

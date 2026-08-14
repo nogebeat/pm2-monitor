@@ -43,11 +43,12 @@ test("migrator", async (t) => {
       "008_health_checks",
       "009_auto_healing",
       "010_health_checks_process_name",
+      "011_audit_log",
     ]);
 
     const status = await migrator.status();
     assert.equal(status.pending.length, 0);
-    assert.equal(status.applied.length, 10);
+    assert.equal(status.applied.length, 11);
   });
 
   await t.test("up() est idempotent : rejouer ne fait rien et ne plante pas", async () => {
@@ -77,6 +78,7 @@ test("migrator", async (t) => {
     assert.ok(tables.includes("auto_healing_settings"));
     assert.ok(tables.includes("auto_healing_state"));
     assert.ok(tables.includes("auto_healing_audit"));
+    assert.ok(tables.includes("audit_log"));
   });
 
   await t.test("down() annule la dernière migration appliquée", async () => {
@@ -85,7 +87,7 @@ test("migrator", async (t) => {
     await migrator.up();
 
     const reverted = await migrator.down();
-    assert.deepEqual(reverted, ["010_health_checks_process_name"]);
+    assert.deepEqual(reverted, ["011_audit_log"]);
 
     const status = await migrator.status();
     assert.deepEqual(
@@ -100,19 +102,21 @@ test("migrator", async (t) => {
         "007_notification_routing_templates",
         "008_health_checks",
         "009_auto_healing",
+        "010_health_checks_process_name",
       ]
     );
 
-    // 009 crée des tables dédiées (auto_healing_*) : elles doivent disparaître après
+    // 011 crée une table dédiée (audit_log) : elle doit disparaître après
     // son rollback, sans toucher aux tables des phases précédentes.
     const tables = (
       await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])
     ).map((r) => r.name);
-    assert.ok(tables.includes("auto_healing_settings"), "auto_healing_settings (Phase 7/009) n'est pas affectée par le rollback de 010");
-    assert.ok(tables.includes("health_checks"), "health_checks (Phase 6/008) n'est pas affectée par le rollback de 010");
-    assert.ok(tables.includes("notification_providers"), "notification_providers (Phase 5A/006) n'est pas affectée par le rollback de 008");
+    assert.ok(!tables.includes("audit_log"), "audit_log (Phase 9/011) doit disparaître après son propre rollback");
+    assert.ok(tables.includes("auto_healing_settings"), "auto_healing_settings (Phase 7/009) n'est pas affectée par le rollback de 011");
+    assert.ok(tables.includes("health_checks"), "health_checks (Phase 6/008) n'est pas affectée par le rollback de 011");
+    assert.ok(tables.includes("notification_providers"), "notification_providers (Phase 5A/006) n'est pas affectée par le rollback de 011");
     assert.ok(tables.includes("notification_routes"));
-    assert.ok(tables.includes("process_events"), "process_events ne doit pas être affectée par le rollback de 008");
+    assert.ok(tables.includes("process_events"), "process_events ne doit pas être affectée par le rollback de 011");
   });
 
   await t.test("down({ steps: 3 }) annule les trois dernières migrations", async () => {
@@ -120,13 +124,13 @@ test("migrator", async (t) => {
     await migrator.up();
     const reverted = await migrator.down({ steps: 3 });
     assert.deepEqual(reverted, [
+      "011_audit_log",
       "010_health_checks_process_name",
       "009_auto_healing",
-      "008_health_checks",
     ]);
 
     const status = await migrator.status();
-    assert.equal(status.applied.length, 7);
+    assert.equal(status.applied.length, 8);
   });
 
   await t.test("down() sur une base vierge (rien d'appliqué) ne fait rien", async () => {

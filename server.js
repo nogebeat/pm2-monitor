@@ -19,6 +19,7 @@ const { engine: alertEngine, alertStore } = require("./lib/services/alerts");
 const alertsRouter = require("./lib/routes/alerts");
 const { ProcessHistoryService } = require("./lib/services/process-history");
 const { EventsService } = require("./lib/services/events");
+const { AuditRetentionService } = require("./lib/services/audit");
 const eventsStore = require("./lib/services/events/event-store");
 const eventsRouter = require("./lib/routes/events");
 const notificationsRouter = require("./lib/routes/notifications");
@@ -148,6 +149,13 @@ const processHistory = new ProcessHistoryService();
 // d'instanciation tardive que processHistory ci-dessus (lit process.env au
 // constructeur, doit donc être créé après loadDotEnv()).
 const eventsService = new EventsService();
+
+// --- Audit Log (Phase 9, lib/services/audit/) : rétention automatique
+// optionnelle, désactivée par défaut (AUDIT_RETENTION_MS=0 par défaut, voir
+// lib/services/audit/config.js et docs/audit/README.md#rétention). Même
+// contrainte d'instanciation tardive que processHistory/eventsService.
+const auditRetentionService = new AuditRetentionService();
+
 
 // --- Auto-Healing (Phase 7, lib/services/auto-healing/) : CRITIQUE/DANGEREUX,
 // désactivé par défaut en base (voir migration 009_auto_healing.js). `pm2`
@@ -887,6 +895,11 @@ processHistory.start();
 // Purge périodique de la timeline d'événements (rétention EVENTS_RETENTION_MS),
 // sur son propre intervalle indépendant — même découpage que processHistory ci-dessus.
 eventsService.start();
+
+// Purge périodique de l'audit log (rétention AUDIT_RETENTION_MS, désactivée
+// par défaut) : no-op tant que la variable n'est pas définie explicitement,
+// voir lib/services/audit/config.js et docs/audit/README.md#rétention.
+auditRetentionService.start();
 
 // --- Health checks (Phase 6) ---------------------------------------------
 // Branche le dispatch de notifications sur les transitions d'alerte

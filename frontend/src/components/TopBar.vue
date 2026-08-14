@@ -36,6 +36,10 @@ function openNotifications() {
 function openHealthChecks() {
   state.modal = { type: "healthChecks" };
 }
+
+function openAuditLog() {
+  state.modal = { type: "auditLog" };
+}
 </script>
 
 <template>
@@ -111,6 +115,14 @@ function openHealthChecks() {
         @click="openHealthChecks"
       >
         ❤ Health Checks
+      </button>
+      <button
+        v-if="can('audit_read')"
+        class="icon-btn"
+        title="Settings → Audit Log (actions sensibles)"
+        @click="openAuditLog"
+      >
+        🧾 Audit Log
       </button>
       <button
         v-if="state.auth.user && state.auth.user.isAdmin"
