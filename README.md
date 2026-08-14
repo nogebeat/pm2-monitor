@@ -386,10 +386,10 @@ Système de notifications multi-providers, en construction par phases —
 architecture, modèles de données, cinq providers opérationnels
 (Email/SMTP, Discord, Telegram, Slack, Webhook générique), une
 interface d'administration complète (Settings → Notifications →
-Providers), et désormais le routing par règles depuis l'Alert Engine
-(conditions + templates). Pas encore de mise en file d'attente/retry
-(Phase 5E — un provider en panne ne fait pas l'objet d'une nouvelle
-tentative automatique) : voir
+Providers), le routing par règles depuis l'Alert Engine (conditions +
+templates), et désormais une file d'attente fiable (retry + backoff,
+rate limiting, déduplication — un provider en panne ne bloque jamais le
+monitoring et fait l'objet de nouvelles tentatives automatiques). Voir
 [`docs/notifications/README.md`](docs/notifications/README.md) pour
 l'état exact et [`docs/notifications/providers/`](docs/notifications/providers/)
 pour la configuration détaillée de chaque provider.
@@ -430,8 +430,7 @@ pour la configuration détaillée de chaque provider.
   directement sur `lib/services/alerts/` (`server.js`) : dès qu'une
   occurrence d'alerte passe active ou résolue, les règles concernées
   envoient et chaque tentative est journalisée (`notification_history`,
-  `GET /api/notifications/history`). Pas de file d'attente ni de retry
-  automatique en cas d'échec provider dans cette phase (Phase 5E).
+  `GET /api/notifications/history`).
   **UI** : `Settings → Notifications` — onglet `Routing` — liste des
   règles (statut 🟢/⚪, résumé des conditions, providers ciblés),
   `+ Add routing rule` avec sélection des conditions (chips
@@ -444,6 +443,19 @@ pour la configuration détaillée de chaque provider.
   (`notifications_history`). Voir
   [`docs/notifications/README.md`](docs/notifications/README.md#routing-phase-5d)
   pour la sémantique exacte des conditions et des templates.
+- **File d'attente & fiabilité de livraison (Phase 5E)** : l'envoi
+  effectif est délégué à `lib/services/notifications/dispatch-queue.js`,
+  adossé à la file d'attente persistante existante
+  (`lib/services/queue/`, Phase 1) — retry avec backoff exponentiel,
+  rate limiting configurable par provider, déduplication (même
+  provider/alerte/transition dans une fenêtre de 5 min par défaut). Un
+  provider en panne (SMTP down, webhook injoignable…) ne bloque jamais le
+  monitoring PM2 : l'échec est tracé dans `notification_history`
+  (`pending` → `retrying` → `success`/`failed`) et retenté automatiquement
+  jusqu'à épuisement des tentatives. Worker démarré/arrêté avec le process
+  principal (`server.js`), reprend les jobs interrompus par un arrêt
+  brutal au redémarrage. Voir
+  [`docs/notifications/README.md`](docs/notifications/README.md#notification-queue-phase-5e).
 
 ### Logs
 

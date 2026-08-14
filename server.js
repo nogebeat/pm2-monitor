@@ -21,7 +21,10 @@ const { ProcessHistoryService } = require("./lib/services/process-history");
 const { EventsService } = require("./lib/services/events");
 const eventsRouter = require("./lib/routes/events");
 const notificationsRouter = require("./lib/routes/notifications");
-const { routingEngine: notificationRoutingEngine } = require("./lib/services/notifications");
+const {
+  routingEngine: notificationRoutingEngine,
+  dispatchQueue: notificationDispatchQueue,
+} = require("./lib/services/notifications");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -659,6 +662,19 @@ processHistory.start();
 // sur son propre intervalle indépendant — même découpage que processHistory ci-dessus.
 eventsService.start();
 
+// --- Notification dispatch queue (Phase 5E) -----------------------------
+// Worker de la file d'attente de notifications (retry/backoff/rate limit/
+// dedup, voir lib/services/notifications/dispatch-queue.js). Indépendant de
+// NOTIFICATIONS_DISPATCH_ENABLED : ce flag contrôle si dispatchAlertTransition
+// empile des jobs ; le worker doit tout de même tourner pour vider les jobs
+// déjà en base (ex. créés avant un redémarrage) — sinon ils resteraient
+// bloqués "pending" indéfiniment. recoverStaleActiveJobs() (appelé dans
+// start()) garantit qu'un job interrompu par un arrêt brutal du process
+// redevient "pending" et sera retraité.
+notificationDispatchQueue.start().catch((e) => {
+  console.error("Erreur au démarrage de la file de notifications :", e.message);
+});
+
 // Un seul bus de logs partagé, diffusé à tous les clients connectés
 // (le filtrage par permission "logs" sur une app précise se fait déjà côté
 // REST pour l'historique/export ; en direct, le frontend n'affiche que les
@@ -749,6 +765,7 @@ db.init()
   });
 
 process.on("SIGINT", () => {
+  notificationDispatchQueue.stop();
   pm2.disconnect();
   db.close().finally(() => process.exit(0));
 });

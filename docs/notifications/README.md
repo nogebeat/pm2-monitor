@@ -26,6 +26,7 @@ d'échec provider).
 - [Secrets](#secrets)
 - [Routing (Phase 5D)](#routing-phase-5d)
 - [Templates (Phase 5D)](#templates-phase-5d)
+- [Notification Queue (Phase 5E)](#notification-queue-phase-5e)
 - [Historique](#historique)
 - [API REST](#api-rest)
 - [Permissions](#permissions)
@@ -247,19 +248,90 @@ Un placeholder inconnu (faute de frappe) est laissé tel quel dans le
 texte plutôt que de faire échouer le rendu — une notification mal
 formée vaut mieux qu'aucune notification.
 
+## Notification Queue (Phase 5E)
+
+`lib/services/notifications/dispatch-queue.js` (`NotificationDispatchQueue`)
+— fiabilise la livraison sans jamais bloquer le monitoring PM2, le
+WebSocket ni l'Alert Engine. S'appuie sur la file d'attente persistante déjà
+existante (`lib/services/queue/`, Phase 1) sans en créer une seconde.
+
+```text
+Alert/Event
+   ↓
+RoutingEngine#dispatch()        (routing + templates, Phase 5D — inchangé)
+   ↓
+NotificationDispatchQueue#enqueue()   (dedup, rate limit, historique "pending")
+   ↓
+jobs (table SQL, PersistentQueue)     (retry + backoff exponentiel)
+   ↓
+NotificationDispatchQueue#handleJob() (worker : envoi + mise à jour historique)
+   ↓
+Provider (Phase 5B)
+```
+
+- **Job** : ne contient jamais de secret — uniquement `providerId`
+  (référence vers `notification_providers`), `alertId`, le `notification`
+  déjà rendu (titre/message) et l'id de la ligne d'historique associée. Les
+  secrets déchiffrés ne sont récupérés qu'au moment de l'envoi, dans le
+  worker (`providerStore.getDecryptedSecrets()`), jamais persistés dans la
+  table `jobs`.
+- **Retry + backoff** : réutilise tel quel le comportement de
+  `PersistentQueue` (`lib/services/queue/persistent-queue.js`) — nombre
+  maximal de tentatives et délai croissant entre chacune (configurable via
+  `createQueue(name, { maxAttempts, backoffMs })`, par défaut 4 tentatives).
+  `NotificationDispatchQueue` ne réimplémente pas cette logique ; il se
+  contente de lancer une exception pour faire retenter la queue tant que la
+  tentative n'est pas la dernière.
+- **Rate limiting** : fenêtre glissante en mémoire, par provider
+  (`{ windowMs, max }`, par défaut 60 envois/minute). Au-delà, la
+  notification n'est pas mise en file — une ligne d'historique `failed`
+  (`RATE_LIMITED`) est écrite immédiatement pour ne pas perdre la trace de
+  l'événement.
+- **Déduplication** : clé `providerId:alertId:event` (ex.
+  `3:42:triggered`), fenêtre par défaut de 5 minutes — deux notifications
+  identiques (même alerte, même transition, même provider) dans cette
+  fenêtre sont regroupées : la seconde n'est ni mise en file ni tracée dans
+  l'historique.
+- **Historique évolutif** : contrairement à l'envoi direct (Phase 5D, qui
+  écrit une seule ligne `success`/`failed` a posteriori), le mode queue crée
+  d'abord une ligne `pending` à la mise en file, puis la fait évoluer via
+  `historyStore.update()` (nouveau en Phase 5E) : `retrying` après chaque
+  tentative infructueuse tant qu'il en reste, `success` ou `failed` à
+  l'issue finale. `metadata.attempt` trace le numéro de la tentative.
+- **Failure handling** : provider désactivé/supprimé ou type de provider
+  inconnu → échec immédiat, définitif, sans consommer de tentative de
+  retry (condition permanente, pas transitoire). Un provider qui lance une
+  exception (au lieu de renvoyer `{ success: false }`) est traité comme un
+  échec récupérable classique — jamais propagé à l'appelant.
+- **Ne bloque jamais l'appelant** : `enqueue()` ne lance jamais, y compris
+  si l'écriture de l'historique échoue (ex. base indisponible) — la mise en
+  file continue, seule la traçabilité est dégradée (message dans les logs
+  serveur).
+- **Branchement** : `lib/services/notifications/index.js` instancie une
+  `dispatchQueue` partagée et la passe à `routingEngine` — c'est donc le
+  mode utilisé en production. `server.js` démarre le worker
+  (`dispatchQueue.start()`, qui appelle d'abord
+  `recoverStaleActiveJobs()` pour reprendre les jobs orphelins d'un arrêt
+  brutal) et l'arrête proprement sur `SIGINT`. `RoutingEngine` accepte
+  toujours d'être construit sans `dispatchQueue` (comportement Phase 5D,
+  envoi direct synchrone) — c'est le cas des tests unitaires de
+  `routing/engine.js`.
+
 ## Historique
 
 Table `notification_history` (`history-store.js`) — écrite
-automatiquement par `routing/engine.js#RoutingEngine` à chaque tentative
-d'envoi (une ligne par couple règle matchée × provider ciblé), en plus
-d'être disponible en lecture/écriture manuelle pour d'autres usages
-futurs (ex. Phase 5E : file d'attente/retry).
+automatiquement par `routing/engine.js#RoutingEngine`, soit directement
+(mode Phase 5D, une ligne `success`/`failed` par couple règle matchée ×
+provider ciblé), soit via la file d'attente (mode Phase 5E, voir
+[Notification Queue](#notification-queue-phase-5e) — une ligne `pending`
+puis mise à jour au fil des tentatives). Disponible en lecture/écriture
+manuelle (`create`/`update`/`getById`/`list`) pour d'autres usages futurs.
 
 | Champ            | Type    | Description                                                        |
 |--------------------|-----------|-------------------------------------------------------------------------|
 | `providerId`         | int, nullable | `ON DELETE SET NULL` — supprimer une config de provider ne fait pas disparaître l'historique déjà écrit. |
 | `alertId`            | int, nullable | `ON DELETE SET NULL` vers `alerts` — relie une notification à l'alerte qui l'a déclenchée. |
-| `status`             | string (requis) | `success` ou `failed` (jamais `pending` en Phase 5D — le dispatch est synchrone, pas de file d'attente). |
+| `status`             | string (requis) | `pending`, `retrying`, `success` ou `failed`. `pending`/`retrying` uniquement en mode file d'attente (Phase 5E, voir [Notification Queue](#notification-queue-phase-5e)) ; en mode direct (Phase 5D, sans `dispatchQueue`) seuls `success`/`failed` sont écrits. |
 | `timestamp`          | int          |                                                                          |
 | `responseTimeMs`     | int, optionnel | Temps de réponse renvoyé par le provider, ou mesuré par le RoutingEngine à défaut. |
 | `errorCode`          | string, optionnel | Ex. `PROVIDER_NOT_FOUND`, `PROVIDER_DISABLED`, `UNKNOWN_PROVIDER_TYPE`, `INTERNAL_ERROR`, ou un code de `providers/shared.js` (`NETWORK_ERROR`, `TIMEOUT`…). |
@@ -388,14 +460,17 @@ historique déjà écrit) — à réserver au développement/tests.
 
 ## Limites connues de cette phase
 
-- **Pas de file d'attente / retry** : `RoutingEngine.dispatch()` envoie
-  directement via `provider.send()`, de façon synchrone par rapport à
-  l'appelant (`server.js`). Un provider indisponible produit une ligne
-  `notification_history` `failed`, mais **aucune nouvelle tentative
-  automatique** — prévu en Phase 5E, consommateur de
-  `lib/services/queue/` (déjà existante mais pas encore branchée ici).
-- **Anti-spam délégué à l'Alert Engine, pas au RoutingEngine** :
-  `dispatch()` est appelé une seule fois par transition d'état réelle
+- **File d'attente / retry (Phase 5E)** : `RoutingEngine.dispatch()` peut
+  désormais déléguer l'envoi à `lib/services/notifications/dispatch-queue.js`
+  (voir [Notification Queue (Phase 5E)](#notification-queue-phase-5e))
+  plutôt que d'appeler `provider.send()` en direct — retry + backoff
+  exponentiel, rate limiting et déduplication. C'est la file utilisée en
+  production (branchée via `lib/services/notifications/index.js` et
+  démarrée dans `server.js`) ; le mode direct (comportement historique de
+  la Phase 5D) reste disponible pour tout appelant qui veut un résultat
+  synchrone (c'est celui utilisé par les tests unitaires de
+  `routing/engine.js` qui ne fournissent pas de `dispatchQueue`).
+- **Anti-spam à deux niveaux** :
   (trigger→active, →resolved), jamais à chaque tick d'évaluation — la
   déduplication/cooldown déjà en place dans
   `lib/services/alerts/engine.js` protège donc aussi les notifications,
@@ -421,9 +496,17 @@ historique déjà écrit) — à réserver au développement/tests.
   provider produit simplement une ligne d'historique `failed`
   (`PROVIDER_NOT_FOUND`/`PROVIDER_DISABLED`) sans bloquer les autres
   providers de la même règle.
-- `notification_history.metadata` n'est pas encore renseigné par le
-  RoutingEngine (toujours `null` pour une ligne écrite en Phase 5D) —
-  réservé à un usage futur (ex. extrait de réponse HTTP en Phase 5E).
+- `notification_history.metadata` reste `null` en mode direct (Phase 5D,
+  sans `dispatchQueue`) ; en mode file d'attente (Phase 5E), il contient
+  uniquement `{ attempt: <n> }` — pas encore d'extrait de réponse HTTP du
+  provider, laissé pour un usage futur.
+- **Rate limit et déduplication en mémoire** (`dispatch-queue.js`) : non
+  partagés entre plusieurs instances du process (déploiement multi-process
+  hors scope de ce moniteur self-hosted mono-instance) et réinitialisés à
+  chaque redémarrage — contrairement aux jobs eux-mêmes (persistés dans la
+  table `jobs`), aucune perte de données possible, seulement un
+  sur-envoi ponctuel dans le pire cas (redémarrage pile pendant une
+  avalanche d'alertes).
 - Le champ `to` du provider email (destinataire(s)) reste une extension
   pragmatique posée en Phase 5B — hors de la liste stricte des champs
   de la tâche mais indispensable pour qu'un envoi SMTP soit possible.
