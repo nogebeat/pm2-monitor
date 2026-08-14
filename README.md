@@ -291,6 +291,11 @@ pour le détail de ce qui existe et ce qui est prévu.
   statut PM2, alimentent le moteur d'alertes existant — voir
   [Health Checks](#health-checks) et
   [`docs/health-checks/README.md`](docs/health-checks/README.md).
+- `lib/services/dashboard/` : vue globale (`GET /api/dashboard`) qui compose
+  les services déjà existants (metrics système, process, alertes, health
+  checks, timeline, auto-healing) en un instantané unique, et calcule l'état
+  de santé global du serveur — voir [Dashboard global](#dashboard-global-onglet-dashboard)
+  et [`docs/dashboard/README.md`](docs/dashboard/README.md).
 
 ## Fonctionnalités
 
@@ -312,6 +317,33 @@ pour le détail de ce qui existe et ce qui est prévu.
 - **Actions globales PM2** (menu "PM2 ⋯" en haut à droite) :
   Sauvegarder (`pm2 save`), Resurrect, Flush tous les logs, Update PM2,
   Kill daemon PM2 (confirmation demandée).
+
+### Dashboard global (onglet "Dashboard")
+
+Vue d'ensemble unique de l'état du serveur et des applications, pensée pour
+un coup d'œil : aucune nouvelle source de données ni nouveau canal temps
+réel — uniquement une composition de ce qui existe déjà (metrics système,
+process, moteur d'alertes, health checks, timeline, auto-healing).
+
+- **Statut global** (`HEALTHY` / `WARNING` / `CRITICAL`), calculé par une
+  fonction pure `calculateGlobalStatus()` (voir
+  [`docs/dashboard/README.md`](docs/dashboard/README.md#calcul-du-statut-global)
+  pour les règles complètes et documentées).
+- **Système** : CPU, RAM, disque, réseau, température — mêmes composants
+  visuels que l'onglet [Système](#vue-système-onglet-système).
+- **Processus** : total / online / stopped / errored / crashed / restarting.
+- **Alertes** : actives / critiques / warning / acquittées (nécessite la
+  permission `alerts_read`).
+- **Tableau des process** : application, statut, CPU, RAM, restarts, uptime,
+  health check associé — cliquer sur une ligne ouvre le process dans
+  l'onglet Process existant.
+- **Timeline récente** : fusion des événements process, alertes (déclenchées
+  et résolues) et tentatives d'auto-healing, triée par date décroissante.
+- **Temps réel** : mis à jour via le même Socket.IO que le reste de
+  l'application (`metrics.updated`, `process.updated`, `alert.triggered`,
+  `alert.resolved`, `health.updated`, `event.created`) — pas de polling
+  dédié, pas de second système temps réel.
+- Visible avec la même permission que l'onglet Système (`system`).
 
 ### Vue Système (onglet "Système")
 

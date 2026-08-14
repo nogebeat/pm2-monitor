@@ -7,7 +7,7 @@ const MAX_CPU_HISTORY = 20;
 
 export const state = reactive({
   connected: false,
-  view: "process", // "process" | "system"
+  view: "process", // "process" | "dashboard" | "system" | "events"
 
   // ---------- Auth / permissions ----------
   auth: {

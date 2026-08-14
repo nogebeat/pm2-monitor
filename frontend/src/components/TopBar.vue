@@ -49,6 +49,14 @@ function openHealthChecks() {
     </div>
 
     <nav class="view-tabs" role="tablist" aria-label="Vue">
+      <button
+        v-if="can('system')"
+        class="view-tab"
+        :class="{ active: state.view === 'dashboard' }"
+        @click="setView('dashboard')"
+      >
+        Dashboard
+      </button>
       <button class="view-tab" :class="{ active: state.view === 'process' }" @click="setView('process')">
         Process
       </button>
