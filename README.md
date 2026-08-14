@@ -38,7 +38,8 @@ pm2-monitor/
 │   │   │   ├── 005_process_events.js    # process_events (timeline)
 │   │   │   ├── 006_notifications.js     # notification_providers, notification_routes, notification_history
 │   │   │   ├── 007_notification_routing_templates.js  # colonnes de template sur notification_routes
-│   │   │   └── 008_health_checks.js     # health_checks (Phase 6)
+│   │   │   ├── 008_health_checks.js     # health_checks (Phase 6)
+│   │   │   └── 009_auto_healing.js      # auto_healing_settings/state/audit (Phase 7)
 │   │   └── migrator.js        # exécution des migrations (up/down/status)
 │   ├── services/
 │   │   ├── queue/             # file d'attente persistante générique (voir README dédié)
@@ -46,7 +47,8 @@ pm2-monitor/
 │   │   ├── process-history/   # historique CPU/RAM/restarts par process, multi-résolution
 │   │   ├── events/            # timeline d'événements/crashs PM2
 │   │   ├── notifications/     # providers Email/Discord/Telegram/Slack/Webhook, secrets chiffrés
-│   │   └── health-checks/     # sondes HTTP/TCP/Command indépendantes du statut PM2 (Phase 6)
+│   │   ├── health-checks/     # sondes HTTP/TCP/Command indépendantes du statut PM2 (Phase 6)
+│   │   └── auto-healing/      # redémarrage automatique + garde-fous, désactivé par défaut (Phase 7)
 │   ├── routes/                # routes REST par domaine (alerts.js, events.js, process-history.js…)
 │   ├── auth.js              # sessions, middlewares requireAuth / requirePermission / requireAdmin
 │   ├── user-store.js        # CRUD utilisateurs + permissions
@@ -62,6 +64,7 @@ pm2-monitor/
 │   ├── alerts/README.md       # détail du moteur d'alertes
 │   ├── events/README.md       # détail de la timeline d'événements
 │   ├── health-checks/README.md  # détail des health checks HTTP/TCP/Command (Phase 6)
+│   ├── auto-healing/README.md   # détail Auto-Healing : garde-fous, activation, sécurité (Phase 7)
 │   └── notifications/
 │       ├── README.md            # architecture, registry, secrets, API, permissions
 │       └── providers/            # un .md par provider (config, sécurité, test, erreurs)
@@ -527,6 +530,39 @@ sécurisée via `execFile`, jamais de shell — voir mise en garde ci-dessous).
 - Documentation complète (types de sonde, sécurité de `command`,
   intervalles/timeouts, intégration Alert Engine) :
   [`docs/health-checks/README.md`](docs/health-checks/README.md).
+
+### Auto-Healing
+
+> ⚠️ **Auto-Healing peut automatiquement redémarrer des processus. Il est
+> désactivé par défaut.** Fonctionnalité **CRITIQUE/DANGEREUSE** : lisez
+> [`docs/auto-healing/README.md`](docs/auto-healing/README.md) avant de
+> l'activer en production.
+
+Redémarrage automatique (`pm2.restart`, aucune autre action) d'un process
+sur détection d'un crash, d'un health check `DOWN`, ou de toute alerte
+`active` ciblant un process — trois sources (Alert Engine, Health Checks,
+événements PM2), un seul point de décision.
+
+- **Désactivé par défaut** : nécessite une activation explicite
+  (`PUT /api/auto-healing/settings { "enabled": true }`, permission
+  `authealing_manage`), jamais une variable d'environnement ni un effet de
+  bord d'une autre configuration.
+- **Garde-fous obligatoires** : nombre maximum de tentatives configurable
+  (défaut `3`), cooldown/backoff exponentiel entre chaque tentative (défaut
+  `60s / 300s / 900s`), puis **blocage définitif** (`AUTO-HEALING BLOCKED`)
+  au-delà — un process bloqué ne redémarre plus jamais automatiquement,
+  seul un déblocage manuel explicite le réactive.
+- **Audit complet** : chaque tentative (réussie, échouée, bloquée) est
+  journalisée (`GET /api/auto-healing/audit`), sans exception.
+- **Endpoints** : `GET/PUT /api/auto-healing/settings`, `GET
+  /api/auto-healing/state`, `GET /api/auto-healing/state/:process`, `POST
+  /api/auto-healing/state/:process/unblock`, `GET /api/auto-healing/audit`.
+- **Permissions** : `authealing_read`, `authealing_manage` (voir
+  [Multi-utilisateurs & permissions](#multi-utilisateurs--permissions)).
+- **Sécurité** : action limitée à l'API PM2 déjà utilisée par le reste de
+  l'application (`pm2.restart`) — jamais de commande shell.
+- Documentation complète (garde-fous, activation, configuration, sécurité) :
+  [`docs/auto-healing/README.md`](docs/auto-healing/README.md).
 
 ### Logs
 

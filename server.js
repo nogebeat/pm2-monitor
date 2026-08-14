@@ -27,6 +27,12 @@ const {
 } = require("./lib/services/notifications");
 const { engine: healthCheckEngine } = require("./lib/services/health-checks");
 const healthChecksRouter = require("./lib/routes/health-checks");
+const {
+  AutoHealingService,
+  feedFromAlertTransition,
+  feedFromPm2Event,
+} = require("./lib/services/auto-healing");
+const autoHealingRouter = require("./lib/routes/auto-healing");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -88,14 +94,26 @@ const HEALTH_CHECKS_SCHEDULER_INTERVAL_MS = process.env.HEALTH_CHECKS_SCHEDULER_
  * — pas besoin d'égalité de timestamp ici).
  */
 function dispatchAlertTransition(alert) {
-  if (!NOTIFICATIONS_DISPATCH_ENABLED || !alert) return;
-  if (alert.state === "active" && alert.triggeredAt === alert.lastSeenAt) {
-    notificationRoutingEngine.dispatch(alert, "triggered").catch((e) => {
-      console.error("Erreur de dispatch de notification (déclenchement) :", e.message);
-    });
-  } else if (alert.state === "resolved") {
-    notificationRoutingEngine.dispatch(alert, "resolved").catch((e) => {
-      console.error("Erreur de dispatch de notification (résolution) :", e.message);
+  if (!alert) return;
+  if (NOTIFICATIONS_DISPATCH_ENABLED) {
+    if (alert.state === "active" && alert.triggeredAt === alert.lastSeenAt) {
+      notificationRoutingEngine.dispatch(alert, "triggered").catch((e) => {
+        console.error("Erreur de dispatch de notification (déclenchement) :", e.message);
+      });
+    } else if (alert.state === "resolved") {
+      notificationRoutingEngine.dispatch(alert, "resolved").catch((e) => {
+        console.error("Erreur de dispatch de notification (résolution) :", e.message);
+      });
+    }
+  }
+
+  // Auto-Healing (Phase 7) : même transition d'alerte que ci-dessus, source
+  // supplémentaire indépendante des notifications (voir lib/services/auto-healing/).
+  // AutoHealingService.trigger() est un no-op si Auto-Healing est désactivé
+  // (défaut), donc sans effet tant qu'une activation explicite n'a pas eu lieu.
+  if (alert.state === "active" || alert.state === "resolved") {
+    Promise.resolve(feedFromAlertTransition(autoHealing, alert)).catch((e) => {
+      console.error("Erreur Auto-Healing :", e.message);
     });
   }
 }
@@ -111,6 +129,13 @@ const processHistory = new ProcessHistoryService();
 // d'instanciation tardive que processHistory ci-dessus (lit process.env au
 // constructeur, doit donc être créé après loadDotEnv()).
 const eventsService = new EventsService();
+
+// --- Auto-Healing (Phase 7, lib/services/auto-healing/) : CRITIQUE/DANGEREUX,
+// désactivé par défaut en base (voir migration 009_auto_healing.js). `pm2`
+// est passé maintenant (l'instance module, connectée plus tard par
+// startPm2Bus()) : le service ne fait que fermer dessus au moment de
+// l'action, comme pm2Actions.* utilisé ailleurs dans ce fichier.
+const autoHealing = new AutoHealingService({ pm2 });
 
 const app = express();
 app.set("trust proxy", 1); // derrière nginx/un reverse proxy : IP réelle, X-Forwarded-* fiables
@@ -338,6 +363,9 @@ app.use("/api/notifications", notificationsRouter());
 
 // --- REST API : health checks (lib/services/health-checks/, lib/routes/health-checks.js) ---
 app.use("/api/health-checks", healthChecksRouter());
+
+// --- REST API : auto-healing (lib/services/auto-healing/, lib/routes/auto-healing.js) ---
+app.use("/api/auto-healing", autoHealingRouter(autoHealing));
 
 // --- REST API : liste / actions de base sur les process ------------------
 
@@ -763,6 +791,14 @@ function startPm2Bus() {
           .catch((e) => {
             console.error("Erreur d'enregistrement dans la timeline d'événements :", e.message);
           });
+
+        // Auto-Healing (Phase 7) : même packet "process:event", pas de second
+        // listener PM2 (voir le commentaire au-dessus pour eventsService).
+        // feedFromPm2Event() ignore tout ce qui n'est pas "exit" et
+        // AutoHealingService.trigger() est un no-op si désactivé (défaut).
+        Promise.resolve(feedFromPm2Event(autoHealing, packet)).catch((e) => {
+          console.error("Erreur Auto-Healing (événement PM2) :", e.message);
+        });
       });
     });
 
