@@ -37,6 +37,8 @@ const {
 } = require("./lib/services/auto-healing");
 const autoHealingRouter = require("./lib/routes/auto-healing");
 const dashboardRouter = require("./lib/routes/dashboard");
+const { recordEvent, ACTIONS } = require("./lib/services/audit");
+const auditRouter = require("./lib/routes/audit");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -248,10 +250,20 @@ function withPm2(cb) {
   });
 }
 
-function handleAction(promise, res) {
+function handleAction(promise, res, audit) {
   promise
-    .then(() => res.json({ ok: true }))
-    .catch((err) => res.status(500).json({ error: err.message }));
+    .then(() => {
+      if (audit) {
+        recordEvent({ ...audit, status: "success" });
+      }
+      res.json({ ok: true });
+    })
+    .catch((err) => {
+      if (audit) {
+        recordEvent({ ...audit, status: "failed", metadata: { ...(audit.metadata || {}), error: err.message } });
+      }
+      res.status(500).json({ error: err.message });
+    });
 }
 
 /** Filtre une liste de process pm2 formatés selon ce que l'utilisateur peut "view". */
@@ -261,10 +273,31 @@ function visibleProcesses(user, list) {
   return list.filter((p) => permissions.hasPermission(user, p.name, "view"));
 }
 
+// Sous-ensemble des actions process considérées "sensibles" au sens de
+// l'audit (section 1 du prompt maître) — mappe l'action de permission
+// (lib/permissions.js#APP_ACTIONS) vers la constante ACTIONS.* correspondante.
+// Les actions non listées ici (scale/watch/flush/reset/logs/view…) ne sont
+// pas auditées : elles ne figurent pas dans la liste du prompt maître, et
+// pour "flush"/"reset"/"scale"/"watch" ce sont des réglages mineurs, pas
+// des actions "sensibles" au même titre que start/stop/delete.
+const AUDITED_APP_ACTIONS = {
+  start: ACTIONS.PROCESS_START,
+  stop: ACTIONS.PROCESS_STOP,
+  restart: ACTIONS.PROCESS_RESTART,
+  reload: ACTIONS.PROCESS_RELOAD,
+  delete: ACTIONS.PROCESS_DELETE,
+  env: ACTIONS.PROCESS_ENV_CHANGE,
+  config: ACTIONS.PROCESS_CONFIG_CHANGE,
+};
+
 /**
  * Résout le nom d'app pm2 depuis un :id de route, puis vérifie la permission
  * avant d'exécuter le handler. Renvoie 404 si le process n'existe pas et 403
  * si l'action n'est pas autorisée sur cette app précise.
+ *
+ * Audite les refus de permission ("denied") pour les actions sensibles
+ * (voir AUDITED_APP_ACTIONS) : un utilisateur qui tente une action non
+ * autorisée doit laisser une trace, même si l'action n'a jamais eu lieu.
  */
 function withAppPermission(action) {
   return (req, res, next) => {
@@ -274,8 +307,20 @@ function withAppPermission(action) {
         return res.status(404).json({ error: "Process introuvable." });
       }
       if (!permissions.hasPermission(req.user, list[0].name, action)) {
+        const auditAction = AUDITED_APP_ACTIONS[action];
+        if (auditAction) {
+          recordEvent({
+            user: req.user,
+            action: auditAction,
+            target: list[0].name,
+            targetType: "process",
+            status: "denied",
+            ip: req.ip,
+          });
+        }
         return res.status(403).json({ error: "Action non autorisée pour cette app." });
       }
+      req.processName = list[0].name; // résolu une fois ici, réutilisé par le handler pour l'audit (voir plus bas)
       next();
     });
   };
@@ -287,8 +332,28 @@ app.post("/api/auth/login", async (req, res) => {
   try {
     const { username, password } = req.body || {};
     const user = await userStore.verifyCredentials(username, password);
-    if (!user) return res.status(401).json({ error: "Identifiants invalides." });
+    if (!user) {
+      // JAMAIS le mot de passe dans metadata, même échoué (voir lib/services/audit/sanitize.js) :
+      // seul le username *tenté* est tracé (usernameOverride, pas de req.user à ce stade).
+      recordEvent({
+        usernameOverride: typeof username === "string" ? username : null,
+        action: ACTIONS.LOGIN,
+        targetType: "user",
+        target: typeof username === "string" ? username : null,
+        status: "failed",
+        ip: req.ip,
+      });
+      return res.status(401).json({ error: "Identifiants invalides." });
+    }
     req.session.userId = user.id;
+    recordEvent({
+      user,
+      action: ACTIONS.LOGIN,
+      targetType: "user",
+      target: user.username,
+      status: "success",
+      ip: req.ip,
+    });
     res.json({ ok: true, user: { username: user.username, isAdmin: user.isAdmin } });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -296,7 +361,13 @@ app.post("/api/auth/login", async (req, res) => {
 });
 
 app.post("/api/auth/logout", (req, res) => {
-  if (req.session) req.session.destroy(() => {});
+  const user = req.user;
+  if (req.session) {
+    req.session.destroy(() => {});
+  }
+  if (user) {
+    recordEvent({ user, action: ACTIONS.LOGOUT, targetType: "user", target: user.username, status: "success", ip: req.ip });
+  }
   res.json({ ok: true });
 });
 
@@ -399,6 +470,9 @@ app.use(
   })
 );
 
+// --- REST API : audit log (lib/services/audit/, Phase 9) -----------------
+app.use("/api/audit", auditRouter());
+
 // --- REST API : liste / actions de base sur les process ------------------
 
 app.get("/api/processes", (req, res) => {
@@ -408,38 +482,72 @@ app.get("/api/processes", (req, res) => {
   });
 });
 
-app.post("/api/processes/:id/restart", withAppPermission("restart"), (req, res) => {
-  pm2.restart(req.params.id, (err) => {
-    if (err) return res.status(500).json({ error: err.message });
+/** Comme handleAction, mais pour les actions pm2.* basées sur callback (err) plutôt que Promise. */
+function handleCallbackAction(fn, res, audit) {
+  fn((err) => {
+    if (err) {
+      if (audit) {
+        recordEvent({ ...audit, status: "failed", metadata: { ...(audit.metadata || {}), error: err.message } });
+      }
+      return res.status(500).json({ error: err.message });
+    }
+    if (audit) {
+      recordEvent({ ...audit, status: "success" });
+    }
     res.json({ ok: true });
+  });
+}
+
+app.post("/api/processes/:id/restart", withAppPermission("restart"), (req, res) => {
+  handleCallbackAction((cb) => pm2.restart(req.params.id, cb), res, {
+    user: req.user,
+    action: ACTIONS.PROCESS_RESTART,
+    target: req.processName || req.params.id,
+    targetType: "process",
+    ip: req.ip,
   });
 });
 
 app.post("/api/processes/:id/stop", withAppPermission("stop"), (req, res) => {
-  pm2.stop(req.params.id, (err) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ ok: true });
+  handleCallbackAction((cb) => pm2.stop(req.params.id, cb), res, {
+    user: req.user,
+    action: ACTIONS.PROCESS_STOP,
+    target: req.processName || req.params.id,
+    targetType: "process",
+    ip: req.ip,
   });
 });
 
 app.post("/api/processes/:id/start", withAppPermission("start"), (req, res) => {
-  pm2.start(req.params.id, (err) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ ok: true });
+  handleCallbackAction((cb) => pm2.start(req.params.id, cb), res, {
+    user: req.user,
+    action: ACTIONS.PROCESS_START,
+    target: req.processName || req.params.id,
+    targetType: "process",
+    ip: req.ip,
   });
 });
 
 app.post("/api/processes/:id/delete", withAppPermission("delete"), (req, res) => {
-  pm2.delete(req.params.id, (err) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ ok: true });
+  handleCallbackAction((cb) => pm2.delete(req.params.id, cb), res, {
+    user: req.user,
+    action: ACTIONS.PROCESS_DELETE,
+    target: req.processName || req.params.id,
+    targetType: "process",
+    ip: req.ip,
   });
 });
 
 // --- REST API : actions PM2 étendues --------------------------------------
 
 app.post("/api/processes/:id/reload", withAppPermission("reload"), (req, res) => {
-  handleAction(pm2Actions.reload(pm2, req.params.id), res);
+  handleAction(pm2Actions.reload(pm2, req.params.id), res, {
+    user: req.user,
+    action: ACTIONS.PROCESS_RELOAD,
+    target: req.processName || req.params.id,
+    targetType: "process",
+    ip: req.ip,
+  });
 });
 
 app.post("/api/processes/:id/scale", withAppPermission("scale"), (req, res) => {
@@ -451,20 +559,49 @@ app.post("/api/processes/:id/watch", withAppPermission("watch"), (req, res) => {
 });
 
 app.post("/api/processes/:id/env", withAppPermission("env"), (req, res) => {
-  handleAction(pm2Actions.editEnv(pm2, req.params.id, req.body.env || {}), res);
+  // Metadata volontairement limitée aux CLÉS d'environnement modifiées, jamais
+  // aux valeurs : une variable d'env est un vecteur fréquent de secret
+  // (voir lib/services/audit/sanitize.js — filet de sécurité indépendant,
+  // mais on évite ici de lui donner quoi que ce soit à filtrer).
+  const envKeys = Object.keys(req.body.env || {});
+  handleAction(pm2Actions.editEnv(pm2, req.params.id, req.body.env || {}), res, {
+    user: req.user,
+    action: ACTIONS.PROCESS_ENV_CHANGE,
+    target: req.processName || req.params.id,
+    targetType: "process",
+    ip: req.ip,
+    metadata: { envKeys },
+  });
 });
 
 app.post("/api/processes/:id/config", withAppPermission("config"), (req, res) => {
   // { script, args, execMode, instances }
-  handleAction(pm2Actions.editConfig(pm2, req.params.id, req.body || {}), res);
+  handleAction(pm2Actions.editConfig(pm2, req.params.id, req.body || {}), res, {
+    user: req.user,
+    action: ACTIONS.PROCESS_CONFIG_CHANGE,
+    target: req.processName || req.params.id,
+    targetType: "process",
+    ip: req.ip,
+    metadata: { fields: Object.keys(req.body || {}) },
+  });
 });
 
-app.post("/api/pm2/save", auth.requirePermission("pm2_save"), (req, res) => {
-  handleAction(pm2Actions.save(pm2), res);
+app.post("/api/pm2/save", auth.requirePermission("pm2_save", null, { action: ACTIONS.PM2_SAVE, targetType: "pm2_daemon" }), (req, res) => {
+  handleAction(pm2Actions.save(pm2), res, {
+    user: req.user,
+    action: ACTIONS.PM2_SAVE,
+    targetType: "pm2_daemon",
+    ip: req.ip,
+  });
 });
 
-app.post("/api/pm2/resurrect", auth.requirePermission("pm2_resurrect"), (req, res) => {
-  handleAction(pm2Actions.resurrect(pm2), res);
+app.post("/api/pm2/resurrect", auth.requirePermission("pm2_resurrect", null, { action: ACTIONS.PM2_RESURRECT, targetType: "pm2_daemon" }), (req, res) => {
+  handleAction(pm2Actions.resurrect(pm2), res, {
+    user: req.user,
+    action: ACTIONS.PM2_RESURRECT,
+    targetType: "pm2_daemon",
+    ip: req.ip,
+  });
 });
 
 app.post("/api/processes/:id/flush", withAppPermission("flush"), (req, res) => {
@@ -483,8 +620,13 @@ app.post("/api/pm2/update", auth.requirePermission("pm2_update"), (req, res) => 
   handleAction(pm2Actions.updatePM2(pm2), res);
 });
 
-app.post("/api/pm2/kill", auth.requirePermission("pm2_kill"), (req, res) => {
-  handleAction(pm2Actions.killDaemon(pm2), res);
+app.post("/api/pm2/kill", auth.requirePermission("pm2_kill", null, { action: ACTIONS.PM2_KILL, targetType: "pm2_daemon" }), (req, res) => {
+  handleAction(pm2Actions.killDaemon(pm2), res, {
+    user: req.user,
+    action: ACTIONS.PM2_KILL,
+    targetType: "pm2_daemon",
+    ip: req.ip,
+  });
 });
 
 // --- REST API : système & historique ---------------------------------------
