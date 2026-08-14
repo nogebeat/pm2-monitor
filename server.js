@@ -25,6 +25,8 @@ const {
   routingEngine: notificationRoutingEngine,
   dispatchQueue: notificationDispatchQueue,
 } = require("./lib/services/notifications");
+const { engine: healthCheckEngine } = require("./lib/services/health-checks");
+const healthChecksRouter = require("./lib/routes/health-checks");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -63,6 +65,16 @@ const ALERTS_EVAL_INTERVAL_MS = process.env.ALERTS_EVAL_INTERVAL_MS
 // lib/services/notifications/routing/engine.js#dispatch — ne lance jamais,
 // donc jamais bloquant pour la boucle de monitoring même en cas d'échec.
 const NOTIFICATIONS_DISPATCH_ENABLED = process.env.NOTIFICATIONS_DISPATCH_ENABLED !== "0";
+
+// --- Health checks (Phase 6, lib/services/health-checks/) : indépendant du
+// statut PM2, activable/désactivable séparément. Le scheduler interne du
+// moteur (engine.start()) tourne à un intervalle court (par défaut 5s) et
+// ne réexécute que les checks réellement "dus" (leur propre intervalScheduler
+// intervalSeconds étant configuré par check, voir engine.runDueChecks()) ---
+const HEALTH_CHECKS_ENABLED = process.env.HEALTH_CHECKS_ENABLED !== "0";
+const HEALTH_CHECKS_SCHEDULER_INTERVAL_MS = process.env.HEALTH_CHECKS_SCHEDULER_INTERVAL_MS
+  ? Number(process.env.HEALTH_CHECKS_SCHEDULER_INTERVAL_MS)
+  : 5000;
 
 /**
  * Détecte, sans modifier lib/services/alerts/engine.js, qu'un résultat
@@ -323,6 +335,9 @@ app.use("/api/events", eventsRouter(eventsService));
 // --- REST API : notification system, fondations Phase 5A (lib/services/notifications/, lib/routes/notifications.js) ---
 
 app.use("/api/notifications", notificationsRouter());
+
+// --- REST API : health checks (lib/services/health-checks/, lib/routes/health-checks.js) ---
+app.use("/api/health-checks", healthChecksRouter());
 
 // --- REST API : liste / actions de base sur les process ------------------
 
@@ -661,6 +676,17 @@ processHistory.start();
 // Purge périodique de la timeline d'événements (rétention EVENTS_RETENTION_MS),
 // sur son propre intervalle indépendant — même découpage que processHistory ci-dessus.
 eventsService.start();
+
+// --- Health checks (Phase 6) ---------------------------------------------
+// Branche le dispatch de notifications sur les transitions d'alerte
+// produites par les health checks, exactement comme pour
+// evaluateProcessReadings/evaluateSystemReading ci-dessus (même fonction
+// dispatchAlertTransition, un seul chemin de notification).
+healthCheckEngine.alertsEnabled = ALERTS_ENABLED;
+healthCheckEngine.onAlertResult = ALERTS_ENABLED ? dispatchAlertTransition : null;
+if (HEALTH_CHECKS_ENABLED) {
+  healthCheckEngine.start(HEALTH_CHECKS_SCHEDULER_INTERVAL_MS);
+}
 
 // --- Notification dispatch queue (Phase 5E) -----------------------------
 // Worker de la file d'attente de notifications (retry/backoff/rate limit/
