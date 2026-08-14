@@ -23,8 +23,8 @@ test("migrator", async (t) => {
     const { applied, pending } = await migrator.status();
     assert.equal(applied.length, 0);
     assert.ok(
-      pending.length >= 7,
-      "au moins 001_initial_schema à 007_notification_routing_templates attendues"
+      pending.length >= 8,
+      "au moins 001_initial_schema à 008_health_checks attendues"
     );
     assert.equal(pending[0].version, "001_initial_schema");
   });
@@ -40,11 +40,12 @@ test("migrator", async (t) => {
       "005_process_events",
       "006_notifications",
       "007_notification_routing_templates",
+      "008_health_checks",
     ]);
 
     const status = await migrator.status();
     assert.equal(status.pending.length, 0);
-    assert.equal(status.applied.length, 7);
+    assert.equal(status.applied.length, 8);
   });
 
   await t.test("up() est idempotent : rejouer ne fait rien et ne plante pas", async () => {
@@ -70,6 +71,7 @@ test("migrator", async (t) => {
     assert.ok(tables.includes("notification_routes"));
     assert.ok(tables.includes("notification_history"));
     assert.ok(tables.includes("schema_migrations"));
+    assert.ok(tables.includes("health_checks"));
   });
 
   await t.test("down() annule la dernière migration appliquée", async () => {
@@ -78,37 +80,45 @@ test("migrator", async (t) => {
     await migrator.up();
 
     const reverted = await migrator.down();
-    assert.deepEqual(reverted, ["007_notification_routing_templates"]);
+    assert.deepEqual(reverted, ["008_health_checks"]);
 
     const status = await migrator.status();
     assert.deepEqual(
       status.applied.map((m) => m.version),
-      ["001_initial_schema", "002_job_queue", "003_alert_engine", "004_process_metrics", "005_process_events", "006_notifications"]
+      [
+        "001_initial_schema",
+        "002_job_queue",
+        "003_alert_engine",
+        "004_process_metrics",
+        "005_process_events",
+        "006_notifications",
+        "007_notification_routing_templates",
+      ]
     );
 
-    // 007 ne fait qu'ajouter des colonnes à notification_routes (créée en
-    // 006) : la table elle-même doit rester présente après son rollback,
-    // seules title_template/message_template/notify_on_resolve disparaissent.
-    const columns = (await db.all("PRAGMA table_info(notification_routes)", [])).map((c) => c.name);
-    assert.ok(!columns.includes("title_template"), "title_template doit avoir disparu après down() de 007");
-    assert.ok(!columns.includes("notify_on_resolve"), "notify_on_resolve doit avoir disparu après down() de 007");
-
+    // 008 crée une table dédiée (health_checks) : elle doit disparaître après
+    // son rollback, sans toucher aux tables des phases précédentes.
     const tables = (
       await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])
     ).map((r) => r.name);
-    assert.ok(tables.includes("notification_providers"), "notification_providers (Phase 5A/006) n'est pas affectée par le rollback de 007");
+    assert.ok(!tables.includes("health_checks"), "health_checks doit avoir disparu après down() de 008");
+    assert.ok(tables.includes("notification_providers"), "notification_providers (Phase 5A/006) n'est pas affectée par le rollback de 008");
     assert.ok(tables.includes("notification_routes"));
-    assert.ok(tables.includes("process_events"), "process_events ne doit pas être affectée par le rollback de 007");
+    assert.ok(tables.includes("process_events"), "process_events ne doit pas être affectée par le rollback de 008");
   });
 
   await t.test("down({ steps: 3 }) annule les trois dernières migrations", async () => {
     const migrator = require("../../lib/db/migrator");
     await migrator.up();
     const reverted = await migrator.down({ steps: 3 });
-    assert.deepEqual(reverted, ["007_notification_routing_templates", "006_notifications", "005_process_events"]);
+    assert.deepEqual(reverted, [
+      "008_health_checks",
+      "007_notification_routing_templates",
+      "006_notifications",
+    ]);
 
     const status = await migrator.status();
-    assert.equal(status.applied.length, 4);
+    assert.equal(status.applied.length, 5);
   });
 
   await t.test("down() sur une base vierge (rien d'appliqué) ne fait rien", async () => {

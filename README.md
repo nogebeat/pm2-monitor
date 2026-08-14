@@ -36,14 +36,17 @@ pm2-monitor/
 │   │   │   ├── 003_alert_engine.js      # alert_rules, alerts
 │   │   │   ├── 004_process_metrics.js   # process_metrics_raw, process_metrics_rollup
 │   │   │   ├── 005_process_events.js    # process_events (timeline)
-│   │   │   └── 006_notifications.js     # notification_providers, notification_routes, notification_history
+│   │   │   ├── 006_notifications.js     # notification_providers, notification_routes, notification_history
+│   │   │   ├── 007_notification_routing_templates.js  # colonnes de template sur notification_routes
+│   │   │   └── 008_health_checks.js     # health_checks (Phase 6)
 │   │   └── migrator.js        # exécution des migrations (up/down/status)
 │   ├── services/
 │   │   ├── queue/             # file d'attente persistante générique (voir README dédié)
 │   │   ├── alerts/            # moteur d'alertes (seuils, cooldown, dédup)
 │   │   ├── process-history/   # historique CPU/RAM/restarts par process, multi-résolution
 │   │   ├── events/            # timeline d'événements/crashs PM2
-│   │   └── notifications/     # providers Email/Discord/Telegram/Slack/Webhook, secrets chiffrés
+│   │   ├── notifications/     # providers Email/Discord/Telegram/Slack/Webhook, secrets chiffrés
+│   │   └── health-checks/     # sondes HTTP/TCP/Command indépendantes du statut PM2 (Phase 6)
 │   ├── routes/                # routes REST par domaine (alerts.js, events.js, process-history.js…)
 │   ├── auth.js              # sessions, middlewares requireAuth / requirePermission / requireAdmin
 │   ├── user-store.js        # CRUD utilisateurs + permissions
@@ -58,6 +61,7 @@ pm2-monitor/
 │   ├── ARCHITECTURE.md        # décisions d'architecture (migrations, queue, tests)
 │   ├── alerts/README.md       # détail du moteur d'alertes
 │   ├── events/README.md       # détail de la timeline d'événements
+│   ├── health-checks/README.md  # détail des health checks HTTP/TCP/Command (Phase 6)
 │   └── notifications/
 │       ├── README.md            # architecture, registry, secrets, API, permissions
 │       └── providers/            # un .md par provider (config, sécurité, test, erreurs)
@@ -243,7 +247,11 @@ REST, permissions, DB réelle) ; `test/integration/process-history-api.test.js`
 et `process-history-volume.test.js` (collecte → requête, purge/rollup sous
 volume réaliste, taille disque et temps de requête bornés) ;
 `test/integration/events-service.test.js` et `events-api.test.js`
-(normalisation des packets PM2, filtres, pagination, permissions).
+(normalisation des packets PM2, filtres, pagination, permissions) ;
+`test/unit/health-checks-runner.test.js` et `health-checks-engine.test.js`
+(sondes HTTP/TCP/Command mockées — aucun accès réseau réel, transitions de
+statut, feed vers l'Alert Engine) ; `test/integration/health-checks-api.test.js`
+(routes REST, permissions, DB réelle).
 
 `./deploy.sh install`/`update` exécutent `npm test` avant de démarrer/
 redémarrer l'application (`run_tests` dans `deploy.sh`) : un test qui échoue
@@ -276,6 +284,10 @@ pour le détail de ce qui existe et ce qui est prévu.
   [`docs/notifications/README.md`](docs/notifications/README.md). Le routing
   par règles, la file d'attente d'envoi et l'intégration avec le moteur
   d'alertes ne sont pas encore branchés.
+- `lib/services/health-checks/` : sondes HTTP/TCP/Command indépendantes du
+  statut PM2, alimentent le moteur d'alertes existant — voir
+  [Health Checks](#health-checks) et
+  [`docs/health-checks/README.md`](docs/health-checks/README.md).
 
 ## Fonctionnalités
 
@@ -472,6 +484,49 @@ pour la configuration détaillée de chaque provider.
   cas). Voir
   [`docs/notifications/README.md`](docs/notifications/README.md#intégration--sécurité-phase-5f)
   pour l'architecture finale complète et les limitations connues.
+
+### Health Checks
+
+Système de vérification de disponibilité **indépendant du statut PM2** :
+un process `online` chez PM2 ne veut pas dire "l'application répond
+correctement" (ex: port HTTP mort, base de données injoignable, alors que
+le process n'a pas crashé). Trois types de sonde : **HTTP** (URL, méthode,
+statut/contenu attendu), **TCP** (host/port), **Command** (exécution
+sécurisée via `execFile`, jamais de shell — voir mise en garde ci-dessous).
+
+- **Statuts** : `UP`/`DOWN`/`DEGRADED`/`UNKNOWN`, recalculés à chaque
+  exécution (pas de lissage). `DEGRADED` s'applique quand la sonde réussit
+  mais dépasse un seuil de temps de réponse configurable
+  (`degradedThresholdMs`).
+- **Command traité comme sensible** : commande et arguments toujours passés
+  séparément à `execFile` (jamais de concaténation de chaîne interprétée
+  par un shell), donc aucune injection possible via les métacaractères
+  shell. Voir
+  [`docs/health-checks/README.md#command`](docs/health-checks/README.md#command)
+  pour le détail.
+- **Alimente le moteur d'alertes existant** (pas un deuxième système
+  d'alerte) : un health check est simplement une nouvelle cible
+  (`targetType: "health_check"`) pour les règles `alert_rules` déjà en
+  place — voir [Alertes](#alertes) et
+  [`docs/health-checks/README.md#intégration-avec-lalert-engine`](docs/health-checks/README.md#intégration-avec-lalert-engine).
+- **Activable/désactivable** : `HEALTH_CHECKS_ENABLED=0` dans `.env` coupe
+  le scheduler (l'API de gestion reste disponible). `HEALTH_CHECKS_SCHEDULER_INTERVAL_MS`
+  (défaut `5000`) contrôle la fréquence à laquelle le scheduler regarde
+  quels checks sont dus (chaque check garde son propre `intervalSeconds`).
+- **Endpoints** : `GET/POST /api/health-checks`, `GET/PUT/PATCH/DELETE
+  /api/health-checks/:id`, `GET /api/health-checks/catalog`, `GET
+  /api/health-checks/status/summary`, `POST /api/health-checks/:id/enable`,
+  `POST /api/health-checks/:id/disable`, `POST /api/health-checks/:id/test`
+  (exécution immédiate, persiste le résultat).
+- **Permissions** : `health_checks_read`, `health_checks_create`,
+  `health_checks_update`, `health_checks_delete`, `health_checks_test`
+  (voir [Multi-utilisateurs & permissions](#multi-utilisateurs--permissions)).
+- **UI** : `Settings → ❤ Health Checks` — liste avec statut, dernier check,
+  temps de réponse, dernière panne ; création/édition par type ;
+  enable/disable ; "Run test" à la demande.
+- Documentation complète (types de sonde, sécurité de `command`,
+  intervalles/timeouts, intégration Alert Engine) :
+  [`docs/health-checks/README.md`](docs/health-checks/README.md).
 
 ### Logs
 

@@ -32,6 +32,10 @@ function openUsers() {
 function openNotifications() {
   state.modal = { type: "notifications" };
 }
+
+function openHealthChecks() {
+  state.modal = { type: "healthChecks" };
+}
 </script>
 
 <template>
@@ -91,6 +95,14 @@ function openNotifications() {
         @click="openNotifications"
       >
         🔔 Notifications
+      </button>
+      <button
+        v-if="can('health_checks_read')"
+        class="icon-btn"
+        title="Settings → Health Checks (HTTP / TCP / Command)"
+        @click="openHealthChecks"
+      >
+        ❤ Health Checks
       </button>
       <button
         v-if="state.auth.user && state.auth.user.isAdmin"

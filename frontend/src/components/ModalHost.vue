@@ -11,6 +11,7 @@ import GotoDateModal from "./modals/GotoDateModal.vue";
 import ExportRangeModal from "./modals/ExportRangeModal.vue";
 import UsersModal from "./modals/UsersModal.vue";
 import NotificationsModal from "./modals/NotificationsModal.vue";
+import HealthChecksModal from "./modals/HealthChecksModal.vue";
 
 const componentMap = {
   more: MoreMenuModal,
@@ -22,6 +23,7 @@ const componentMap = {
   exportrange: ExportRangeModal,
   users: UsersModal,
   notifications: NotificationsModal,
+  healthChecks: HealthChecksModal,
 };
 
 const current = computed(() => (state.modal ? componentMap[state.modal.type] : null));
