@@ -33,6 +33,7 @@ d'échec provider).
 - [Configuration (.env)](#configuration-env)
 - [Migration](#migration)
 - [Ajouter un provider](#ajouter-un-provider)
+- [Intégration & Sécurité (Phase 5F)](#intégration--sécurité-phase-5f)
 - [Limites connues de cette phase](#limites-connues-de-cette-phase)
 
 ## Architecture
@@ -457,6 +458,95 @@ historique déjà écrit) — à réserver au développement/tests.
 6. Tester avec des mocks uniquement (`global.fetch`, ou `nodemailer` via
    `t.mock.method` pour l'email) — voir `test/unit/notifications-providers.test.js`.
    Aucun appel réseau réel dans la CI.
+
+## Intégration & Sécurité (Phase 5F)
+
+Connecte proprement tout ce qui précède, sans rien y ajouter de nouveau
+côté modèle de données.
+
+```text
+AlertEngine.evaluate()  (lib/services/alerts/, inchangé)
+   ↓ transition trigger->active ou ->resolved détectée par server.js
+RoutingEngine.dispatch(alert, event)          (Phase 5D : routing + templates)
+   ↓
+NotificationDispatchQueue.enqueue()           (Phase 5E : dedup + rate limit + historique "pending")
+   ↓
+jobs (table SQL)                              (Phase 1 : retry + backoff exponentiel)
+   ↓
+NotificationDispatchQueue.handleJob()         (Phase 5E : envoi + historique final)
+   ↓
+Provider.send()                               (Phase 5B : Email/Discord/Telegram/Slack/Webhook)
+   ↓
+notification_history                          (traçabilité complète, jamais de secret)
+```
+
+Ce branchement existait déjà à l'issue de la Phase 5E (`server.js`
+appelle `notificationRoutingEngine.dispatch()` sur chaque transition, qui
+délègue à `dispatchQueue` — voir [Notification Queue](#notification-queue-phase-5e)).
+La Phase 5F n'a rien changé à ce câblage : elle l'a **audité et testé
+comme un tout**.
+
+### Audit de sécurité (Phase 5F)
+
+`test/integration/notifications-security-audit.test.js` — cherche
+explicitement un secret marqueur dans : réponses API (`POST`/`GET`/`PATCH`
+`/providers`), réponses d'erreur (validation, 404), résultat de
+`POST /providers/:id/test` même en échec, la colonne `secrets` de
+`notification_providers` (doit être chiffrée, jamais en clair), les lignes
+`notification_history`, et la colonne `payload` des `jobs` de la queue de
+dispatch. Confirme aussi que le secret déchiffré est bien transmis au
+provider au moment de l'envoi (le seul endroit légitime). Aucune fuite
+trouvée dans aucun de ces canaux.
+
+### Audit de permissions (Phase 5F)
+
+`test/integration/notifications-permission-audit.test.js` — matrice
+exhaustive : les 15 endpoints REST de `lib/routes/notifications.js`
+croisés avec les 7 permissions `notifications_read/create/update/delete/
+test/history/manage` (voir [Permissions](#permissions)). Pour chaque
+endpoint : refusé sans aucune permission, refusé avec seulement une
+permission adjacente (ex. `notifications_read` seul ne doit pas donner
+accès à `POST /providers`), accepté avec exactement la permission requise.
+Vérifie aussi qu'un `appName: "*"` ne donne pas accès à une action non
+accordée (pas de wildcard implicite sur l'action côté
+`lib/permissions.js#hasPermission`).
+
+### Anti-spam (Phase 5F)
+
+`test/integration/notifications-spam.test.js` — confirme les deux
+protections qui s'appliquent en production :
+
+1. **Côté Alert Engine** (déjà existant, indépendant des notifications) :
+   `dispatch()` n'est appelé qu'à la *transition* trigger→active, jamais à
+   chaque tick où la condition reste vraie — 100 évaluations consécutives
+   à condition constante ne produisent qu'une seule notification.
+2. **Côté dispatch-queue** (Phase 5E) : déduplication (deux dispatches
+   identiques regroupés) et rate limiting (une avalanche de 1000
+   occurrences distinctes visant le même provider est plafonnée au
+   maximum configuré, jamais 1000 envois réels).
+
+### Scénarios de panne (Phase 5F)
+
+`test/integration/notifications-failure-scenarios.test.js` — avec les
+vrais providers (Phase 5B) et uniquement `global.fetch`/`nodemailer`
+mockés (jamais d'appel réseau réel en CI) : SMTP down, Discord down,
+Telegram timeout, Slack réponse invalide, Webhook injoignable — dans tous
+les cas, `notification_history` trace l'échec et **aucune exception ne
+remonte** au-delà de `dispatch()`/`processOne()`. Redémarrage de la queue
+(job resté `active` après un arrêt brutal, repris par
+`recoverStaleActiveJobs()`) et base indisponible pendant l'écriture
+d'historique (dégradé mais jamais bloquant, voir
+`NotificationDispatchQueue#enqueue`) sont également couverts.
+
+### Test end-to-end (Phase 5F)
+
+`test/integration/notifications-e2e.test.js` — rejoue le scénario complet
+de la tâche (métrique dépasse le seuil → alerte déclenchée → routing
+matché → notification créée → queue → provider → notification envoyée →
+historique) avec de vrais stores/moteurs sur SQLite, plus la résolution
+d'alerte (avec/sans `notifyOnResolve`) et un provider en panne qui
+n'empêche pas une évaluation d'alerte indépendante de fonctionner
+normalement ensuite.
 
 ## Limites connues de cette phase
 

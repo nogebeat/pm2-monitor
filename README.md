@@ -382,14 +382,15 @@ créé pour cette fonctionnalité).
 
 ### Notifications
 
-Système de notifications multi-providers, en construction par phases —
-architecture, modèles de données, cinq providers opérationnels
-(Email/SMTP, Discord, Telegram, Slack, Webhook générique), une
-interface d'administration complète (Settings → Notifications →
-Providers), le routing par règles depuis l'Alert Engine (conditions +
-templates), et désormais une file d'attente fiable (retry + backoff,
-rate limiting, déduplication — un provider en panne ne bloque jamais le
-monitoring et fait l'objet de nouvelles tentatives automatiques). Voir
+Système de notifications multi-providers — architecture, modèles de
+données, cinq providers opérationnels (Email/SMTP, Discord, Telegram,
+Slack, Webhook générique), une interface d'administration complète
+(Settings → Notifications → Providers), le routing par règles depuis
+l'Alert Engine (conditions + templates), une file d'attente fiable
+(retry + backoff, rate limiting, déduplication), et désormais
+l'intégration de bout en bout Alert Engine → Routing → Templates →
+Queue → Provider → Historique, auditée (sécurité, permissions,
+anti-spam, scénarios de panne). Voir
 [`docs/notifications/README.md`](docs/notifications/README.md) pour
 l'état exact et [`docs/notifications/providers/`](docs/notifications/providers/)
 pour la configuration détaillée de chaque provider.
@@ -456,6 +457,21 @@ pour la configuration détaillée de chaque provider.
   principal (`server.js`), reprend les jobs interrompus par un arrêt
   brutal au redémarrage. Voir
   [`docs/notifications/README.md`](docs/notifications/README.md#notification-queue-phase-5e).
+- **Intégration finale & sécurité (Phase 5F)** : le système est maintenant
+  entièrement branché de bout en bout — Alert Engine → Routing → Templates
+  → Queue → Provider → Historique — et audité. Audit de sécurité complet
+  (aucun secret dans les réponses API, l'historique, les jobs de la queue,
+  la base ou les logs — voir
+  [`docs/notifications/README.md#audit-de-sécurité-phase-5f`](docs/notifications/README.md#audit-de-sécurité-phase-5f)),
+  audit de permissions exhaustif (chaque endpoint testé contre chacune des
+  7 permissions `notifications_*`, aucun contournement possible), tests
+  anti-spam (une transition d'état réelle = une notification, jamais un
+  envoi par tick d'évaluation) et scénarios de panne (SMTP/Discord/
+  Telegram/Slack/Webhook indisponibles, redémarrage de la queue, base
+  indisponible — le monitoring PM2 continue de fonctionner dans tous les
+  cas). Voir
+  [`docs/notifications/README.md`](docs/notifications/README.md#intégration--sécurité-phase-5f)
+  pour l'architecture finale complète et les limitations connues.
 
 ### Logs
 
