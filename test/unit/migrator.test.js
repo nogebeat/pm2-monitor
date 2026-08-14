@@ -42,11 +42,12 @@ test("migrator", async (t) => {
       "007_notification_routing_templates",
       "008_health_checks",
       "009_auto_healing",
+      "010_health_checks_process_name",
     ]);
 
     const status = await migrator.status();
     assert.equal(status.pending.length, 0);
-    assert.equal(status.applied.length, 9);
+    assert.equal(status.applied.length, 10);
   });
 
   await t.test("up() est idempotent : rejouer ne fait rien et ne plante pas", async () => {
@@ -84,7 +85,7 @@ test("migrator", async (t) => {
     await migrator.up();
 
     const reverted = await migrator.down();
-    assert.deepEqual(reverted, ["009_auto_healing"]);
+    assert.deepEqual(reverted, ["010_health_checks_process_name"]);
 
     const status = await migrator.status();
     assert.deepEqual(
@@ -98,6 +99,7 @@ test("migrator", async (t) => {
         "006_notifications",
         "007_notification_routing_templates",
         "008_health_checks",
+        "009_auto_healing",
       ]
     );
 
@@ -106,8 +108,8 @@ test("migrator", async (t) => {
     const tables = (
       await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])
     ).map((r) => r.name);
-    assert.ok(!tables.includes("auto_healing_settings"), "auto_healing_settings doit avoir disparu après down() de 009");
-    assert.ok(tables.includes("health_checks"), "health_checks (Phase 6/008) n'est pas affectée par le rollback de 009");
+    assert.ok(tables.includes("auto_healing_settings"), "auto_healing_settings (Phase 7/009) n'est pas affectée par le rollback de 010");
+    assert.ok(tables.includes("health_checks"), "health_checks (Phase 6/008) n'est pas affectée par le rollback de 010");
     assert.ok(tables.includes("notification_providers"), "notification_providers (Phase 5A/006) n'est pas affectée par le rollback de 008");
     assert.ok(tables.includes("notification_routes"));
     assert.ok(tables.includes("process_events"), "process_events ne doit pas être affectée par le rollback de 008");
@@ -118,13 +120,13 @@ test("migrator", async (t) => {
     await migrator.up();
     const reverted = await migrator.down({ steps: 3 });
     assert.deepEqual(reverted, [
+      "010_health_checks_process_name",
       "009_auto_healing",
       "008_health_checks",
-      "007_notification_routing_templates",
     ]);
 
     const status = await migrator.status();
-    assert.equal(status.applied.length, 6);
+    assert.equal(status.applied.length, 7);
   });
 
   await t.test("down() sur une base vierge (rien d'appliqué) ne fait rien", async () => {

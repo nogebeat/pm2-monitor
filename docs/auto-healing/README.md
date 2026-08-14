@@ -71,7 +71,13 @@ même règle que pour les Health Checks et la Timeline d'événements) :
    `memory > threshold`, `restart_count > N`, `status == stopped`, etc.
 2. **Health Checks** — un check `DOWN` est lui-même une nouvelle *source* de
    valeurs pour l'Alert Engine (voir `docs/health-checks/README.md`), donc
-   déjà couvert par le point précédent : pas de deuxième chemin de code.
+   déjà couvert par le point précédent : pas de deuxième chemin de code. Le
+   nom du check (`alert.targetValue`) n'est **pas** utilisé tel quel comme
+   nom de process : il est résolu via `health_checks.process_name`
+   (colonne explicite, migration `010_health_checks_process_name.js`).
+   Si ce champ n'est pas renseigné pour le check concerné, Auto-Healing
+   **ignore** l'événement plutôt que de supposer une correspondance de noms
+   — voir [Limites connues](#limites-connues).
 3. **PM2 events** — le packet `process:event` du bus PM2 (`bus.on("process:event")`,
    déjà branché dans `server.js` pour la timeline et le flux temps réel) ;
    seul l'événement `exit` déclenche Auto-Healing (`feedFromPm2Event()`),
@@ -240,11 +246,10 @@ réel : `restart()` est toujours injecté (fake) dans les tests.
 
 ## Limites connues
 
-- Le mapping "nom de health check" → "nom de process PM2" est supposé
-  identique dans l'usage standard (même hypothèse que le reste du projet
-  pour les alertes `target_type = "health_check""). Un health check dont le
-  nom ne correspond à aucun process PM2 réel provoquera un restart qui
-  échouera proprement (audité en `result: "failure"`, sans jamais bloquer
-  le reste du monitor).
+- Un health check dont `process_name` n'est pas renseigné ne peut pas
+  déclencher Auto-Healing (aucune correspondance implicite tentée) : c'est
+  volontaire, pour ne jamais redémarrer le mauvais process. Renseigne
+  `process_name` en créant/éditant le check si tu veux qu'il puisse
+  déclencher un healing automatique.
 - Une seule action (`restart`) est supportée pour l'instant ; `reload`
   (0-downtime) n'est pas branché sur Auto-Healing.

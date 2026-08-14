@@ -39,6 +39,18 @@ export const state = reactive({
   system: null,
   historyRange: "1h",
 
+  // ---------- Dashboard global (onglet "Dashboard", Phase 8) ----------
+  dashboard: {
+    loaded: false,
+    loading: false,
+    globalStatus: null, // "HEALTHY" | "WARNING" | "CRITICAL"
+    globalStatusReasons: [],
+    processesOverview: null, // { total, online, stopped, errored, crashed, restarting }
+    alerts: null, // { active, critical, warning, acknowledged } | null (permission absente)
+    healthChecks: null, // { up, down, degraded, unknown } | null
+    recentTimeline: [],
+  },
+
   // ---------- Timeline d'événements/crashs (onglet "Timeline") ----------
   events: {
     items: [], // { id, timestamp, type, severity, process, processId, server, status, exitCode, signal, metadata }
@@ -336,6 +348,44 @@ export function loadMoreEvents() {
   loadEvents({ reset: false });
 }
 
+// ---------- Dashboard global (GET /api/dashboard, Phase 8) ----------
+
+export function loadDashboard() {
+  state.dashboard.loading = true;
+  return apiGet("/api/dashboard")
+    .then((r) => {
+      state.dashboard.globalStatus = r.globalStatus;
+      state.dashboard.globalStatusReasons = r.globalStatusReasons || [];
+      state.dashboard.processesOverview = r.processes.overview;
+      state.dashboard.alerts = r.alerts;
+      state.dashboard.healthChecks = r.healthChecks;
+      state.dashboard.recentTimeline = r.recentTimeline || [];
+    })
+    .catch((err) => {
+      notifyError(err);
+    })
+    .finally(() => {
+      state.dashboard.loading = false;
+      state.dashboard.loaded = true;
+    });
+}
+
+// Réutilise le même Socket.IO que le reste de l'app (voir ./socket.js) :
+// pas de second polling dédié au dashboard. Sur réception d'un des
+// événements temps réel de la Phase 8, on ne recalcule rien côté client
+// (le calcul de calculateGlobalStatus() resterait dupliqué et pourrait
+// diverger du serveur) : on redemande simplement GET /api/dashboard,
+// et seulement si l'onglet Dashboard est affiché.
+let dashboardRefreshTimer = null;
+function scheduleDashboardRefresh() {
+  if (state.view !== "dashboard") return;
+  if (dashboardRefreshTimer) return;
+  dashboardRefreshTimer = setTimeout(() => {
+    dashboardRefreshTimer = null;
+    loadDashboard();
+  }, 500);
+}
+
 // ---------- Câblage WebSocket ----------
 
 socket.on("connect", () => {
@@ -397,6 +447,16 @@ socket.on("timeline_event", (entry) => {
   state.events.items.unshift(entry);
   state.events.total += 1;
 });
+
+// Dashboard global (Phase 8) : mêmes événements déjà émis par server.js
+// pour les onglets Système/Process/Timeline (voir le commentaire sur
+// scheduleDashboardRefresh ci-dessus) — pas de nouveau canal temps réel.
+socket.on("metrics.updated", scheduleDashboardRefresh);
+socket.on("process.updated", scheduleDashboardRefresh);
+socket.on("alert.triggered", scheduleDashboardRefresh);
+socket.on("alert.resolved", scheduleDashboardRefresh);
+socket.on("health.updated", scheduleDashboardRefresh);
+socket.on("event.created", scheduleDashboardRefresh);
 
 // ---------- Chargement initial ----------
 

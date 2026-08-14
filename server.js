@@ -15,10 +15,11 @@ const migrator = require("./lib/db/migrator");
 const userStore = require("./lib/user-store");
 const permissions = require("./lib/permissions");
 const auth = require("./lib/auth");
-const { engine: alertEngine } = require("./lib/services/alerts");
+const { engine: alertEngine, alertStore } = require("./lib/services/alerts");
 const alertsRouter = require("./lib/routes/alerts");
 const { ProcessHistoryService } = require("./lib/services/process-history");
 const { EventsService } = require("./lib/services/events");
+const eventsStore = require("./lib/services/events/event-store");
 const eventsRouter = require("./lib/routes/events");
 const notificationsRouter = require("./lib/routes/notifications");
 const {
@@ -26,13 +27,16 @@ const {
   dispatchQueue: notificationDispatchQueue,
 } = require("./lib/services/notifications");
 const { engine: healthCheckEngine } = require("./lib/services/health-checks");
+const healthChecksStore = require("./lib/services/health-checks/store");
 const healthChecksRouter = require("./lib/routes/health-checks");
 const {
   AutoHealingService,
   feedFromAlertTransition,
   feedFromPm2Event,
+  auditStore: autoHealingAuditStore,
 } = require("./lib/services/auto-healing");
 const autoHealingRouter = require("./lib/routes/auto-healing");
+const dashboardRouter = require("./lib/routes/dashboard");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -105,6 +109,19 @@ function dispatchAlertTransition(alert) {
         console.error("Erreur de dispatch de notification (résolution) :", e.message);
       });
     }
+  }
+
+  // Dashboard global (Phase 8) : diffuse la transition en websocket, sur le
+  // même bus Socket.IO déjà utilisé pour "system"/"processes"/"event" —
+  // aucun second canal temps réel. Même choix que pour "timeline_event" :
+  // pas de filtrage par permission au niveau du socket (voir le commentaire
+  // au-dessus de bus.on("process:event") plus bas) ; le frontend ne s'abonne
+  // à ces événements que depuis la vue Dashboard, elle-même masquée par
+  // can("system") côté client comme le reste des onglets.
+  if (alert.state === "active" && alert.triggeredAt === alert.lastSeenAt) {
+    io.emit("alert.triggered", alert);
+  } else if (alert.state === "resolved") {
+    io.emit("alert.resolved", alert);
   }
 
   // Auto-Healing (Phase 7) : même transition d'alerte que ci-dessus, source
@@ -366,6 +383,21 @@ app.use("/api/health-checks", healthChecksRouter());
 
 // --- REST API : auto-healing (lib/services/auto-healing/, lib/routes/auto-healing.js) ---
 app.use("/api/auto-healing", autoHealingRouter(autoHealing));
+
+// --- REST API : dashboard global (lib/services/dashboard/, Phase 8) ------
+app.use(
+  "/api/dashboard",
+  dashboardRouter({
+    pm2,
+    fmtProcess,
+    visibleProcesses,
+    getSystemSnapshot: () => systemStats.snapshot(),
+    alertStore,
+    healthChecksStore,
+    eventsStore,
+    autoHealingAuditStore,
+  })
+);
 
 // --- REST API : liste / actions de base sur les process ------------------
 
@@ -644,7 +676,12 @@ io.on("connection", (socket) => {
       if (auth.AUTH_ENABLED) {
         user = sessUserId ? await userStore.getUserWithPermissions(sessUserId) : null;
       }
-      socket.emit("processes", visibleProcesses(user, list.map(fmtProcess)));
+      const visible = visibleProcesses(user, list.map(fmtProcess));
+      socket.emit("processes", visible);
+      // Dashboard global (Phase 8) : même donnée, alias d'événement dédié
+      // (voir docs/dashboard/README.md#temps-réel) — "processes" reste
+      // inchangé pour ne pas toucher les vues existantes.
+      socket.emit("process.updated", visible);
     });
   }, 1500);
 
@@ -656,6 +693,10 @@ setInterval(() => {
   const snap = systemStats.snapshot();
   historyStore.push(snap);
   io.emit("system", snap);
+  // Dashboard global (Phase 8) : alias dédié, même snapshot, même intervalle
+  // (SAMPLE_INTERVAL_MS) — "system" reste inchangé pour ne pas toucher
+  // SystemView.vue.
+  io.emit("metrics.updated", snap);
   if (ALERTS_ENABLED) {
     alertEngine
       .evaluateSystemReading(snap)
@@ -712,6 +753,9 @@ eventsService.start();
 // dispatchAlertTransition, un seul chemin de notification).
 healthCheckEngine.alertsEnabled = ALERTS_ENABLED;
 healthCheckEngine.onAlertResult = ALERTS_ENABLED ? dispatchAlertTransition : null;
+// Dashboard global (Phase 8) : diffuse chaque résultat de sonde en websocket
+// ("health.updated"), sur le bus Socket.IO existant — aucun second poller.
+healthCheckEngine.onCheckResult = (check) => io.emit("health.updated", check);
 if (HEALTH_CHECKS_ENABLED) {
   healthCheckEngine.start(HEALTH_CHECKS_SCHEDULER_INTERVAL_MS);
 }
@@ -786,7 +830,12 @@ function startPm2Bus() {
         eventsService
           .recordFromPacket(packet)
           .then((stored) => {
-            if (stored) io.emit("timeline_event", stored);
+            if (stored) {
+              io.emit("timeline_event", stored);
+              // Dashboard global (Phase 8) : alias dédié, même donnée — voir
+              // le commentaire sur "metrics.updated"/"process.updated" ci-dessus.
+              io.emit("event.created", stored);
+            }
           })
           .catch((e) => {
             console.error("Erreur d'enregistrement dans la timeline d'événements :", e.message);

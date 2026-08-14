@@ -246,6 +246,52 @@ test("Auto-Healing — audit : chaque tentative (succès, échec, blocage) est e
 
 // --- Sécurité (section 10) ----------------------------------------------
 
+test("Auto-Healing — résolution health_check -> process : n'agit que si health_checks.process_name est explicitement renseigné", async () => {
+  // Couvre le correctif du problème connu de la Phase 7 initiale : une
+  // alerte targetType="health_check" porte le nom du *check*
+  // (alert.targetValue), pas forcément celui d'un process PM2. Vérifié ici
+  // au niveau de l'adaptateur (lib/services/auto-healing/index.js), pas de
+  // l'engine (qui ne connaît que des processName déjà résolus).
+  const { feedFromAlertTransition } = require("../../lib/services/auto-healing/index");
+  const originalGetByName = require("../../lib/services/health-checks/store").getByName;
+  const healthChecksStore = require("../../lib/services/health-checks/store");
+
+  const { service, restarts } = build({ settings: { maxAttempts: 3, backoffSeconds: [0, 0, 0] } });
+
+  healthChecksStore.getByName = async (name) => {
+    if (name === "api-check-no-link") return { name, processName: null };
+    if (name === "api-check-linked") return { name, processName: "api-prod" };
+    return null;
+  };
+  try {
+    // Check sans process_name renseigné -> ignoré, pas de restart.
+    const r1 = await feedFromAlertTransition(service, {
+      targetType: "health_check",
+      targetValue: "api-check-no-link",
+      state: "active",
+      metric: "status",
+      operator: "==",
+      threshold: "DOWN",
+    });
+    assert.equal(r1, null);
+    assert.equal(restarts.length, 0);
+
+    // Check avec process_name renseigné -> restart du bon process.
+    const r2 = await feedFromAlertTransition(service, {
+      targetType: "health_check",
+      targetValue: "api-check-linked",
+      state: "active",
+      metric: "status",
+      operator: "==",
+      threshold: "DOWN",
+    });
+    assert.equal(r2.action, "restart");
+    assert.deepEqual(restarts, ["api-prod"]);
+  } finally {
+    healthChecksStore.getByName = originalGetByName;
+  }
+});
+
 test("Auto-Healing — sécurité : reason/processName ne sont jamais interprétés, seule l'API PM2 restart est appelée", async () => {
   const { service, restarts } = build({ settings: { maxAttempts: 3, backoffSeconds: [0, 0, 0] } });
 
