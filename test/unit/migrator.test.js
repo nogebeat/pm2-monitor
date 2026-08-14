@@ -23,8 +23,8 @@ test("migrator", async (t) => {
     const { applied, pending } = await migrator.status();
     assert.equal(applied.length, 0);
     assert.ok(
-      pending.length >= 6,
-      "au moins 001_initial_schema à 006_notifications attendues"
+      pending.length >= 7,
+      "au moins 001_initial_schema à 007_notification_routing_templates attendues"
     );
     assert.equal(pending[0].version, "001_initial_schema");
   });
@@ -39,11 +39,12 @@ test("migrator", async (t) => {
       "004_process_metrics",
       "005_process_events",
       "006_notifications",
+      "007_notification_routing_templates",
     ]);
 
     const status = await migrator.status();
     assert.equal(status.pending.length, 0);
-    assert.equal(status.applied.length, 6);
+    assert.equal(status.applied.length, 7);
   });
 
   await t.test("up() est idempotent : rejouer ne fait rien et ne plante pas", async () => {
@@ -77,32 +78,37 @@ test("migrator", async (t) => {
     await migrator.up();
 
     const reverted = await migrator.down();
-    assert.deepEqual(reverted, ["006_notifications"]);
+    assert.deepEqual(reverted, ["007_notification_routing_templates"]);
 
     const status = await migrator.status();
     assert.deepEqual(
       status.applied.map((m) => m.version),
-      ["001_initial_schema", "002_job_queue", "003_alert_engine", "004_process_metrics", "005_process_events"]
+      ["001_initial_schema", "002_job_queue", "003_alert_engine", "004_process_metrics", "005_process_events", "006_notifications"]
     );
+
+    // 007 ne fait qu'ajouter des colonnes à notification_routes (créée en
+    // 006) : la table elle-même doit rester présente après son rollback,
+    // seules title_template/message_template/notify_on_resolve disparaissent.
+    const columns = (await db.all("PRAGMA table_info(notification_routes)", [])).map((c) => c.name);
+    assert.ok(!columns.includes("title_template"), "title_template doit avoir disparu après down() de 007");
+    assert.ok(!columns.includes("notify_on_resolve"), "notify_on_resolve doit avoir disparu après down() de 007");
 
     const tables = (
       await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])
     ).map((r) => r.name);
-    assert.ok(
-      !tables.includes("notification_providers"),
-      "la table notification_providers doit avoir disparu après down()"
-    );
-    assert.ok(tables.includes("process_events"), "process_events ne doit pas être affectée par le rollback de 006");
+    assert.ok(tables.includes("notification_providers"), "notification_providers (Phase 5A/006) n'est pas affectée par le rollback de 007");
+    assert.ok(tables.includes("notification_routes"));
+    assert.ok(tables.includes("process_events"), "process_events ne doit pas être affectée par le rollback de 007");
   });
 
   await t.test("down({ steps: 3 }) annule les trois dernières migrations", async () => {
     const migrator = require("../../lib/db/migrator");
     await migrator.up();
     const reverted = await migrator.down({ steps: 3 });
-    assert.deepEqual(reverted, ["006_notifications", "005_process_events", "004_process_metrics"]);
+    assert.deepEqual(reverted, ["007_notification_routing_templates", "006_notifications", "005_process_events"]);
 
     const status = await migrator.status();
-    assert.equal(status.applied.length, 3);
+    assert.equal(status.applied.length, 4);
   });
 
   await t.test("down() sur une base vierge (rien d'appliqué) ne fait rien", async () => {

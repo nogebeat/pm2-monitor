@@ -550,15 +550,19 @@ test("API /api/notifications — routing + historique (Phase 5D)", async (t) => 
 
   await t.test("GET /history renvoie l'historique écrit par routing/engine.js, jamais de secret", async () => {
     const historyStore = require("../../lib/services/notifications/history-store");
+    const providerStore = require("../../lib/services/notifications/provider-store");
+    // FK réelle sur notification_history.provider_id (voir 006_notifications.js) :
+    // il faut un provider existant, pas un id arbitraire.
+    const provider = await providerStore.create({ name: "Fixture history", type: "webhook", configuration: {} });
     await historyStore.create({
-      providerId: 1,
-      alertId: 42,
+      providerId: provider.id,
+      alertId: null, // FK sur alerts(id) : pas d'alerte réelle créée dans ce test, null reste valide (voir history-store.js)
       status: "success",
       responseTimeMs: 12,
     });
     await historyStore.create({
-      providerId: 1,
-      alertId: 43,
+      providerId: provider.id,
+      alertId: null,
       status: "failed",
       errorCode: "NETWORK_ERROR",
     });
@@ -570,7 +574,7 @@ test("API /api/notifications — routing + historique (Phase 5D)", async (t) => 
       const body = await res.json();
       assert.equal(body.length, 1);
       assert.equal(body[0].errorCode, "NETWORK_ERROR");
-      assert.equal(body[0].alertId, 43);
+      assert.equal(body[0].providerId, provider.id);
     } finally {
       await stopServer(server);
     }
