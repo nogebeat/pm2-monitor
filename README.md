@@ -824,4 +824,8 @@ de départ dans le code) : [`docs/features.md`](docs/features.md).
   ```bash
   pm2 start server.js --name pm2-monitor
   ```
-  
+
+## Contribution
+
+  Noge@2026
+
