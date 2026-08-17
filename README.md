@@ -27,7 +27,8 @@ Structure du dépôt :
 
 ```
 pm2-monitor/
-├── server.js              # serveur Express + API REST + WebSocket + bus PM2
+├── server.js              # orchestration uniquement : config, instanciation des
+│                           # services, montage des routers/temps réel, boot (~260 lignes)
 ├── lib/
 │   ├── db/                 # abstraction base de données (sqlite-driver.js, mysql-driver.js)
 │   │   ├── migrations/       # migrations versionnées :
@@ -52,7 +53,17 @@ pm2-monitor/
 │   │   ├── health-checks/     # sondes HTTP/TCP/Command indépendantes du statut PM2 (Phase 6)
 │   │   ├── auto-healing/      # redémarrage automatique + garde-fous, désactivé par défaut (Phase 7)
 │   │   └── audit/             # journal d'audit append-only des actions sensibles (Phase 9)
-│   ├── routes/                # routes REST par domaine (alerts.js, events.js, process-history.js…)
+│   ├── routes/                # routes REST par domaine : alerts.js, events.js, notifications.js,
+│   │   │                       # health-checks.js, auto-healing.js, dashboard.js, audit.js,
+│   │   │                       # auth.js, users.js, processes.js, pm2-daemon.js, system.js, logs.js
+│   ├── realtime/               # branchement Socket.IO/PM2 hors REST :
+│   │   │                       # process-socket.js (liste process par client), pm2-bus.js (bus
+│   │   │                       # logs/événements PM2 + démarrage du serveur HTTP)
+│   ├── polling.js              # les deux boucles setInterval (snapshot système, éval process)
+│   ├── alert-dispatch.js       # fan-out d'une transition d'alerte : notifications/websocket/auto-healing
+│   ├── process-helpers.js      # helpers partagés par les routers process (fmtProcess,
+│   │                           # visibleProcesses, withAppPermission…)
+│   ├── bootstrap.js            # loadDotEnv() + création du compte admin par défaut
 │   ├── auth.js              # sessions, middlewares requireAuth / requirePermission / requireAdmin
 │   ├── user-store.js        # CRUD utilisateurs + permissions
 │   ├── permissions.js        # catalogue des actions (par app / globales) + hasPermission()
@@ -294,10 +305,11 @@ pour le détail de ce qui existe et ce qui est prévu.
   et [`docs/events/README.md`](docs/events/README.md).
 - `lib/services/notifications/` : système de notifications (Email/Discord/
   Telegram/Slack/Webhook générique) — providers opérationnels
-  (`validateConfig`/`test`/`send`), voir [Notifications](#notifications) et
-  [`docs/notifications/README.md`](docs/notifications/README.md). Le routing
-  par règles, la file d'attente d'envoi et l'intégration avec le moteur
-  d'alertes ne sont pas encore branchés.
+  (`validateConfig`/`test`/`send`), routing par règles, file d'attente
+  d'envoi (retry/backoff/rate limiting/dédup) et intégration de bout en
+  bout avec le moteur d'alertes (voir `lib/alert-dispatch.js`), tous
+  branchés. Voir [Notifications](#notifications) et
+  [`docs/notifications/README.md`](docs/notifications/README.md).
 - `lib/services/health-checks/` : sondes HTTP/TCP/Command indépendantes du
   statut PM2, alimentent le moteur d'alertes existant — voir
   [Health Checks](#health-checks) et
@@ -371,11 +383,10 @@ process, moteur d'alertes, health checks, timeline, auto-healing).
 
 Moteur d'alertes configurable (CPU/RAM/disque/température/restarts/statut,
 par process ou pour le système), avec seuils, durée avant déclenchement,
-cooldown anti-spam et déduplication. Fonctionne indépendamment des
-notifications : les providers (Email/Discord/Telegram/Slack/Webhook, voir
-[Notifications](#notifications)) sont opérationnels au niveau du code, mais
-ne sont pas encore branchés au moteur d'alertes (routing par règles,
-déclenchement automatique — prévu dans une phase suivante).
+cooldown anti-spam et déduplication. Chaque transition (déclenchement ou
+résolution) passe par `lib/alert-dispatch.js`, qui la diffuse en une seule
+fois vers le routing des notifications (voir [Notifications](#notifications)),
+le dashboard temps réel (websocket) et l'Auto-Healing.
 
 - **Activable/désactivable** : `ALERTS_ENABLED=0` dans `.env` coupe tout le
   moteur (évaluation + routes REST inchangées mais inertes).
@@ -486,10 +497,10 @@ pour la configuration détaillée de chaque provider.
   `{{severity}}`, `{{metric}}`, `{{value}}`, `{{targetValue}}`…). Une
   règle notifie toujours au déclenchement d'une alerte qui matche, et en
   plus à la résolution si `notifyOnResolve` est activé. Branché
-  directement sur `lib/services/alerts/` (`server.js`) : dès qu'une
-  occurrence d'alerte passe active ou résolue, les règles concernées
-  envoient et chaque tentative est journalisée (`notification_history`,
-  `GET /api/notifications/history`).
+  directement sur `lib/services/alerts/` via `lib/alert-dispatch.js` : dès
+  qu'une occurrence d'alerte passe active ou résolue (process, système ou
+  health check), les règles concernées envoient et chaque tentative est
+  journalisée (`notification_history`, `GET /api/notifications/history`).
   **UI** : `Settings → Notifications` — onglet `Routing` — liste des
   règles (statut 🟢/⚪, résumé des conditions, providers ciblés),
   `+ Add routing rule` avec sélection des conditions (chips
@@ -786,6 +797,11 @@ utilisateur n'existe encore en base, l'ancien `PM2_MONITOR_USER` /
 `PM2_MONITOR_PASS` du `.env` est automatiquement repris pour créer le
 premier compte admin. Lance ensuite `./deploy.sh update` (qui fait tourner
 `npm install` et rebuild le frontend) puis crée d'autres comptes si besoin.
+
+## Pour aller plus loin
+
+Backlog non engagé d'idées de fonctionnalités (avec effort estimé et point
+de départ dans le code) : [`docs/features.md`](docs/features.md).
 
 ## Notes importantes
 

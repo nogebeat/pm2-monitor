@@ -71,17 +71,19 @@ Même découpage que `lib/services/alerts/` et `lib/services/events/` :
 `lib/services/notifications/index.js` exporte un singleton (`registry`,
 `manager`, `routingEngine`, `providerStore`, `routeStore`,
 `historyStore`) partagé par `lib/routes/notifications.js` et par
-`server.js` (boucle d'évaluation de l'Alert Engine) — un seul registry
-en mémoire pour tout le process.
+`lib/alert-dispatch.js` (appelé depuis la boucle de polling et depuis le
+moteur de health checks) — un seul registry en mémoire pour tout le
+process.
 
 **Comment une alerte devient une notification (Phase 5D)** — voir
-`server.js` :
+`lib/alert-dispatch.js` :
 
 ```
-AlertEngine.evaluateSystemReading()/evaluateProcessReadings() (tick périodique)
+AlertEngine.evaluateSystemReading()/evaluateProcessReadings() (tick périodique, lib/polling.js)
   → occurrence d'alerte transitionne trigger->active (ou ->resolved)
-  → server.js détecte cette transition précise (sans modifier engine.js,
-    voir le commentaire de dispatchAlertTransition() dans server.js)
+  → dispatchAlertTransition() (lib/alert-dispatch.js) détecte cette
+    transition précise (sans modifier engine.js, voir le commentaire de
+    createDispatchAlertTransition() dans lib/alert-dispatch.js)
   → routingEngine.dispatch(alert, "triggered" | "resolved")
       → routeStore.list({ enabledOnly: true })
       → routeMatches(route, alert) pour chaque règle (severity/alertType/process/server)
@@ -466,7 +468,7 @@ côté modèle de données.
 
 ```text
 AlertEngine.evaluate()  (lib/services/alerts/, inchangé)
-   ↓ transition trigger->active ou ->resolved détectée par server.js
+   ↓ transition trigger->active ou ->resolved détectée par lib/alert-dispatch.js
 RoutingEngine.dispatch(alert, event)          (Phase 5D : routing + templates)
    ↓
 NotificationDispatchQueue.enqueue()           (Phase 5E : dedup + rate limit + historique "pending")
@@ -480,7 +482,7 @@ Provider.send()                               (Phase 5B : Email/Discord/Telegram
 notification_history                          (traçabilité complète, jamais de secret)
 ```
 
-Ce branchement existait déjà à l'issue de la Phase 5E (`server.js`
+Ce branchement existait déjà à l'issue de la Phase 5E (`lib/alert-dispatch.js`
 appelle `notificationRoutingEngine.dispatch()` sur chaque transition, qui
 délègue à `dispatchQueue` — voir [Notification Queue](#notification-queue-phase-5e)).
 La Phase 5F n'a rien changé à ce câblage : elle l'a **audité et testé
@@ -572,8 +574,8 @@ normalement ensuite.
   (déploiement multi-hôte), mais ce moniteur reste mono-hôte — seules
   les cibles `system` peuvent matcher un filtre `server` non vide, il
   n'y a pas de distinction entre plusieurs hôtes.
-- **Détection de transition sans modifier `AlertEngine`** : `server.js`
-  détecte qu'une occurrence "vient de" passer active en comparant
+- **Détection de transition sans modifier `AlertEngine`** :
+  `lib/alert-dispatch.js` détecte qu'une occurrence "vient de" passer active en comparant
   `triggeredAt === lastSeenAt` sur le résultat d'`evaluate()` (les deux
   ne sont égaux qu'au tick de la transition trigger→active, voir
   `engine.js#trigger`) plutôt que par un événement explicite émis par

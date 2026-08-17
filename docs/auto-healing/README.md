@@ -60,14 +60,14 @@ bloqué ? en cooldown ? tentatives déjà épuisées ?) avant d'appeler
 
 ## Sources d'événements
 
-Trois sources alimentent `trigger()`, branchées dans `server.js` sans créer
-de second listener/scheduler (réutilisation explicite de ce qui existe déjà,
-même règle que pour les Health Checks et la Timeline d'événements) :
+Trois sources alimentent `trigger()`, sans créer de second listener/scheduler
+(réutilisation explicite de ce qui existe déjà, même règle que pour les
+Health Checks et la Timeline d'événements) :
 
 1. **Alert Engine** — toute transition d'alerte vers `active` dont la cible
    est un process ou un health check (`lib/services/auto-healing/index.js#feedFromAlertTransition`,
    branché sur la même fonction `dispatchAlertTransition()` que les
-   notifications dans `server.js`). Couvre par construction les règles
+   notifications, voir `lib/alert-dispatch.js`). Couvre par construction les règles
    `memory > threshold`, `restart_count > N`, `status == stopped`, etc.
 2. **Health Checks** — un check `DOWN` est lui-même une nouvelle *source* de
    valeurs pour l'Alert Engine (voir `docs/health-checks/README.md`), donc
@@ -79,9 +79,9 @@ même règle que pour les Health Checks et la Timeline d'événements) :
    **ignore** l'événement plutôt que de supposer une correspondance de noms
    — voir [Limites connues](#limites-connues).
 3. **PM2 events** — le packet `process:event` du bus PM2 (`bus.on("process:event")`,
-   déjà branché dans `server.js` pour la timeline et le flux temps réel) ;
-   seul l'événement `exit` déclenche Auto-Healing (`feedFromPm2Event()`),
-   signal le plus direct et le plus rapide d'un crash.
+   branché dans `lib/realtime/pm2-bus.js` pour la timeline et le flux temps
+   réel) ; seul l'événement `exit` déclenche Auto-Healing
+   (`feedFromPm2Event()`), signal le plus direct et le plus rapide d'un crash.
 
 Une transition d'alerte `resolved` (ou un health check redevenu sain)
 appelle `recordRecovery()`, qui remet le compteur de tentatives à zéro —

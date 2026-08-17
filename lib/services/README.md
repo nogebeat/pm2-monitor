@@ -2,39 +2,64 @@
 
 Ce dossier regroupe les services applicatifs du monitor : des modules
 autonomes, testables indépendamment, qui ne connaissent pas Express ni
-Socket.IO (contrairement à `server.js`, qui reste la couche de transport
-HTTP/WebSocket).
+Socket.IO (contrairement à `server.js` et `lib/routes/`/`lib/realtime/`, qui
+restent la couche de transport HTTP/WebSocket — voir
+[`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) pour le détail de ce
+découpage, décidé en Phase 1).
 
-## Existant (Phase 1 — fondations)
+## Services existants
 
-- **`queue/`** — file d'attente persistante générique (voir
-  `queue/persistent-queue.js`). Aucune logique métier dedans : c'est une
-  brique réutilisable par les services listés ci-dessous, qui seront
-  implémentés dans des phases ultérieures.
+- **`queue/`** — file d'attente persistante générique (jobs stockés en base,
+  survivent à un redémarrage). Brique réutilisée telle quelle par
+  `notifications/` (retry/backoff des envois). Voir
+  [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
+- **`alerts/`** — moteur d'alertes configurable (CPU/RAM/disque/
+  température/restarts/statut, par process ou système), seuils, durée avant
+  déclenchement, cooldown anti-spam, déduplication. Voir
+  [`docs/alerts/README.md`](../../docs/alerts/README.md).
+- **`process-history/`** — historique CPU/RAM/restarts par process,
+  multi-résolution (`raw`/`medium`/`long`) avec purge automatique. Voir
+  la section dédiée du [README principal](../../README.md).
+- **`events/`** — timeline d'événements/crashs PM2 (start, stop, restart,
+  crash, changement de statut), rétention configurable. Voir
+  [`docs/events/README.md`](../events/README.md).
+- **`notifications/`** — providers Email/Discord/Telegram/Slack/Webhook,
+  routing par règles depuis l'Alert Engine, file d'attente fiable
+  (retry/backoff/rate limiting/dédup), secrets chiffrés au repos
+  (AES-256-GCM). Voir [`docs/notifications/README.md`](../notifications/README.md).
+- **`health-checks/`** — sondes HTTP/TCP/Command indépendantes du statut
+  PM2, alimentent l'Alert Engine existant sans code de dispatch dupliqué.
+  Voir [`docs/health-checks/README.md`](../health-checks/README.md).
+- **`auto-healing/`** — redémarrage automatique déclenché par une transition
+  d'alerte ou un crash PM2, garde-fous (cooldown, limite de tentatives,
+  état "bloqué"), désactivé par défaut en base. Voir
+  [`docs/auto-healing/README.md`](../auto-healing/README.md).
+- **`audit/`** — journal d'audit append-only des actions sensibles
+  (start/stop/restart/delete, modification d'env/config, actions daemon
+  PM2, connexions...), sanitization des secrets, rétention optionnelle. Voir
+  [`docs/audit/README.md`](../audit/README.md).
+- **`dashboard/`** — vue globale (`GET /api/dashboard`), fonctions pures de
+  calcul de statut composant les services ci-dessus, aucune nouvelle source
+  de données ni nouveau canal temps réel. Voir
+  [`docs/dashboard/README.md`](../dashboard/README.md).
 
-## Prévu pour les phases suivantes
+## Comment un service se branche au reste de l'app
 
-Ces dossiers **n'existent pas encore** — ils ne sont créés que lorsque la
-phase correspondante en a réellement besoin, pour éviter du code mort :
+Chaque service :
 
-- **`alerts/`** — règles de déclenchement d'alertes (process down, seuil
-  CPU/mémoire dépassé, etc.) et leur évaluation périodique.
-- **`notifications/`** — envoi effectif des notifications (email, webhook,
-  Slack…), consommateur typique de `queue/`.
-- **`metrics/`** — agrégation/rétention des métriques process au-delà de ce
-  que fait déjà `lib/history-store.js` (système, court terme).
-- **`events/`** — bus d'événements applicatifs internes (ex: "process
-  redémarré", "seuil dépassé"), point d'entrée commun pour `alerts/` et
-  `metrics/`, indépendant du bus PM2 déjà utilisé dans `server.js`.
-- **`health/`** — évaluation de l'état de santé global d'une app (au-delà du
-  simple statut PM2 : ex. croiser statut + logs d'erreur récents).
-- **`healing/`** — actions correctives automatiques (ex: redémarrage auto
-  après N erreurs), construites sur `pm2-actions.js` existant.
-- **`audit/`** — journal des actions effectuées par les utilisateurs
-  (qui a redémarré quoi, quand), pour la traçabilité en environnement
-  multi-utilisateurs.
+- expose un singleton (ou une classe instanciée une fois dans `server.js`
+  si son constructeur a un état/lit `process.env`) depuis son `index.js` ;
+- est consommé par un routeur dédié dans `lib/routes/` (aucune logique
+  métier dans les routeurs, uniquement validation + appel au service) ;
+- si le service a besoin d'être notifié en continu (nouveau relevé système,
+  transition d'alerte, événement PM2...), il est branché depuis
+  `lib/polling.js` (boucles `setInterval`), `lib/realtime/pm2-bus.js` (bus
+  de logs/événements PM2) ou `lib/alert-dispatch.js` (fan-out d'une
+  transition d'alerte) — jamais un second poller/listener dédié pour la
+  même source ;
+- reste configurable/désactivable via `.env` (voir `.env.example`) sans
+  changer de code.
 
-Chaque service, une fois implémenté, doit rester indépendant de
-`server.js` (pas de logique métier dans le serveur HTTP), documenté, testé,
-et si pertinent configurable/désactivable via `.env` — voir les règles
-communes du projet.
+`server.js` lui-même ne fait qu'orchestrer : charger la config, instancier
+les services, monter les routeurs et le temps réel, démarrer. Voir la
+structure du dépôt dans le [README principal](../../README.md).

@@ -49,9 +49,9 @@ lib/db/migrations/003_alert_engine.js   # tables alert_rules, alerts
 valeur déjà mesurée (`engine.evaluate(rule, target, value)`), ou une liste de
 règles à évaluer contre un relevé déjà collecté
 (`evaluateSystemReading(snapshot)` / `evaluateProcessReadings(processList)`).
-`server.js` reste la seule couche qui parle à PM2/Socket.IO/Express ; il se
-contente d'appeler ces deux méthodes depuis les boucles de polling déjà
-existantes (voir [Évaluation périodique](#évaluation-périodique)).
+`lib/polling.js` est la seule couche qui parle à PM2/Socket.IO pour ces deux
+boucles ; il se contente d'appeler ces deux méthodes depuis les boucles de
+polling déjà existantes (voir [Évaluation périodique](#évaluation-périodique)).
 
 ## Modèle de règle (alert rule)
 
@@ -152,9 +152,9 @@ ou `resolved` lève une erreur).
 
 ## Évaluation périodique
 
-Deux points d'entrée, appelés depuis `server.js`, chacun réutilisant une
-boucle de polling déjà existante (pas de second poller PM2, pas de second
-bus) :
+Deux points d'entrée, appelés depuis `lib/polling.js` (`startPolling()`,
+lancé une fois au boot par `server.js`), chacun réutilisant une boucle de
+polling déjà existante (pas de second poller PM2, pas de second bus) :
 
 - `engine.evaluateSystemReading(snapshot)` : appelé à chaque tick de la
   boucle d'échantillonnage système déjà en place (`SAMPLE_INTERVAL_MS`,
@@ -162,16 +162,17 @@ bus) :
   `"system"`). Évalue toutes les règles `targetType="system"` activées.
 - `engine.evaluateProcessReadings(processList)` : appelé par une boucle
   dédiée (`setInterval`, fréquence `ALERTS_EVAL_INTERVAL_MS`), indépendante
-  du polling par socket existant — celui-ci ne tourne que si un client est
-  connecté, alors que les alertes doivent continuer à s'évaluer même sans
-  personne devant le dashboard. Réutilise `pm2.list()` + le même
-  `fmtProcess()` que le reste de `server.js`. Évalue toutes les règles
-  `targetType="process"` activées, sur chaque process ciblé (nom précis ou
-  `"*"` = toutes les apps actuellement listées par PM2).
+  du polling par socket existant (`lib/realtime/process-socket.js`) —
+  celui-ci ne tourne que si un client est connecté, alors que les alertes
+  doivent continuer à s'évaluer même sans personne devant le dashboard.
+  Réutilise `pm2.list()` + le même `fmtProcess()` que le reste de l'appli
+  (`lib/process-helpers.js`). Évalue toutes les règles `targetType="process"`
+  activées, sur chaque process ciblé (nom précis ou `"*"` = toutes les apps
+  actuellement listées par PM2).
 
-Toute cette logique de scheduling (deux boucles) reste dans `server.js` (la
-couche transport), mais **aucun calcul métier n'y est fait** : `server.js`
-ne fait qu'appeler `alertEngine.evaluateXxxReading(...)`. La désactiver
+Toute cette logique de scheduling (deux boucles) reste dans `lib/polling.js`
+(la couche transport), mais **aucun calcul métier n'y est fait** : il ne
+fait qu'appeler `alertEngine.evaluateXxxReading(...)`. La désactiver
 entièrement se fait via `ALERTS_ENABLED=0`.
 
 ## API REST

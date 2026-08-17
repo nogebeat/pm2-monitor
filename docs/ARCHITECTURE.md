@@ -200,7 +200,7 @@ futurs services (`alerts/`, `notifications/`) dans une phase ultérieure.
 
 - **Un seul poller PM2** : la collecte (`ProcessHistoryService.record()`)
   et l'évaluation des règles d'alerte "process" partagent le même
-  `setInterval(() => pm2.list(...))` dans `server.js`, plutôt que deux
+  `setInterval(() => pm2.list(...))` dans `lib/polling.js`, plutôt que deux
   boucles indépendantes — évite un second appel `pm2.list()` par tick (coût
   et charge PM2 inutiles) pour un besoin déjà couvert par la boucle
   existante. Le rollup/purge, lui, tourne sur son propre intervalle

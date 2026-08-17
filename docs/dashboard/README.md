@@ -17,7 +17,7 @@ health checks, timeline d'événements, auto-healing).
   errored / crashed / restarting).
 - `lib/services/dashboard/index.js` — `buildSnapshot()` : assemble un
   instantané complet en appelant les services déjà utilisés ailleurs dans
-  `server.js` (liste des process, `system-stats.js#snapshot()`, alertes
+  l'application (liste des process, `system-stats.js#snapshot()`, alertes
   actives, health checks, timeline d'événements, audit auto-healing) et les
   passe aux fonctions pures ci-dessus.
 - `lib/routes/dashboard.js` — `GET /api/dashboard` : un seul endpoint REST,
@@ -88,8 +88,10 @@ jamais le statut à lui seul, plutôt que d'être traité comme une anomalie.
 ## Temps réel
 
 Le dashboard **ne crée aucun second système temps réel**. Il se met à jour
-en réagissant aux événements déjà émis par `server.js` sur le même
-Socket.IO que le reste de l'application :
+en réagissant aux événements déjà émis (par `lib/polling.js`,
+`lib/realtime/process-socket.js`, `lib/realtime/pm2-bus.js` et
+`lib/alert-dispatch.js`) sur le même Socket.IO que le reste de
+l'application :
 
 - `metrics.updated`
 - `process.updated`
