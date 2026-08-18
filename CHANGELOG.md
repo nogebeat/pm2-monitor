@@ -37,6 +37,13 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
   (`Cannot find module 'test/unit'`) — corrigé.
 - Suite de tests validée à 576/576 (unitaires + intégration, exécutés
   ensemble comme en CI) après réinstallation propre des dépendances.
+- `npm test` / `test:unit` / `test:integration` s'appuyaient sur le
+  support du glob `**` ou du chemin de répertoire nu par
+  `node --test`, tous deux non fiables selon la version de Node et l'OS
+  (confirmé en échec sur GitHub Actions avec Node 22.23.2 avec l'un et
+  l'autre). Remplacé par `scripts/run-tests.js`, qui énumère les fichiers
+  `*.test.js` à la main en JS pur avant de les passer explicitement à
+  `node --test` — comportement documenté et stable.
 
 ## Format des entrées futures
 
