@@ -1,16 +1,19 @@
 <script setup>
-import { onMounted } from "vue";
+import { computed, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
 import { state, loadEvents, setEventsFilter, loadMoreEvents } from "../store";
 import { time } from "../format";
 
-const FILTERS = [
-  { key: "all", label: "All" },
-  { key: "started", label: "Starts" },
-  { key: "stopped", label: "Stops" },
-  { key: "restarted", label: "Restarts" },
-  { key: "crashed", label: "Crashes" },
-  { key: "errored", label: "Errors" },
-];
+const { t, locale } = useI18n();
+
+const FILTERS = computed(() => [
+  { key: "all", label: t("events.filterAll") },
+  { key: "started", label: t("events.filterStarts") },
+  { key: "stopped", label: t("events.filterStops") },
+  { key: "restarted", label: t("events.filterRestarts") },
+  { key: "crashed", label: t("events.filterCrashes") },
+  { key: "errored", label: t("events.filterErrors") },
+]);
 
 const ICONS = {
   started: "🟢",
@@ -34,7 +37,7 @@ const LABELS = {
 
 function dateLabel(ts) {
   if (!ts) return "–";
-  return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return new Date(ts).toLocaleDateString(locale.value === "fr" ? "fr-FR" : "en-US", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 onMounted(() => {
@@ -46,8 +49,8 @@ onMounted(() => {
   <main class="events-view">
     <div class="chart-panel events-panel">
       <div class="chart-head">
-        <h2>Timeline d'événements</h2>
-        <div class="filter-group" role="group" aria-label="Filtrer par type d'événement">
+        <h2>{{ t("events.title") }}</h2>
+        <div class="filter-group" role="group" :aria-label="t('events.filterLabel')">
           <button
             v-for="f in FILTERS"
             :key="f.key"
@@ -60,17 +63,17 @@ onMounted(() => {
         </div>
       </div>
 
-      <div v-if="!state.events.loaded && state.events.loading" class="events-empty">Chargement…</div>
+      <div v-if="!state.events.loaded && state.events.loading" class="events-empty">{{ t("events.loading") }}</div>
 
       <div v-else-if="!state.events.items.length" class="events-empty">
-        Aucun événement{{ state.events.filter !== "all" ? " pour ce filtre" : "" }} pour le moment.
+        {{ state.events.filter !== "all" ? t("events.noneWithFilter") : t("events.none") }}
       </div>
 
       <ul v-else class="events-list">
         <li v-for="ev in state.events.items" :key="ev.id" class="event-row" :class="`severity-${ev.severity}`">
           <span class="event-icon" aria-hidden="true">{{ ICONS[ev.type] || "•" }}</span>
           <span class="event-time" :title="dateLabel(ev.timestamp)">{{ time(ev.timestamp) }}</span>
-          <span class="event-process">{{ ev.process || "?" }}</span>
+          <span class="event-process">{{ ev.process || t("events.unknown") }}</span>
           <span class="event-type">{{ LABELS[ev.type] || ev.type }}</span>
           <span v-if="ev.exitCode !== null && ev.exitCode !== undefined" class="event-detail">
             exit {{ ev.exitCode }}<template v-if="ev.signal"> ({{ ev.signal }})</template>
@@ -82,7 +85,7 @@ onMounted(() => {
 
       <div v-if="state.events.items.length && state.events.items.length < state.events.total" class="events-more">
         <button class="filter-btn" :disabled="state.events.loading" @click="loadMoreEvents">
-          {{ state.events.loading ? "Chargement…" : `Charger plus (${state.events.items.length}/${state.events.total})` }}
+          {{ state.events.loading ? t("events.loadingMore") : t("events.loadMore", { loaded: state.events.items.length, total: state.events.total }) }}
         </button>
       </div>
     </div>

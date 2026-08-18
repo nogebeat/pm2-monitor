@@ -1,7 +1,10 @@
 <script setup>
 import { computed, nextTick, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { state, selectedProcess, togglePause, clearLogs, visibleLogs } from "../store";
 import { renderLogText, time } from "../format";
+
+const { t } = useI18n();
 
 const logsBodyEl = ref(null);
 const selected = computed(() => selectedProcess());
@@ -10,7 +13,7 @@ const logs = computed(() => visibleLogs());
 const logsStatsLabel = computed(() => {
   const s = state.logsStats;
   if (!s) return "";
-  return `${s.files} fichier(s) · ${s.archivedFiles} compressé(s) · ${fmtBytesShort(s.totalBytes)}`;
+  return t("logs.statsLabel", { files: s.files, archived: s.archivedFiles, size: fmtBytesShort(s.totalBytes) });
 });
 
 function fmtBytesShort(bytes) {
@@ -35,23 +38,23 @@ function copyLine(entry) {
 }
 
 function exportLogs(type) {
-  if (state.selected === null) return alert("Sélectionne d'abord une app dans la liste.");
+  if (state.selected === null) return alert(t("logs.selectAppFirst"));
   window.open(`/api/processes/${state.selected}/logs/export?type=${type}`, "_blank");
 }
 const exportType = ref("all");
 
 function openFulltext() {
-  if (state.selected === null) return alert("Sélectionne d'abord une app.");
+  if (state.selected === null) return alert(t("logs.selectAppFirstShort"));
   state.modal = { type: "fulltext", process: selected.value };
 }
 
 function openGotoDate() {
-  if (state.selected === null) return alert("Sélectionne d'abord une app.");
+  if (state.selected === null) return alert(t("logs.selectAppFirstShort"));
   state.modal = { type: "gotodate", process: selected.value };
 }
 
 function openExportRange() {
-  if (state.selected === null) return alert("Sélectionne d'abord une app.");
+  if (state.selected === null) return alert(t("logs.selectAppFirstShort"));
   state.modal = { type: "exportrange", process: selected.value };
 }
 </script>
@@ -60,60 +63,60 @@ function openExportRange() {
   <section class="logs-panel">
     <div class="logs-head">
       <div class="logs-title">
-        <h2>{{ selected ? selected.name : "Sélectionne un process" }}</h2>
+        <h2>{{ selected ? selected.name : t("logs.selectProcess") }}</h2>
         <span class="logs-sub">
-          {{ selected ? `#${selected.id} · ${selected.status} · pid ${selected.pid || "–"}` : "Les logs stdout / stderr apparaîtront ici" }}
+          {{ selected ? `#${selected.id} · ${selected.status} · pid ${selected.pid || "–"}` : t("logs.waitingHint") }}
         </span>
       </div>
     </div>
 
     <div class="logs-toolbar">
       <div class="logs-toolbar-row">
-        <input v-model="state.search" type="search" class="log-search" placeholder="Rechercher dans les logs…" />
-        <label class="chk-inline" title="Traiter la recherche comme une regex">
+        <input v-model="state.search" type="search" class="log-search" :placeholder="t('logs.searchPlaceholder')" />
+        <label class="chk-inline" :title="t('logs.regexTitle')">
           <input v-model="state.regexMode" type="checkbox" /> .*
         </label>
-        <select v-model="state.levelFilter" class="export-type" title="Filtrer par niveau">
-          <option value="all">tous niveaux</option>
+        <select v-model="state.levelFilter" class="export-type" :title="t('logs.levelAll')">
+          <option value="all">{{ t("logs.levelAll") }}</option>
           <option value="info">info</option>
           <option value="warn">warn</option>
           <option value="error">error</option>
           <option value="debug">debug</option>
         </select>
-        <div class="filter-group" role="group" aria-label="Filtrer les logs">
-          <button class="filter-btn" :class="{ active: state.filter === 'all' }" @click="state.filter = 'all'">Tout</button>
+        <div class="filter-group" role="group" :aria-label="t('logs.filterLabel')">
+          <button class="filter-btn" :class="{ active: state.filter === 'all' }" @click="state.filter = 'all'">{{ t("logs.filterAll") }}</button>
           <button class="filter-btn" :class="{ active: state.filter === 'out' }" @click="state.filter = 'out'">stdout</button>
           <button class="filter-btn" :class="{ active: state.filter === 'err' }" @click="state.filter = 'err'">stderr</button>
         </div>
-        <label class="chk-inline"><input v-model="state.ansiOn" type="checkbox" /> ANSI</label>
-        <label class="chk-inline"><input v-model="state.lineNumOn" type="checkbox" /> N° ligne</label>
+        <label class="chk-inline"><input v-model="state.ansiOn" type="checkbox" /> {{ t("logs.ansi") }}</label>
+        <label class="chk-inline"><input v-model="state.lineNumOn" type="checkbox" /> {{ t("logs.lineNumbers") }}</label>
         <label class="autoscroll">
           <input v-model="state.autoscroll" type="checkbox" />
-          Auto-scroll
+          {{ t("logs.autoscroll") }}
         </label>
-        <button class="icon-btn" title="Mettre le flux en pause" @click="togglePause">
-          {{ state.paused ? `▶ Reprendre (${state.pausedQueue.length})` : "⏸ Pause" }}
+        <button class="icon-btn" :title="t('logs.pauseTitle')" @click="togglePause">
+          {{ state.paused ? `▶ ${t("logs.resume", { count: state.pausedQueue.length })}` : `⏸ ${t("logs.pause")}` }}
         </button>
-        <button class="icon-btn" title="Vider l'affichage" @click="clearLogs">Vider</button>
+        <button class="icon-btn" :title="t('logs.clearTitle')" @click="clearLogs">{{ t("logs.clear") }}</button>
       </div>
       <div class="logs-toolbar-row">
-        <button class="icon-btn" title="Recherche plein texte dans le fichier complet" @click="openFulltext">🔎 Recherche complète</button>
-        <button class="icon-btn" title="Aller à une date" @click="openGotoDate">📅 Aller à une date</button>
+        <button class="icon-btn" :title="t('logs.fulltextTitle')" @click="openFulltext">🔎 {{ t("logs.fulltext") }}</button>
+        <button class="icon-btn" :title="t('logs.gotoDateTitle')" @click="openGotoDate">📅 {{ t("logs.gotoDate") }}</button>
         <div class="export-group">
-          <button class="icon-btn" title="Télécharger les logs complets" @click="exportLogs(exportType)">Exporter</button>
-          <select v-model="exportType" class="export-type" title="Quoi exporter">
-            <option value="all">tout</option>
+          <button class="icon-btn" :title="t('logs.exportAllTitle')" @click="exportLogs(exportType)">{{ t("logs.export") }}</button>
+          <select v-model="exportType" class="export-type" :title="t('logs.export')">
+            <option value="all">{{ t("logs.exportAll") }}</option>
             <option value="out">stdout</option>
             <option value="err">stderr</option>
           </select>
         </div>
-        <button class="icon-btn" title="Télécharger une période précise" @click="openExportRange">📥 Exporter période</button>
+        <button class="icon-btn" :title="t('logs.exportRangeTitle')" @click="openExportRange">📥 {{ t("logs.exportRange") }}</button>
         <span class="logs-stats">{{ logsStatsLabel }}</span>
       </div>
     </div>
 
     <div ref="logsBodyEl" class="logs-body">
-      <div v-if="!logs.length" class="empty-state">En attente de logs…</div>
+      <div v-if="!logs.length" class="empty-state">{{ t("logs.waitingForLogs") }}</div>
 
       <template v-for="entry in logs" :key="entry.n">
         <div v-if="entry.kind === 'event'" class="log-line">
@@ -126,7 +129,7 @@ function openExportRange() {
           <span class="log-tag" :class="entry.type">{{ entry.type }}</span>
           <span v-if="entry.level && entry.level !== 'info'" class="log-tag" :class="entry.level">{{ entry.level }}</span>
           <span class="log-text" :class="{ err: entry.type === 'err' }" v-html="renderLogText(entry.data, state.ansiOn)"></span>
-          <button class="log-copy" title="Copier la ligne" @click="copyLine(entry)">⧉</button>
+          <button class="log-copy" :title="t('logs.copyLineTitle')" @click="copyLine(entry)">⧉</button>
         </div>
       </template>
     </div>

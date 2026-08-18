@@ -1,7 +1,9 @@
 <script setup>
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { state, login } from "../store";
 
+const { t } = useI18n();
 const username = ref("");
 const password = ref("");
 
@@ -18,24 +20,24 @@ function submit() {
         <span class="brand-mark" aria-hidden="true"></span>
         <div>
           <h1>PM2 Monitor</h1>
-          <p class="brand-sub">Connexion requise</p>
+          <p class="brand-sub">{{ t("login.subtitle") }}</p>
         </div>
       </div>
 
       <label class="login-field">
-        <span>Utilisateur</span>
+        <span>{{ t("login.username") }}</span>
         <input v-model="username" type="text" autocomplete="username" autofocus />
       </label>
 
       <label class="login-field">
-        <span>Mot de passe</span>
+        <span>{{ t("login.password") }}</span>
         <input v-model="password" type="password" autocomplete="current-password" />
       </label>
 
       <div v-if="state.auth.loginError" class="login-error">{{ state.auth.loginError }}</div>
 
       <button class="go" type="submit" :disabled="state.auth.loggingIn">
-        {{ state.auth.loggingIn ? "Connexion…" : "Se connecter" }}
+        {{ state.auth.loggingIn ? t("login.connecting") : t("login.submit") }}
       </button>
     </form>
   </div>

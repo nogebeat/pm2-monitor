@@ -1,8 +1,11 @@
 <script setup>
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { state, notifyError } from "../../store";
 import { apiPost } from "../../api";
 import ModalBase from "../ModalBase.vue";
+
+const { t } = useI18n();
 
 const props = defineProps({
   process: { type: Object, required: true },
@@ -33,18 +36,18 @@ function confirm() {
 </script>
 
 <template>
-  <ModalBase :title="`Configuration — ${process.name}`" @close="close" @confirm="confirm">
-    <p class="hint-text">⚠️ Ceci supprime puis relance le process avec la nouvelle configuration (équivalent à pm2 delete + pm2 start).</p>
-    <label>Script</label>
+  <ModalBase :title="t('configModal.title', { name: process.name })" @close="close" @confirm="confirm">
+    <p class="hint-text">{{ t("configModal.warning") }}</p>
+    <label>{{ t("configModal.script") }}</label>
     <input v-model="script" type="text" />
-    <label>Arguments (séparés par des espaces)</label>
+    <label>{{ t("configModal.args") }}</label>
     <input v-model="argsStr" type="text" />
-    <label>Mode d'exécution</label>
+    <label>{{ t("configModal.execMode") }}</label>
     <select v-model="execMode">
       <option value="fork">fork</option>
       <option value="cluster">cluster</option>
     </select>
-    <label>Instances</label>
+    <label>{{ t("configModal.instances") }}</label>
     <input v-model.number="instances" type="number" min="1" max="64" />
   </ModalBase>
 </template>

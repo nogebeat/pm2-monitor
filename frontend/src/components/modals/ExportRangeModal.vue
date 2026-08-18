@@ -1,7 +1,10 @@
 <script setup>
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { state } from "../../store";
 import ModalBase from "../ModalBase.vue";
+
+const { t } = useI18n();
 
 const props = defineProps({
   process: { type: Object, required: true },
@@ -24,14 +27,14 @@ function confirm() {
 </script>
 
 <template>
-  <ModalBase title="Exporter une période précise" confirm-label="Exporter" @close="close" @confirm="confirm">
-    <label>Depuis</label>
+  <ModalBase :title="t('exportRangeModal.title')" :confirm-label="t('exportRangeModal.confirmLabel')" @close="close" @confirm="confirm">
+    <label>{{ t("exportRangeModal.from") }}</label>
     <input v-model="from" type="datetime-local" />
-    <label>Jusqu'à</label>
+    <label>{{ t("exportRangeModal.to") }}</label>
     <input v-model="to" type="datetime-local" />
-    <label>Flux</label>
+    <label>{{ t("exportRangeModal.stream") }}</label>
     <select v-model="type">
-      <option value="all">tout</option>
+      <option value="all">{{ t("exportRangeModal.all") }}</option>
       <option value="out">stdout</option>
       <option value="err">stderr</option>
     </select>

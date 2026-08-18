@@ -1,8 +1,11 @@
 <script setup>
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { state, notifyError } from "../../store";
 import { apiPost } from "../../api";
 import ModalBase from "../ModalBase.vue";
+
+const { t } = useI18n();
 
 const props = defineProps({
   process: { type: Object, required: true },
@@ -22,9 +25,9 @@ function confirm() {
 </script>
 
 <template>
-  <ModalBase :title="`Scale — ${process.name}`" @close="close" @confirm="confirm">
-    <label>Nombre d'instances</label>
+  <ModalBase :title="t('scaleModal.title', { name: process.name })" @close="close" @confirm="confirm">
+    <label>{{ t("scaleModal.instances") }}</label>
     <input v-model.number="instances" type="number" min="1" max="64" />
-    <p class="hint-text">Uniquement pertinent en mode cluster.</p>
+    <p class="hint-text">{{ t("scaleModal.hint") }}</p>
   </ModalBase>
 </template>

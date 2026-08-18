@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { state, bootstrap, fetchMe } from "./store";
 import TopBar from "./components/TopBar.vue";
 import Pm2Menu from "./components/Pm2Menu.vue";
@@ -11,6 +12,8 @@ import DashboardView from "./components/DashboardView.vue";
 import ModalHost from "./components/ModalHost.vue";
 import LoginScreen from "./components/LoginScreen.vue";
 
+const { t } = useI18n();
+
 const authed = computed(() => !state.auth.authEnabled || !!state.auth.user);
 
 onMounted(() => {
@@ -20,7 +23,7 @@ onMounted(() => {
 
 <template>
   <div class="app">
-    <div v-if="!state.auth.ready" class="auth-loading">Chargement…</div>
+    <div v-if="!state.auth.ready" class="auth-loading">{{ t("app.loading") }}</div>
 
     <LoginScreen v-else-if="!authed" />
 

@@ -1,8 +1,11 @@
 <script setup>
 import { reactive } from "vue";
+import { useI18n } from "vue-i18n";
 import { state, notifyError } from "../../store";
 import { apiPost } from "../../api";
 import ModalBase from "../ModalBase.vue";
+
+const { t } = useI18n();
 
 const props = defineProps({
   process: { type: Object, required: true },
@@ -34,15 +37,15 @@ function confirm() {
 </script>
 
 <template>
-  <ModalBase :title="`Variables d'environnement — ${process.name}`" @close="close" @confirm="confirm">
-    <p class="hint-text">Ces variables seront appliquées au redémarrage du process (pm2 restart --update-env).</p>
+  <ModalBase :title="t('envModal.title', { name: process.name })" @close="close" @confirm="confirm">
+    <p class="hint-text">{{ t("envModal.hint") }}</p>
     <div>
       <div v-for="(row, i) in rows" :key="i" class="env-row">
-        <input v-model="row.k" type="text" placeholder="CLÉ" />
-        <input v-model="row.v" type="text" placeholder="valeur" />
+        <input v-model="row.k" type="text" :placeholder="t('envModal.keyPlaceholder')" />
+        <input v-model="row.v" type="text" :placeholder="t('envModal.valuePlaceholder')" />
         <button type="button" @click="removeRow(i)">✕</button>
       </div>
     </div>
-    <button type="button" class="icon-btn" style="margin-top:6px;" @click="addRow">+ Ajouter une variable</button>
+    <button type="button" class="icon-btn" style="margin-top:6px;" @click="addRow">{{ t("envModal.addVariable") }}</button>
   </ModalBase>
 </template>

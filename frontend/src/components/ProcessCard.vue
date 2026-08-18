@@ -1,10 +1,13 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import Chart from "chart.js/auto";
+import { useI18n } from "vue-i18n";
 import { state, selectProcess, runProcessAction, can, loadProcessMetrics } from "../store";
 import { apiPost } from "../api";
 import { notifyError } from "../store";
 import { fmtMem, fmtUptime } from "../format";
+
+const { t, locale } = useI18n();
 
 const props = defineProps({
   process: { type: Object, required: true },
@@ -61,7 +64,7 @@ async function refreshMetricsChart() {
     await nextTick();
     if (!metricsCanvas.value) return;
     const c = chartColors();
-    const labels = r.points.map((p) => new Date(p.ts).toLocaleTimeString("fr-FR", { hour12: false }));
+    const labels = r.points.map((p) => new Date(p.ts).toLocaleTimeString(locale.value === "fr" ? "fr-FR" : "en-US", { hour12: false }));
     const cpuData = r.points.map((p) => (p.cpu ?? p.cpuAvg ?? null));
     const memData = r.points.map((p) => {
       const bytes = p.memory ?? p.memoryAvg ?? null;
@@ -135,7 +138,7 @@ watch(
       <span>↻ <b>{{ process.restarts }}</b></span>
       <span>{{ fmtUptime(process.uptime) }}</span>
       <span>{{ process.execMode }}{{ process.instances > 1 ? " x" + process.instances : "" }}</span>
-      <span v-if="process.watching" title="watch actif">👁</span>
+      <span v-if="process.watching" :title="t('processCard.watchActive')">👁</span>
     </div>
 
     <div class="vitals">
@@ -143,30 +146,30 @@ watch(
     </div>
 
     <div class="proc-actions">
-      <button v-if="can('start', process.name)" class="go" @click.stop="quickAction('start')">Start</button>
-      <button v-if="can('restart', process.name)" @click.stop="quickAction('restart')">Restart</button>
-      <button v-if="can('reload', process.name)" @click.stop="quickAction('reload')">Reload</button>
-      <button v-if="can('stop', process.name)" class="danger" @click.stop="quickAction('stop')">Stop</button>
+      <button v-if="can('start', process.name)" class="go" @click.stop="quickAction('start')">{{ t("processCard.start") }}</button>
+      <button v-if="can('restart', process.name)" @click.stop="quickAction('restart')">{{ t("processCard.restart") }}</button>
+      <button v-if="can('reload', process.name)" @click.stop="quickAction('reload')">{{ t("processCard.reload") }}</button>
+      <button v-if="can('stop', process.name)" class="danger" @click.stop="quickAction('stop')">{{ t("processCard.stop") }}</button>
       <button
         v-if="can('view', process.name)"
         class="more"
         :class="{ active: metricsOpen }"
         @click.stop="toggleMetrics"
       >
-        📈 Metrics
+        📈 {{ t("processCard.metrics") }}
       </button>
       <button
         v-if="canAny('scale', 'watch', 'env', 'config', 'flush', 'reset', 'delete')"
         class="more"
         @click.stop="openMore"
       >
-        ⋯ Plus
+        ⋯ {{ t("processCard.more") }}
       </button>
     </div>
 
     <div v-if="metricsOpen" class="proc-metrics-panel" @click.stop>
       <div class="chart-head">
-        <div class="filter-group" role="group" aria-label="Plage d'historique du process">
+        <div class="filter-group" role="group" :aria-label="t('processCard.rangeLabel')">
           <button
             v-for="r in ['1h', '6h', '24h', '7d', '30d']"
             :key="r"

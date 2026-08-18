@@ -17,10 +17,13 @@
  * "faire confiance" à un masquage frontend — le secret n'a de toute façon
  * jamais quitté le serveur).
  */
-import { reactive, ref, computed, onMounted, watch } from "vue";
+import { reactive, ref, computed, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
 import { state, notifyError } from "../../store";
 import { apiGet } from "../../api";
 import ModalBase from "../ModalBase.vue";
+
+const { t, locale } = useI18n();
 
 function close() {
   state.modal = null;
@@ -120,7 +123,7 @@ const STATUS_ICON = { success: "✅", failed: "⚠️", denied: "⛔" };
 
 function fmtTime(ts) {
   if (!ts) return "–";
-  return new Date(ts).toLocaleString("fr-FR");
+  return new Date(ts).toLocaleString(locale.value === "fr" ? "fr-FR" : "en-US");
 }
 
 const currentPageLabel = computed(() => {
@@ -132,57 +135,57 @@ const currentPageLabel = computed(() => {
 </script>
 
 <template>
-  <ModalBase title="Audit Log" hide-confirm @close="close">
+  <ModalBase :title="t('auditLogModal.title')" hide-confirm @close="close">
     <div class="audit-modal">
       <div v-if="!selected" class="audit-list">
         <div class="audit-filters">
           <label>
-            Utilisateur
-            <input v-model="filters.username" type="text" placeholder="alice" @keyup.enter="applyFilters" />
+            {{ t("auditLogModal.username") }}
+            <input v-model="filters.username" type="text" :placeholder="t('auditLogModal.usernamePlaceholder')" @keyup.enter="applyFilters" />
           </label>
           <label>
-            Action
+            {{ t("auditLogModal.action") }}
             <select v-model="filters.action">
-              <option value="">Toutes</option>
+              <option value="">{{ t("auditLogModal.all") }}</option>
               <option v-for="a in actionOptions" :key="a" :value="a">{{ a }}</option>
             </select>
           </label>
           <label>
-            Statut
+            {{ t("auditLogModal.status") }}
             <select v-model="filters.status">
-              <option value="">Tous</option>
+              <option value="">{{ t("auditLogModal.allMasc") }}</option>
               <option v-for="s in catalog.statuses" :key="s" :value="s">{{ s }}</option>
             </select>
           </label>
           <label>
-            Cible
-            <input v-model="filters.target" type="text" placeholder="nom de process, id de règle…" @keyup.enter="applyFilters" />
+            {{ t("auditLogModal.target") }}
+            <input v-model="filters.target" type="text" :placeholder="t('auditLogModal.targetPlaceholder')" @keyup.enter="applyFilters" />
           </label>
           <label>
-            Depuis
+            {{ t("auditLogModal.from") }}
             <input v-model="filters.start" type="datetime-local" />
           </label>
           <label>
-            Jusqu'à
+            {{ t("auditLogModal.to") }}
             <input v-model="filters.end" type="datetime-local" />
           </label>
           <div class="audit-filters-actions">
-            <button class="icon-btn go" @click="applyFilters">Filtrer</button>
-            <button class="icon-btn" @click="resetFilters">Réinitialiser</button>
+            <button class="icon-btn go" @click="applyFilters">{{ t("auditLogModal.filter") }}</button>
+            <button class="icon-btn" @click="resetFilters">{{ t("auditLogModal.reset") }}</button>
           </div>
         </div>
 
-        <div v-if="loading">Chargement…</div>
-        <div v-else-if="!items.length" class="audit-empty">Aucune entrée d'audit pour ces filtres.</div>
+        <div v-if="loading">{{ t("auditLogModal.loading") }}</div>
+        <div v-else-if="!items.length" class="audit-empty">{{ t("auditLogModal.empty") }}</div>
 
         <table v-else class="audit-table">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Utilisateur</th>
-              <th>Action</th>
-              <th>Cible</th>
-              <th>Statut</th>
+              <th>{{ t("auditLogModal.colDate") }}</th>
+              <th>{{ t("auditLogModal.colUser") }}</th>
+              <th>{{ t("auditLogModal.colAction") }}</th>
+              <th>{{ t("auditLogModal.colTarget") }}</th>
+              <th>{{ t("auditLogModal.colStatus") }}</th>
             </tr>
           </thead>
           <tbody>
@@ -197,36 +200,36 @@ const currentPageLabel = computed(() => {
         </table>
 
         <div v-if="items.length" class="audit-pagination">
-          <button class="icon-btn" :disabled="offset === 0" @click="prevPage">← Précédent</button>
+          <button class="icon-btn" :disabled="offset === 0" @click="prevPage">{{ t("auditLogModal.prev") }}</button>
           <span>{{ currentPageLabel }}</span>
-          <button class="icon-btn" :disabled="offset + PAGE_SIZE >= total" @click="nextPage">Suivant →</button>
+          <button class="icon-btn" :disabled="offset + PAGE_SIZE >= total" @click="nextPage">{{ t("auditLogModal.next") }}</button>
         </div>
       </div>
 
       <div v-else class="audit-detail">
-        <button class="icon-btn" @click="closeDetail">← Retour à la liste</button>
+        <button class="icon-btn" @click="closeDetail">{{ t("auditLogModal.backToList") }}</button>
         <dl class="audit-detail-grid">
-          <dt>Date</dt>
+          <dt>{{ t("auditLogModal.date") }}</dt>
           <dd>{{ fmtTime(selected.timestamp) }}</dd>
-          <dt>Utilisateur</dt>
+          <dt>{{ t("auditLogModal.user") }}</dt>
           <dd>{{ selected.username || "–" }} <span v-if="selected.userId" class="audit-muted">(#{{ selected.userId }})</span></dd>
-          <dt>Action</dt>
+          <dt>{{ t("auditLogModal.action") }}</dt>
           <dd>{{ selected.action }}</dd>
-          <dt>Cible</dt>
+          <dt>{{ t("auditLogModal.target") }}</dt>
           <dd>{{ selected.target || "–" }} <span v-if="selected.targetType" class="audit-muted">({{ selected.targetType }})</span></dd>
-          <dt>Statut</dt>
+          <dt>{{ t("auditLogModal.status") }}</dt>
           <dd>{{ STATUS_ICON[selected.status] || "" }} {{ selected.status }}</dd>
-          <dt>Serveur</dt>
+          <dt>{{ t("auditLogModal.server") }}</dt>
           <dd>{{ selected.server || "–" }}</dd>
-          <dt>IP</dt>
+          <dt>{{ t("auditLogModal.ip") }}</dt>
           <dd>{{ selected.ip || "–" }}</dd>
         </dl>
         <div class="audit-metadata">
           <div class="audit-metadata-label">
-            Metadata (déjà sanitisée côté serveur — jamais de secret, voir docs/audit/README.md)
+            {{ t("auditLogModal.metadataLabel") }}
           </div>
           <pre v-if="selected.metadata">{{ JSON.stringify(selected.metadata, null, 2) }}</pre>
-          <div v-else class="audit-muted">Aucune metadata pour cette entrée.</div>
+          <div v-else class="audit-muted">{{ t("auditLogModal.noMetadata") }}</div>
         </div>
       </div>
     </div>

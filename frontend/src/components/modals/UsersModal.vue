@@ -1,8 +1,11 @@
 <script setup>
 import { reactive, ref, onMounted, computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { state, notifyError } from "../../store";
 import { apiGet, apiPost } from "../../api";
 import ModalBase from "../ModalBase.vue";
+
+const { t } = useI18n();
 
 function close() {
   state.modal = null;
@@ -49,11 +52,11 @@ function createUser() {
 }
 
 function deleteUser(u) {
-  if (!confirm(`Supprimer l'utilisateur "${u.username}" ?`)) return;
+  if (!confirm(t("usersModal.confirmDelete", { name: u.username }))) return;
   fetch(`/api/users/${u.id}`, { method: "DELETE" })
     .then(async (r) => {
       const data = await r.json().catch(() => ({}));
-      if (!r.ok || data.error) throw new Error(data.error || "Erreur");
+      if (!r.ok || data.error) throw new Error(data.error || t("common.error"));
       return load();
     })
     .catch(notifyError);
@@ -70,7 +73,7 @@ function apiPut(id, body) {
     body: JSON.stringify(body),
   }).then(async (r) => {
     const data = await r.json().catch(() => ({}));
-    if (!r.ok || data.error) throw new Error(data.error || "Erreur");
+    if (!r.ok || data.error) throw new Error(data.error || t("common.error"));
     return data;
   });
 }
@@ -99,24 +102,24 @@ function changePassword(u) {
   apiPut(u.id, { password: pwd })
     .then(() => {
       pwdDrafts[u.id] = "";
-      state.toast = { kind: "info", message: `Mot de passe mis à jour pour ${u.username}.` };
+      state.toast = { kind: "info", message: t("usersModal.passwordUpdated", { name: u.username }) };
     })
     .catch(notifyError);
 }
 </script>
 
 <template>
-  <ModalBase title="Utilisateurs & permissions" hide-confirm @close="close">
-    <div v-if="loading" class="hint-text">Chargement…</div>
+  <ModalBase :title="t('usersModal.title')" hide-confirm @close="close">
+    <div v-if="loading" class="hint-text">{{ t("common.loading") }}</div>
 
     <template v-else>
       <div class="users-new">
-        <div class="hint-text" style="margin-bottom:6px;">Créer un utilisateur</div>
+        <div class="hint-text" style="margin-bottom:6px;">{{ t("usersModal.createUser") }}</div>
         <div class="users-new-row">
-          <input v-model="newUser.username" type="text" placeholder="identifiant" />
-          <input v-model="newUser.password" type="password" placeholder="mot de passe (8+ car.)" />
-          <label class="chk"><input v-model="newUser.isAdmin" type="checkbox" /> admin</label>
-          <button class="icon-btn go" type="button" @click="createUser">+ Créer</button>
+          <input v-model="newUser.username" type="text" :placeholder="t('usersModal.usernamePlaceholder')" />
+          <input v-model="newUser.password" type="password" :placeholder="t('usersModal.passwordPlaceholder')" />
+          <label class="chk"><input v-model="newUser.isAdmin" type="checkbox" /> {{ t("usersModal.admin") }}</label>
+          <button class="icon-btn go" type="button" @click="createUser">+ {{ t("usersModal.create") }}</button>
         </div>
       </div>
 
@@ -124,8 +127,8 @@ function changePassword(u) {
         <div v-for="u in users" :key="u.id" class="user-row">
           <div class="user-row-head" @click="toggleExpand(u)">
             <span class="label">{{ u.username }}</span>
-            <span v-if="u.isAdmin" class="badge-admin">admin</span>
-            <span v-else class="hint-text">{{ u.permissions.length }} permission(s)</span>
+            <span v-if="u.isAdmin" class="badge-admin">{{ t("usersModal.admin") }}</span>
+            <span v-else class="hint-text">{{ t("usersModal.permissionsCount", { n: u.permissions.length }) }}</span>
             <span style="flex:1"></span>
             <button
               v-if="u.username !== state.auth.user.username"
@@ -133,7 +136,7 @@ function changePassword(u) {
               class="icon-btn"
               @click.stop="toggleAdmin(u)"
             >
-              {{ u.isAdmin ? "Retirer admin" : "Rendre admin" }}
+              {{ u.isAdmin ? t("usersModal.removeAdmin") : t("usersModal.makeAdmin") }}
             </button>
             <button
               v-if="u.username !== state.auth.user.username"
@@ -147,18 +150,18 @@ function changePassword(u) {
 
           <div v-if="expanded === u.id" class="user-row-body">
             <div class="users-new-row" style="margin-bottom:10px;">
-              <input v-model="pwdDrafts[u.id]" type="password" placeholder="nouveau mot de passe" />
-              <button type="button" class="icon-btn" @click="changePassword(u)">Changer le mot de passe</button>
+              <input v-model="pwdDrafts[u.id]" type="password" :placeholder="t('usersModal.newPasswordPlaceholder')" />
+              <button type="button" class="icon-btn" @click="changePassword(u)">{{ t("usersModal.changePassword") }}</button>
             </div>
 
             <template v-if="!u.isAdmin">
               <div class="hint-text" style="margin-bottom:4px;">
-                Permissions globales ("*" dans une colonne = toutes les apps/actions)
+                {{ t("usersModal.globalPermsHint") }}
               </div>
               <table class="perm-table">
                 <thead>
                   <tr>
-                    <th>App</th>
+                    <th>{{ t("usersModal.app") }}</th>
                     <th v-for="(label, action) in catalog.appActions" :key="action" :title="label">
                       {{ action }}
                     </th>
@@ -178,7 +181,7 @@ function changePassword(u) {
                 </tbody>
               </table>
 
-              <div class="hint-text" style="margin:10px 0 4px;">Actions globales (daemon PM2, système…)</div>
+              <div class="hint-text" style="margin:10px 0 4px;">{{ t("usersModal.globalActionsHint") }}</div>
               <div class="global-perms">
                 <label v-for="(label, action) in catalog.globalActions" :key="action" class="chk" :title="label">
                   <input
@@ -190,7 +193,7 @@ function changePassword(u) {
                 </label>
               </div>
             </template>
-            <div v-else class="hint-text">Les administrateurs ont tous les droits, sur toutes les apps.</div>
+            <div v-else class="hint-text">{{ t("usersModal.adminHint") }}</div>
           </div>
         </div>
       </div>

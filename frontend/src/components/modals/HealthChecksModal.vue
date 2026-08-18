@@ -13,9 +13,12 @@
  * alimente le moteur d'alertes existant — voir docs/health-checks/README.md).
  */
 import { reactive, ref, computed, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
 import { state, notifyError, can } from "../../store";
 import { apiGet, apiPost } from "../../api";
 import ModalBase from "../ModalBase.vue";
+
+const { t, locale } = useI18n();
 
 function close() {
   state.modal = null;
@@ -28,7 +31,7 @@ function apiPut(url, body) {
     body: JSON.stringify(body || {}),
   }).then(async (r) => {
     const data = await r.json().catch(() => ({}));
-    if (!r.ok || data.error) throw new Error(data.error || `Erreur HTTP ${r.status}`);
+    if (!r.ok || data.error) throw new Error(data.error || `HTTP Error ${r.status}`);
     return data;
   });
 }
@@ -36,7 +39,7 @@ function apiPut(url, body) {
 function apiDelete(url) {
   return fetch(url, { method: "DELETE" }).then(async (r) => {
     const data = await r.json().catch(() => ({}));
-    if (!r.ok || data.error) throw new Error(data.error || `Erreur HTTP ${r.status}`);
+    if (!r.ok || data.error) throw new Error(data.error || `HTTP Error ${r.status}`);
     return data;
   });
 }
@@ -160,7 +163,7 @@ function save() {
 }
 
 function remove(c) {
-  if (!confirm(`Supprimer le health check "${c.name}" ?`)) return;
+  if (!confirm(t("healthChecksModal.confirmDelete", { name: c.name }))) return;
   apiDelete(`/api/health-checks/${c.id}`).then(load).catch(notifyError);
 }
 
@@ -182,8 +185,8 @@ function runTest(c) {
 const STATUS_ICON = { UP: "🟢", DOWN: "🔴", DEGRADED: "🟡", UNKNOWN: "⚪" };
 
 function fmtTime(ts) {
-  if (!ts) return "jamais";
-  return new Date(ts).toLocaleString("fr-FR");
+  if (!ts) return t("healthChecksModal.never");
+  return new Date(ts).toLocaleString(locale.value === "fr" ? "fr-FR" : "en-US");
 }
 
 function fmtMs(ms) {
@@ -198,15 +201,15 @@ const canTest = computed(() => can("health_checks_test"));
 </script>
 
 <template>
-  <ModalBase title="Health Checks" hide-confirm @close="close">
+  <ModalBase :title="t('healthChecksModal.title')" hide-confirm @close="close">
     <div class="hc-modal">
       <div v-if="!editing" class="hc-list">
         <div class="hc-toolbar">
-          <button v-if="canCreate" class="icon-btn go" @click="startCreate">+ Nouveau health check</button>
+          <button v-if="canCreate" class="icon-btn go" @click="startCreate">{{ t("healthChecksModal.newCheck") }}</button>
         </div>
 
-        <div v-if="loading">Chargement…</div>
-        <div v-else-if="!checks.length" class="hc-empty">Aucun health check configuré.</div>
+        <div v-if="loading">{{ t("healthChecksModal.loading") }}</div>
+        <div v-else-if="!checks.length" class="hc-empty">{{ t("healthChecksModal.empty") }}</div>
 
         <div v-else class="hc-cards">
           <div v-for="c in checks" :key="c.id" class="hc-card" :class="{ disabled: !c.enabled }">
@@ -216,20 +219,20 @@ const canTest = computed(() => can("health_checks_test"));
               <span class="hc-type">{{ c.type }}</span>
             </div>
             <div class="hc-card-meta">
-              <span>Dernier check : {{ fmtTime(c.lastCheckAt) }}</span>
-              <span>Temps de réponse : {{ fmtMs(c.lastResponseTimeMs) }}</span>
-              <span>Dernière panne : {{ fmtTime(c.lastFailureAt) }}</span>
+              <span>{{ t("healthChecksModal.lastCheck", { time: fmtTime(c.lastCheckAt) }) }}</span>
+              <span>{{ t("healthChecksModal.lastResponseTime", { time: fmtMs(c.lastResponseTimeMs) }) }}</span>
+              <span>{{ t("healthChecksModal.lastFailure", { time: fmtTime(c.lastFailureAt) }) }}</span>
             </div>
             <div v-if="c.lastError" class="hc-card-error">{{ c.lastError }}</div>
             <div class="hc-card-actions">
               <button v-if="canTest" class="icon-btn" :disabled="testResults[c.id]?.pending" @click="runTest(c)">
-                {{ testResults[c.id]?.pending ? "…" : "Run test" }}
+                {{ testResults[c.id]?.pending ? "…" : t("healthChecksModal.runTest") }}
               </button>
               <button v-if="canUpdate" class="icon-btn" @click="toggleEnabled(c)">
-                {{ c.enabled ? "Disable" : "Enable" }}
+                {{ c.enabled ? t("healthChecksModal.disable") : t("healthChecksModal.enable") }}
               </button>
-              <button v-if="canUpdate" class="icon-btn" @click="startEdit(c)">Edit</button>
-              <button v-if="canDelete" class="icon-btn danger" @click="remove(c)">Delete</button>
+              <button v-if="canUpdate" class="icon-btn" @click="startEdit(c)">{{ t("healthChecksModal.edit") }}</button>
+              <button v-if="canDelete" class="icon-btn danger" @click="remove(c)">{{ t("healthChecksModal.delete") }}</button>
             </div>
           </div>
         </div>
@@ -237,54 +240,53 @@ const canTest = computed(() => can("health_checks_test"));
 
       <div v-else class="hc-form">
         <label>
-          Nom
-          <input v-model="editing.name" type="text" placeholder="API principale" />
+          {{ t("healthChecksModal.name") }}
+          <input v-model="editing.name" type="text" :placeholder="t('healthChecksModal.namePlaceholder')" />
         </label>
 
         <label>
-          Type
+          {{ t("healthChecksModal.type") }}
           <select v-model="editing.type" :disabled="editing.mode === 'edit'">
-            <option v-for="t in catalog.types" :key="t" :value="t">{{ t }}</option>
+            <option v-for="t2 in catalog.types" :key="t2" :value="t2">{{ t2 }}</option>
           </select>
         </label>
 
         <template v-if="editing.type === 'http'">
-          <label>URL <input v-model="editing.url" type="text" placeholder="https://example.com/health" /></label>
+          <label>{{ t("healthChecksModal.url") }} <input v-model="editing.url" type="text" placeholder="https://example.com/health" /></label>
           <label>
-            Méthode
+            {{ t("healthChecksModal.method") }}
             <select v-model="editing.method">
               <option v-for="m in catalog.methods" :key="m" :value="m">{{ m }}</option>
             </select>
           </label>
-          <label>Code de statut attendu <input v-model="editing.expectedStatus" type="text" placeholder="200-299" /></label>
-          <label>Contenu attendu (optionnel) <input v-model="editing.expectedContent" type="text" /></label>
+          <label>{{ t("healthChecksModal.expectedStatus") }} <input v-model="editing.expectedStatus" type="text" placeholder="200-299" /></label>
+          <label>{{ t("healthChecksModal.expectedContent") }} <input v-model="editing.expectedContent" type="text" /></label>
         </template>
 
         <template v-else-if="editing.type === 'tcp'">
-          <label>Host <input v-model="editing.host" type="text" placeholder="db.internal" /></label>
-          <label>Port <input v-model="editing.port" type="number" placeholder="5432" /></label>
+          <label>{{ t("healthChecksModal.host") }} <input v-model="editing.host" type="text" placeholder="db.internal" /></label>
+          <label>{{ t("healthChecksModal.port") }} <input v-model="editing.port" type="number" placeholder="5432" /></label>
         </template>
 
         <template v-else-if="editing.type === 'command'">
           <p class="hc-command-warning">
-            Exécuté via <code>execFile</code> (jamais de shell) : la commande et ses arguments ne sont jamais
-            concaténés dans une chaîne interprétée par un shell — voir docs/health-checks/README.md#command.
+            {{ t("healthChecksModal.commandWarning") }}
           </p>
-          <label>Commande (chemin exécutable) <input v-model="editing.command" type="text" placeholder="/usr/local/bin/check.sh" /></label>
-          <label>Arguments (séparés par des espaces) <input v-model="editing.commandArgsText" type="text" /></label>
-          <label>Code de sortie attendu <input v-model="editing.expectedExitCode" type="number" /></label>
+          <label>{{ t("healthChecksModal.command") }} <input v-model="editing.command" type="text" placeholder="/usr/local/bin/check.sh" /></label>
+          <label>{{ t("healthChecksModal.commandArgs") }} <input v-model="editing.commandArgsText" type="text" /></label>
+          <label>{{ t("healthChecksModal.expectedExitCode") }} <input v-model="editing.expectedExitCode" type="number" /></label>
         </template>
 
-        <label>Timeout (ms) <input v-model="editing.timeoutMs" type="number" /></label>
-        <label>Intervalle (s) <input v-model="editing.intervalSeconds" type="number" /></label>
-        <label>Seuil "dégradé" (ms, optionnel) <input v-model="editing.degradedThresholdMs" type="number" /></label>
+        <label>{{ t("healthChecksModal.timeout") }} <input v-model="editing.timeoutMs" type="number" /></label>
+        <label>{{ t("healthChecksModal.interval") }} <input v-model="editing.intervalSeconds" type="number" /></label>
+        <label>{{ t("healthChecksModal.degradedThreshold") }} <input v-model="editing.degradedThresholdMs" type="number" /></label>
         <label class="hc-inline-checkbox">
-          <input v-model="editing.enabled" type="checkbox" /> Activé
+          <input v-model="editing.enabled" type="checkbox" /> {{ t("healthChecksModal.enabledLabel") }}
         </label>
 
         <div class="hc-form-actions">
-          <button class="icon-btn" @click="cancelEdit">Annuler</button>
-          <button class="icon-btn go" @click="save">Enregistrer</button>
+          <button class="icon-btn" @click="cancelEdit">{{ t("common.cancel") }}</button>
+          <button class="icon-btn go" @click="save">{{ t("healthChecksModal.save") }}</button>
         </div>
       </div>
     </div>

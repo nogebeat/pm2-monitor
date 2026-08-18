@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Signaler une vulnérabilité / Report a vulnerability
+    url: https://github.com/OWNER/pm2-monitor/security/advisories/new
+    about: Merci de ne PAS signaler de faille de sécurité via une issue publique — voir SECURITY.md
+  - name: 💬 Questions générales / General questions
+    url: https://github.com/OWNER/pm2-monitor/discussions
+    about: Pour une question d'usage plutôt qu'un bug ou une fonctionnalité, utilise les Discussions.

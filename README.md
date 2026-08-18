@@ -8,6 +8,10 @@ tourner **sur la machine où PM2 gère déjà tes apps** (il se branche sur l'AP
 programmatique de PM2, comme le ferait `pm2 monit` en ligne de commande), avec
 un frontend **Vue 3 + Vite** qui consomme cette API en REST + WebSocket.
 
+🌐 Interface disponible en **français** et **anglais** (sélecteur de langue
+dans la barre du haut). 🤝 Projet open source — contributions bienvenues,
+voir [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Stack technique
 
 - **Backend** : Node.js, Express, `pm2` (API programmatique), Socket.IO,
@@ -825,7 +829,45 @@ de départ dans le code) : [`docs/features.md`](docs/features.md).
   pm2 start server.js --name pm2-monitor
   ```
 
+## Traductions / Internationalisation (i18n)
+
+L'interface Vue supporte le **français** et l'**anglais** via `vue-i18n`.
+Le sélecteur de langue est dans la barre du haut (🇫🇷/🇬🇧) ; la langue
+choisie est mémorisée localement, avec détection automatique de la langue
+du navigateur au premier chargement.
+
+Les fichiers de traduction se trouvent dans
+`frontend/src/i18n/locales/{fr,en}.json`. Pour vérifier qu'ils restent
+synchronisés (mêmes clés dans les deux langues) :
+
+```bash
+npm run check:i18n
+```
+
+Ajouter une nouvelle langue est bienvenu — voir
+[CONTRIBUTING.md#traductions--i18n](CONTRIBUTING.md#traductions--i18n).
+
 ## Contribution
 
-  Noge@2026
+Les contributions sont les bienvenues, qu'il s'agisse de correctifs, de
+nouvelles fonctionnalités, de traductions ou simplement de rapports de bug.
+
+- 📖 Guide complet : [CONTRIBUTING.md](CONTRIBUTING.md)
+- 🤝 Code de conduite : [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- 🔒 Signaler une vulnérabilité : [SECURITY.md](SECURITY.md)
+- 📝 Historique des changements : [CHANGELOG.md](CHANGELOG.md)
+- ⚖️ Licence : [MIT](LICENSE)
+
+Pour démarrer rapidement :
+
+```bash
+git clone https://github.com/<ton-fork>/pm2-monitor.git
+cd pm2-monitor
+npm install
+cp .env.example .env
+npm run dev
+```
+
+Puis ouvre une [issue](../../issues) ou une
+[pull request](../../pulls) — en français ou en anglais, comme tu préfères.
 

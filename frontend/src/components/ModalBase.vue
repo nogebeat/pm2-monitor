@@ -1,8 +1,12 @@
 <script setup>
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
+
 const props = defineProps({
   title: { type: String, required: true },
   hideConfirm: { type: Boolean, default: false },
-  confirmLabel: { type: String, default: "Confirmer" },
+  confirmLabel: { type: String, default: "" },
 });
 const emit = defineEmits(["close", "confirm"]);
 
@@ -22,8 +26,8 @@ function onOverlayClick(e) {
         <slot />
       </div>
       <div class="modal-foot">
-        <button class="icon-btn" @click="emit('close')">Annuler</button>
-        <button v-if="!hideConfirm" class="icon-btn go" @click="emit('confirm')">{{ confirmLabel }}</button>
+        <button class="icon-btn" @click="emit('close')">{{ t("modalBase.cancel") }}</button>
+        <button v-if="!hideConfirm" class="icon-btn go" @click="emit('confirm')">{{ confirmLabel || t("modalBase.confirm") }}</button>
       </div>
     </div>
   </div>

@@ -1,8 +1,11 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import Chart from "chart.js/auto";
+import { useI18n } from "vue-i18n";
 import { state, loadHistoryChart } from "../store";
 import { fmtRate } from "../format";
+
+const { t, locale } = useI18n();
 
 const snap = computed(() => state.system);
 
@@ -41,7 +44,7 @@ function chartOptions(c, unitLabel) {
 async function refreshCharts() {
   try {
     const r = await loadHistoryChart(state.historyRange);
-    const labels = r.samples.map((s) => new Date(s.t).toLocaleTimeString("fr-FR", { hour12: false }));
+    const labels = r.samples.map((s) => new Date(s.t).toLocaleTimeString(locale.value === "fr" ? "fr-FR" : "en-US", { hour12: false }));
     const c = chartColors();
 
     const cpuData = r.samples.map((s) => s.cpu);
@@ -105,24 +108,24 @@ watch(
   <main class="system-view">
     <div class="system-grid">
       <div class="metric-card">
-        <span class="metric-label">Charge machine (load average)</span>
+        <span class="metric-label">{{ t("system.load") }}</span>
         <div class="metric-value">{{ snap?.load ? snap.load["1m"].toFixed(2) : "–" }}</div>
         <div class="metric-sub">
-          {{ snap?.load ? `${snap.load["1m"].toFixed(2)} / ${snap.load["5m"].toFixed(2)} / ${snap.load["15m"].toFixed(2)} · ${snap.load.cores} cœurs` : "1m / 5m / 15m" }}
+          {{ snap?.load ? t("system.loadSub", { m1: snap.load["1m"].toFixed(2), m5: snap.load["5m"].toFixed(2), m15: snap.load["15m"].toFixed(2), cores: snap.load.cores }) : t("system.loadShort") }}
         </div>
       </div>
       <div class="metric-card">
-        <span class="metric-label">RAM</span>
+        <span class="metric-label">{{ t("system.ram") }}</span>
         <div class="metric-value">{{ snap?.mem ? snap.mem.percent + "%" : "–" }}</div>
         <div class="bar"><div class="bar-fill" :style="{ width: (snap?.mem?.percent || 0) + '%' }"></div></div>
       </div>
       <div class="metric-card">
-        <span class="metric-label">Swap</span>
-        <div class="metric-value">{{ snap?.swap ? (snap.swap.total ? snap.swap.percent + "%" : "aucun swap") : "–" }}</div>
+        <span class="metric-label">{{ t("system.swap") }}</span>
+        <div class="metric-value">{{ snap?.swap ? (snap.swap.total ? snap.swap.percent + "%" : t("system.noSwap")) : "–" }}</div>
         <div class="bar"><div class="bar-fill warn" :style="{ width: (snap?.swap?.percent || 0) + '%' }"></div></div>
       </div>
       <div class="metric-card">
-        <span class="metric-label">Disque</span>
+        <span class="metric-label">{{ t("system.disk") }}</span>
         <div class="metric-value">{{ snap?.disk ? snap.disk.percent + "%" : "–" }}</div>
         <div class="bar">
           <div
@@ -133,30 +136,30 @@ watch(
         </div>
       </div>
       <div class="metric-card">
-        <span class="metric-label">Température CPU</span>
-        <div class="metric-value">{{ snap?.temp ? snap.temp.celsius + "°C" : "n/d" }}</div>
-        <div class="metric-sub">Linux uniquement</div>
+        <span class="metric-label">{{ t("system.cpuTemp") }}</span>
+        <div class="metric-value">{{ snap?.temp ? snap.temp.celsius + "°C" : t("system.notAvailable") }}</div>
+        <div class="metric-sub">{{ t("system.linuxOnly") }}</div>
       </div>
       <div class="metric-card">
-        <span class="metric-label">Bande passante réseau</span>
+        <span class="metric-label">{{ t("system.networkBandwidth") }}</span>
         <div class="metric-value">{{ snap?.net ? `↓ ${fmtRate(snap.net.rxRate)}` : "–" }}</div>
-        <div class="metric-sub">{{ snap?.net ? `↑ ${fmtRate(snap.net.txRate)}` : "↓ down / ↑ up" }}</div>
+        <div class="metric-sub">{{ snap?.net ? `↑ ${fmtRate(snap.net.txRate)}` : t("system.netHint") }}</div>
       </div>
       <div class="metric-card">
-        <span class="metric-label">Processus système</span>
+        <span class="metric-label">{{ t("system.systemProcesses") }}</span>
         <div class="metric-value">{{ snap?.processes ?? "–" }}</div>
-        <div class="metric-sub">total OS (pas seulement PM2)</div>
+        <div class="metric-sub">{{ t("system.systemProcessesSub") }}</div>
       </div>
       <div class="metric-card">
-        <span class="metric-label">Cœurs CPU</span>
+        <span class="metric-label">{{ t("system.cpuCores") }}</span>
         <div class="metric-value">{{ snap?.load ? snap.load.cores : "–" }}</div>
       </div>
     </div>
 
     <div class="chart-panel">
       <div class="chart-head">
-        <h2>Historique CPU / RAM</h2>
-        <div class="filter-group" role="group" aria-label="Plage d'historique">
+        <h2>{{ t("system.cpuRamHistory") }}</h2>
+        <div class="filter-group" role="group" :aria-label="t('system.rangeLabel')">
           <button class="filter-btn" :class="{ active: state.historyRange === '1h' }" @click="setRange('1h')">1h</button>
           <button class="filter-btn" :class="{ active: state.historyRange === '6h' }" @click="setRange('6h')">6h</button>
           <button class="filter-btn" :class="{ active: state.historyRange === '24h' }" @click="setRange('24h')">24h</button>
@@ -167,7 +170,7 @@ watch(
 
     <div class="chart-panel">
       <div class="chart-head">
-        <h2>Historique réseau</h2>
+        <h2>{{ t("system.networkHistory") }}</h2>
       </div>
       <div class="chart-wrap"><canvas ref="networkCanvas"></canvas></div>
     </div>

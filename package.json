@@ -16,7 +16,8 @@
     "migrate:status": "node bin/migrate.js status",
     "test": "node --test",
     "test:unit": "node --test test/unit/",
-    "test:integration": "node --test test/integration/"
+    "test:integration": "node --test test/integration/",
+    "check:i18n": "node scripts/check-i18n.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

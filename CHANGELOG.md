@@ -1,0 +1,28 @@
+# Changelog
+
+Toutes les modifications notables de ce projet seront documentées ici.
+
+Le format suit les principes de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/),
+et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
+
+## [Non publié]
+
+### Ajouté
+
+- 🌐 Internationalisation (i18n) complète de l'interface avec support
+  **français / anglais** via `vue-i18n`, sélecteur de langue dans la barre
+  du haut, détection automatique de la langue du navigateur, préférence
+  persistée en local.
+- Fichiers de gouvernance open source : `CONTRIBUTING.md`,
+  `CODE_OF_CONDUCT.md`, `SECURITY.md`, `LICENSE` (MIT).
+- Templates GitHub : rapport de bug, demande de fonctionnalité, template de
+  Pull Request.
+- Workflow CI (GitHub Actions) : tests unitaires + intégration sur Node 20
+  et 22, build du frontend, vérification de parité des clés de traduction.
+- Script `scripts/check-i18n.js` (`npm run check:i18n`) pour vérifier que
+  les fichiers `fr.json` et `en.json` restent synchronisés.
+
+## Format des entrées futures
+
+Chaque nouvelle version doit lister ses changements sous les catégories :
+`Ajouté`, `Modifié`, `Déprécié`, `Supprimé`, `Corrigé`, `Sécurité`.

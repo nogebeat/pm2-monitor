@@ -1,6 +1,10 @@
 <script setup>
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { state, logout, can } from "../store";
+import LanguageSwitch from "./LanguageSwitch.vue";
+
+const { t } = useI18n();
 
 const online = computed(() => state.processes.filter((p) => p.status === "online").length);
 const down = computed(() => state.processes.filter((p) => p.status !== "online").length);
@@ -48,21 +52,21 @@ function openAuditLog() {
       <span class="brand-mark" aria-hidden="true"></span>
       <div>
         <h1>PM2 Monitor</h1>
-        <p class="brand-sub">Vitaux des process, en direct</p>
+        <p class="brand-sub">{{ t("topbar.tagline") }}</p>
       </div>
     </div>
 
-    <nav class="view-tabs" role="tablist" aria-label="Vue">
+    <nav class="view-tabs" role="tablist" :aria-label="t('topbar.viewLabel')">
       <button
         v-if="can('system')"
         class="view-tab"
         :class="{ active: state.view === 'dashboard' }"
         @click="setView('dashboard')"
       >
-        Dashboard
+        {{ t("topbar.tabDashboard") }}
       </button>
       <button class="view-tab" :class="{ active: state.view === 'process' }" @click="setView('process')">
-        Process
+        {{ t("topbar.tabProcess") }}
       </button>
       <button
         v-if="can('system')"
@@ -70,7 +74,7 @@ function openAuditLog() {
         :class="{ active: state.view === 'system' }"
         @click="setView('system')"
       >
-        Système
+        {{ t("topbar.tabSystem") }}
       </button>
       <button
         v-if="can('events_read')"
@@ -78,66 +82,67 @@ function openAuditLog() {
         :class="{ active: state.view === 'events' }"
         @click="setView('events')"
       >
-        Timeline
+        {{ t("topbar.tabTimeline") }}
       </button>
     </nav>
 
     <div class="topbar-stats">
       <div class="stat">
         <span class="stat-value">{{ state.processes.length || "–" }}</span>
-        <span class="stat-label">apps</span>
+        <span class="stat-label">{{ t("topbar.apps") }}</span>
       </div>
       <div class="stat">
         <span class="stat-value stat-online">{{ state.processes.length ? online : "–" }}</span>
-        <span class="stat-label">en ligne</span>
+        <span class="stat-label">{{ t("topbar.online") }}</span>
       </div>
       <div class="stat">
         <span class="stat-value stat-down">{{ state.processes.length ? down : "–" }}</span>
-        <span class="stat-label">arrêtées</span>
+        <span class="stat-label">{{ t("topbar.down") }}</span>
       </div>
       <div class="conn" :class="state.connected ? 'is-connected' : 'is-disconnected'">
         <span class="conn-dot"></span>
-        <span class="conn-label">{{ state.connected ? "connecté" : "déconnecté" }}</span>
+        <span class="conn-label">{{ state.connected ? t("topbar.connected") : t("topbar.disconnected") }}</span>
       </div>
-      <button class="icon-btn" title="Actions globales PM2" @click="togglePm2Menu">PM2 ⋯</button>
+      <button class="icon-btn" :title="t('topbar.pm2Actions')" @click="togglePm2Menu">PM2 ⋯</button>
       <button
         v-if="can('notifications_read')"
         class="icon-btn"
-        title="Settings → Notifications (Providers / Routing)"
+        :title="t('topbar.notificationsTitle')"
         @click="openNotifications"
       >
-        🔔 Notifications
+        🔔 {{ t("topbar.notifications") }}
       </button>
       <button
         v-if="can('health_checks_read')"
         class="icon-btn"
-        title="Settings → Health Checks (HTTP / TCP / Command)"
+        :title="t('topbar.healthChecksTitle')"
         @click="openHealthChecks"
       >
-        ❤ Health Checks
+        ❤ {{ t("topbar.healthChecks") }}
       </button>
       <button
         v-if="can('audit_read')"
         class="icon-btn"
-        title="Settings → Audit Log (actions sensibles)"
+        :title="t('topbar.auditLogTitle')"
         @click="openAuditLog"
       >
-        🧾 Audit Log
+        🧾 {{ t("topbar.auditLog") }}
       </button>
       <button
         v-if="state.auth.user && state.auth.user.isAdmin"
         class="icon-btn"
-        title="Gérer les utilisateurs et permissions"
+        :title="t('topbar.usersTitle')"
         @click="openUsers"
       >
-        👤 Utilisateurs
+        👤 {{ t("topbar.users") }}
       </button>
-      <button class="theme-toggle" title="Changer de thème" aria-label="Changer de thème" @click="toggleTheme">
+      <LanguageSwitch />
+      <button class="theme-toggle" :title="t('topbar.themeToggle')" :aria-label="t('topbar.themeToggle')" @click="toggleTheme">
         <span class="theme-icon">◐</span>
       </button>
       <div v-if="state.auth.authEnabled && state.auth.user" class="user-chip" :title="state.auth.user.username">
         <span>{{ state.auth.user.username }}</span>
-        <button class="icon-btn" title="Se déconnecter" @click="logout">⏻</button>
+        <button class="icon-btn" :title="t('topbar.logout')" @click="logout">⏻</button>
       </div>
     </div>
   </header>

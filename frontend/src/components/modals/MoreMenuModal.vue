@@ -1,7 +1,10 @@
 <script setup>
+import { useI18n } from "vue-i18n";
 import { state, notifyError, loadLogsStats, can } from "../../store";
 import { apiPost } from "../../api";
 import ModalBase from "../ModalBase.vue";
+
+const { t } = useI18n();
 
 const props = defineProps({
   process: { type: Object, required: true },
@@ -29,7 +32,7 @@ function editConfig() {
 }
 
 function flush() {
-  if (!confirm(`Vider les logs de "${props.process.name}" ?`)) return;
+  if (!confirm(t("moreMenu.confirmFlush", { name: props.process.name }))) return;
   close();
   apiPost(`/api/processes/${props.process.id}/flush`).then(loadLogsStats).catch(notifyError);
 }
@@ -40,36 +43,36 @@ function reset() {
 }
 
 function del() {
-  if (!confirm(`Supprimer définitivement "${props.process.name}" de PM2 ?`)) return;
+  if (!confirm(t("moreMenu.confirmDelete", { name: props.process.name }))) return;
   close();
   apiPost(`/api/processes/${props.process.id}/delete`).catch(notifyError);
 }
 </script>
 
 <template>
-  <ModalBase :title="`Actions — ${process.name}`" hide-confirm @close="close">
-    <div class="hint-text">Actions rapides pour <b>{{ process.name }}</b> (#{{ process.id }})</div>
+  <ModalBase :title="t('moreMenu.title', { name: process.name })" hide-confirm @close="close">
+    <div class="hint-text">{{ t("moreMenu.quickActionsFor") }} <b>{{ process.name }}</b> (#{{ process.id }})</div>
     <div class="more-actions">
       <button v-if="can('scale', process.name)" class="icon-btn" @click="scale">
-        📈 Scale (instances actuelles : {{ process.instances }})
+        📈 {{ t("moreMenu.scale", { n: process.instances }) }}
       </button>
       <button v-if="can('watch', process.name)" class="icon-btn" @click="toggleWatch">
-        👁 Watch {{ process.watching ? "OFF" : "ON" }}
+        👁 {{ process.watching ? t("moreMenu.watchOff") : t("moreMenu.watchOn") }}
       </button>
       <button v-if="can('env', process.name)" class="icon-btn" @click="editEnv">
-        🔧 Modifier les variables d'environnement
+        🔧 {{ t("moreMenu.editEnv") }}
       </button>
       <button v-if="can('config', process.name)" class="icon-btn" @click="editConfig">
-        ⚙️ Modifier script / arguments / mode
+        ⚙️ {{ t("moreMenu.editConfig") }}
       </button>
       <button v-if="can('flush', process.name)" class="icon-btn" @click="flush">
-        🧹 Flush les logs de cette app
+        🧹 {{ t("moreMenu.flush") }}
       </button>
       <button v-if="can('reset', process.name)" class="icon-btn" @click="reset">
-        ↺ Réinitialiser le compteur de restarts
+        ↺ {{ t("moreMenu.reset") }}
       </button>
       <button v-if="can('delete', process.name)" class="icon-btn danger-text" @click="del">
-        🗑 Supprimer le process
+        🗑 {{ t("moreMenu.delete") }}
       </button>
     </div>
   </ModalBase>

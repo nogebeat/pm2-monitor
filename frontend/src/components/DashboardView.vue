@@ -1,7 +1,10 @@
 <script setup>
 import { computed, onMounted, onBeforeUnmount } from "vue";
+import { useI18n } from "vue-i18n";
 import { state, loadDashboard, selectProcess } from "../store";
 import { fmtMem, fmtUptime, fmtRate, time } from "../format";
+
+const { t } = useI18n();
 
 // --- Chargement / rafraîchissement -----------------------------------------
 // Le store (loadDashboard + scheduleDashboardRefresh) gère déjà le temps réel
@@ -24,7 +27,11 @@ onBeforeUnmount(() => {
 
 const sys = computed(() => state.system);
 
-const STATUS_LABEL = { HEALTHY: "Sain", WARNING: "Avertissement", CRITICAL: "Critique" };
+const STATUS_LABEL = computed(() => ({
+  HEALTHY: t("dashboard.statusHealthy"),
+  WARNING: t("dashboard.statusWarning"),
+  CRITICAL: t("dashboard.statusCritical"),
+}));
 const STATUS_ICON = { HEALTHY: "✓", WARNING: "⚠", CRITICAL: "✕" };
 
 const globalStatus = computed(() => state.dashboard.globalStatus);
@@ -62,11 +69,11 @@ const TIMELINE_ICON = {
 function timelineLabel(item) {
   if (item.kind === "process_event") return item.type;
   if (item.kind === "alert") {
-    if (item.type === "resolved") return `alerte résolue (${item.ruleName || "?"})`;
-    if (item.type === "acknowledged") return `alerte acquittée (${item.ruleName || "?"})`;
-    return `alerte déclenchée (${item.ruleName || "?"})`;
+    if (item.type === "resolved") return t("dashboard.alertResolved", { name: item.ruleName || "?" });
+    if (item.type === "acknowledged") return t("dashboard.alertAcknowledged", { name: item.ruleName || "?" });
+    return t("dashboard.alertTriggered", { name: item.ruleName || "?" });
   }
-  if (item.kind === "auto_healing") return `auto-healing: ${item.type} (${item.result || "?"})`;
+  if (item.kind === "auto_healing") return t("dashboard.autoHealing", { type: item.type, result: item.result || "?" });
   return item.kind;
 }
 
@@ -96,24 +103,24 @@ function statusDotClass(status) {
       <div class="global-status-main">
         <span class="global-status-icon">{{ STATUS_ICON[globalStatus] || "…" }}</span>
         <div>
-          <div class="global-status-label">{{ STATUS_LABEL[globalStatus] || "Chargement…" }}</div>
-          <div class="global-status-sub">État global du serveur et des applications</div>
+          <div class="global-status-label">{{ STATUS_LABEL[globalStatus] || t("dashboard.statusLoading") }}</div>
+          <div class="global-status-sub">{{ t("dashboard.statusSub") }}</div>
         </div>
       </div>
       <ul v-if="state.dashboard.globalStatusReasons.length" class="global-status-reasons">
         <li v-for="(r, i) in state.dashboard.globalStatusReasons" :key="i">{{ r }}</li>
       </ul>
       <div v-else-if="state.dashboard.loaded" class="global-status-reasons global-status-reasons-empty">
-        Aucune anomalie détectée.
+        {{ t("dashboard.noAnomaly") }}
       </div>
     </div>
 
     <!-- 2. Vue système -->
     <section class="dash-section">
-      <h2>Système</h2>
+      <h2>{{ t("dashboard.system") }}</h2>
       <div class="system-grid">
         <div class="metric-card">
-          <span class="metric-label">CPU</span>
+          <span class="metric-label">{{ t("dashboard.cpu") }}</span>
           <div class="metric-value">{{ sys ? sys.cpu + "%" : "–" }}</div>
           <div class="bar">
             <div
@@ -124,7 +131,7 @@ function statusDotClass(status) {
           </div>
         </div>
         <div class="metric-card">
-          <span class="metric-label">RAM</span>
+          <span class="metric-label">{{ t("dashboard.ram") }}</span>
           <div class="metric-value">{{ sys?.mem ? sys.mem.percent + "%" : "–" }}</div>
           <div class="bar">
             <div
@@ -135,7 +142,7 @@ function statusDotClass(status) {
           </div>
         </div>
         <div class="metric-card">
-          <span class="metric-label">Disque</span>
+          <span class="metric-label">{{ t("dashboard.disk") }}</span>
           <div class="metric-value">{{ sys?.disk ? sys.disk.percent + "%" : "–" }}</div>
           <div class="bar">
             <div
@@ -146,14 +153,14 @@ function statusDotClass(status) {
           </div>
         </div>
         <div class="metric-card">
-          <span class="metric-label">Réseau</span>
+          <span class="metric-label">{{ t("dashboard.network") }}</span>
           <div class="metric-value">{{ sys?.net ? `↓ ${fmtRate(sys.net.rxRate)}` : "–" }}</div>
-          <div class="metric-sub">{{ sys?.net ? `↑ ${fmtRate(sys.net.txRate)}` : "↓ down / ↑ up" }}</div>
+          <div class="metric-sub">{{ sys?.net ? `↑ ${fmtRate(sys.net.txRate)}` : t("system.netHint") }}</div>
         </div>
         <div class="metric-card">
-          <span class="metric-label">Température CPU</span>
-          <div class="metric-value">{{ sys?.temp ? sys.temp.celsius + "°C" : "n/d" }}</div>
-          <div class="metric-sub">Linux uniquement</div>
+          <span class="metric-label">{{ t("dashboard.cpuTemp") }}</span>
+          <div class="metric-value">{{ sys?.temp ? sys.temp.celsius + "°C" : t("system.notAvailable") }}</div>
+          <div class="metric-sub">{{ t("dashboard.linuxOnly") }}</div>
         </div>
       </div>
     </section>
@@ -161,7 +168,7 @@ function statusDotClass(status) {
     <div class="dash-cols">
       <!-- 3. Process overview -->
       <section class="dash-section dash-col">
-        <h2>Processus</h2>
+        <h2>{{ t("dashboard.processes") }}</h2>
         <div v-if="overview" class="overview-grid">
           <div class="overview-item"><span class="overview-value">{{ overview.total }}</span><span class="overview-label">total</span></div>
           <div class="overview-item ok"><span class="overview-value">{{ overview.online }}</span><span class="overview-label">online</span></div>
@@ -170,36 +177,36 @@ function statusDotClass(status) {
           <div class="overview-item danger"><span class="overview-value">{{ overview.crashed }}</span><span class="overview-label">crashed</span></div>
           <div class="overview-item warn"><span class="overview-value">{{ overview.restarting }}</span><span class="overview-label">restarting</span></div>
         </div>
-        <div v-else class="dash-empty">Chargement…</div>
+        <div v-else class="dash-empty">{{ t("dashboard.statusLoading") }}</div>
       </section>
 
       <!-- 4. Alert overview -->
       <section class="dash-section dash-col">
-        <h2>Alertes</h2>
+        <h2>{{ t("dashboard.alerts") }}</h2>
         <div v-if="alerts" class="overview-grid">
-          <div class="overview-item"><span class="overview-value">{{ alerts.active }}</span><span class="overview-label">actives</span></div>
-          <div class="overview-item danger"><span class="overview-value">{{ alerts.critical }}</span><span class="overview-label">critiques</span></div>
+          <div class="overview-item"><span class="overview-value">{{ alerts.active }}</span><span class="overview-label">{{ t('dashboard.alertsActive') }}</span></div>
+          <div class="overview-item danger"><span class="overview-value">{{ alerts.critical }}</span><span class="overview-label">{{ t('dashboard.alertsCritical') }}</span></div>
           <div class="overview-item warn"><span class="overview-value">{{ alerts.warning }}</span><span class="overview-label">warning</span></div>
-          <div class="overview-item"><span class="overview-value">{{ alerts.acknowledged }}</span><span class="overview-label">acquittées</span></div>
+          <div class="overview-item"><span class="overview-value">{{ alerts.acknowledged }}</span><span class="overview-label">{{ t('dashboard.alertsAcked') }}</span></div>
         </div>
-        <div v-else class="dash-empty">Permission manquante (alerts_read) ou aucune donnée.</div>
+        <div v-else class="dash-empty">{{ t("dashboard.alertsMissingPerm") }}</div>
       </section>
     </div>
 
     <!-- 5. Process table -->
     <section class="dash-section">
-      <h2>Vue d'ensemble des process</h2>
+      <h2>{{ t("dashboard.processOverview") }}</h2>
       <div class="dash-table-wrap">
         <table v-if="state.processes.length" class="dash-table">
           <thead>
             <tr>
-              <th>Application</th>
-              <th>Statut</th>
+              <th>{{ t("dashboard.colApp") }}</th>
+              <th>{{ t("dashboard.colStatus") }}</th>
               <th>CPU</th>
               <th>RAM</th>
-              <th>Restarts</th>
-              <th>Uptime</th>
-              <th>Health</th>
+              <th>{{ t("dashboard.colRestarts") }}</th>
+              <th>{{ t("dashboard.colUptime") }}</th>
+              <th>{{ t("dashboard.colHealth") }}</th>
             </tr>
           </thead>
           <tbody>
@@ -222,23 +229,23 @@ function statusDotClass(status) {
             </tr>
           </tbody>
         </table>
-        <div v-else class="dash-empty">Aucun process.</div>
+        <div v-else class="dash-empty">{{ t("dashboard.noProcess") }}</div>
       </div>
     </section>
 
     <!-- 7. Recent timeline -->
     <section class="dash-section">
-      <h2>Timeline récente</h2>
+      <h2>{{ t("dashboard.recentTimeline") }}</h2>
       <ul v-if="state.dashboard.recentTimeline.length" class="dash-timeline">
         <li v-for="(item, i) in state.dashboard.recentTimeline" :key="i" class="dash-timeline-row">
           <span class="event-icon" aria-hidden="true">{{ TIMELINE_ICON[item.kind] || "•" }}</span>
           <span class="event-time">{{ time(item.at) }}</span>
-          <span class="event-process">{{ item.process || "?" }}</span>
+          <span class="event-process">{{ item.process || t("dashboard.unknown") }}</span>
           <span class="event-type">{{ timelineLabel(item) }}</span>
           <span class="event-badge" :class="timelineSeverityClass(item)">{{ item.kind }}</span>
         </li>
       </ul>
-      <div v-else class="dash-empty">Aucun événement récent.</div>
+      <div v-else class="dash-empty">{{ t("dashboard.noRecentEvent") }}</div>
     </section>
   </main>
 </template>
