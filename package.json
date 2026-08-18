@@ -1,6 +1,6 @@
 {
   "name": "pm2-monitor",
-  "version": "3.6.0",
+  "version": "4.0.0",
   "description": "Interface graphique de monitoring PM2 (liste des process, logs en direct, dashboard, alertes) — frontend Vue 3 + Vite",
   "keywords": [
     "pm2",
