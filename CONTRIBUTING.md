@@ -91,8 +91,22 @@ sera probablement plus longue à relire et à merger.
 - **Frontend** : Vue 3 avec `<script setup>`, composants sous
   `frontend/src/components/`. Garde les composants petits et centrés sur
   une responsabilité, comme le reste du projet.
-- Pas de linter/formatter automatique configuré à ce jour — merci de rester
-  cohérent avec l'indentation et les conventions du fichier que tu modifies.
+- Le formatage est géré par **Prettier** et la qualité par **ESLint** —
+  les deux sont branchés en CI et sur un hook pre-commit (Husky +
+  lint-staged) qui les applique automatiquement aux fichiers modifiés :
+
+  ```bash
+  npm run lint          # ESLint (backend + frontend)
+  npm run lint:fix       # ESLint avec correction automatique
+  npm run format         # Prettier — reformate tout le projet
+  npm run format:check   # Prettier — vérifie sans modifier (utilisé en CI)
+  ```
+
+- Les commits doivent suivre la convention
+  [Conventional Commits](https://www.conventionalcommits.org/)
+  (`feat: ...`, `fix: ...`, `docs: ...`, `chore: ...`…) — un hook
+  `commit-msg` (commitlint) le vérifie automatiquement. Le sujet peut être
+  écrit en français ou en anglais.
 - Les commentaires de code existants sont majoritairement en français ;
   tu peux commenter en français ou en anglais, l'important est la clarté.
 
@@ -127,7 +141,8 @@ et de l'enregistrer dans `frontend/src/i18n/index.js`.
 2. Fais des commits atomiques avec des messages clairs. Le préfixage façon
    [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`,
    `fix:`, `docs:`, `chore:`…) est apprécié mais pas obligatoire.
-3. Assure-toi que `npm test` et `npm run build` passent sans erreur.
+3. Assure-toi que `npm run lint`, `npm test` et `npm run build` passent
+   sans erreur (le hook pre-commit et la CI vérifient la même chose).
 4. Ouvre la Pull Request contre `main` avec :
    - un résumé clair du **quoi** et du **pourquoi** ;
    - un lien vers l'issue concernée s'il y en a une (`Closes #123`) ;

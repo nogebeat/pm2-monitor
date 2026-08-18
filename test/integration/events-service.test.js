@@ -61,12 +61,15 @@ test("EventsService — recordFromPacket() puis list()", async (t) => {
     assert.equal(page2.total, 5);
   });
 
-  await t.test("list() : jamais toute l'historique en une seule requête (limit borné au maximum)", async () => {
-    const svc = new EventsService({ EVENTS_ENABLED: "1" });
-    const result = await svc.list({ process: "paginated-app", limit: 999999 });
-    const { MAX_LIMIT } = require("../../lib/services/events/event-store");
-    assert.ok(result.limit <= MAX_LIMIT);
-  });
+  await t.test(
+    "list() : jamais toute l'historique en une seule requête (limit borné au maximum)",
+    async () => {
+      const svc = new EventsService({ EVENTS_ENABLED: "1" });
+      const result = await svc.list({ process: "paginated-app", limit: 999999 });
+      const { MAX_LIMIT } = require("../../lib/services/events/event-store");
+      assert.ok(result.limit <= MAX_LIMIT);
+    },
+  );
 
   await t.test("list() : filtre par type et par severity", async () => {
     const svc = new EventsService({ EVENTS_ENABLED: "1" });

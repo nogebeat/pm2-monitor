@@ -87,7 +87,9 @@ test("provider discord", async (t) => {
     withFetch(t, async () => {
       throw new TypeError("fetch failed for https://discord.com/api/webhooks/1/super-secret-token");
     });
-    const result = await discord.send(NOTIFICATION, { webhookUrl: "https://discord.com/api/webhooks/1/super-secret-token" });
+    const result = await discord.send(NOTIFICATION, {
+      webhookUrl: "https://discord.com/api/webhooks/1/super-secret-token",
+    });
     assert.equal(result.success, false);
     assert.equal(result.errorCode, "NETWORK_ERROR");
     assert.ok(!result.safeMessage.includes("super-secret-token"));
@@ -331,7 +333,10 @@ test("provider webhook", async (t) => {
       seenHeaders = opts.headers;
       return jsonResponse(200, {});
     });
-    await webhook.send(NOTIFICATION, { url: "https://example.com/hook", headers: { Authorization: "Bearer secret-token" } });
+    await webhook.send(NOTIFICATION, {
+      url: "https://example.com/hook",
+      headers: { Authorization: "Bearer secret-token" },
+    });
     assert.equal(seenHeaders.Authorization, "Bearer secret-token");
   });
 
@@ -383,19 +388,34 @@ test("provider email", async (t) => {
   });
 
   await t.test("validateConfig rejette un security invalide", () => {
-    const errors = email.validateConfig({ host: "smtp.example.com", port: 587, fromEmail: "a@example.com", security: "wat" });
+    const errors = email.validateConfig({
+      host: "smtp.example.com",
+      port: 587,
+      fromEmail: "a@example.com",
+      security: "wat",
+    });
     assert.ok(errors.some((e) => /security/.test(e)));
   });
 
   await t.test("validateConfig accepte les 3 valeurs de security supportées", () => {
     for (const security of ["None", "STARTTLS", "SSL/TLS"]) {
-      const errors = email.validateConfig({ host: "smtp.example.com", port: 587, fromEmail: "a@example.com", security });
+      const errors = email.validateConfig({
+        host: "smtp.example.com",
+        port: 587,
+        fromEmail: "a@example.com",
+        security,
+      });
       assert.deepEqual(errors, [], `security="${security}" devrait être valide`);
     }
   });
 
   await t.test("validateConfig exige username/password ensemble", () => {
-    const errors = email.validateConfig({ host: "smtp.example.com", port: 587, fromEmail: "a@example.com", username: "u" });
+    const errors = email.validateConfig({
+      host: "smtp.example.com",
+      port: 587,
+      fromEmail: "a@example.com",
+      username: "u",
+    });
     assert.ok(errors.some((e) => /ensemble/.test(e)));
   });
 
@@ -434,19 +454,22 @@ test("provider email", async (t) => {
     assert.equal(result.messageId, "<abc@smtp>");
   });
 
-  await t.test("send() : erreur d'authentification -> AUTH_ERROR, jamais le mot de passe exposé", async (t) => {
-    mockTransport(t, {
-      sendMail: async () => {
-        const err = new Error("535 5.7.8 Authentication failed: password=hunter2");
-        err.code = "EAUTH";
-        throw err;
-      },
-      close: () => {},
-    });
-    const result = await email.send(NOTIFICATION, { ...CONFIG, username: "u", password: "hunter2" });
-    assert.equal(result.errorCode, "AUTH_ERROR");
-    assert.ok(!result.safeMessage.includes("hunter2"));
-  });
+  await t.test(
+    "send() : erreur d'authentification -> AUTH_ERROR, jamais le mot de passe exposé",
+    async (t) => {
+      mockTransport(t, {
+        sendMail: async () => {
+          const err = new Error("535 5.7.8 Authentication failed: password=hunter2");
+          err.code = "EAUTH";
+          throw err;
+        },
+        close: () => {},
+      });
+      const result = await email.send(NOTIFICATION, { ...CONFIG, username: "u", password: "hunter2" });
+      assert.equal(result.errorCode, "AUTH_ERROR");
+      assert.ok(!result.safeMessage.includes("hunter2"));
+    },
+  );
 
   await t.test("send() : erreur réseau -> NETWORK_ERROR", async (t) => {
     mockTransport(t, {

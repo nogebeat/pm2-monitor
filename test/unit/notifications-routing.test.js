@@ -3,7 +3,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { renderNotification, renderString, buildVariables } = require("../../lib/services/notifications/routing/templates");
+const {
+  renderNotification,
+  renderString,
+  buildVariables,
+} = require("../../lib/services/notifications/routing/templates");
 const { RoutingEngine, matchesList } = require("../../lib/services/notifications/routing/engine");
 
 function makeAlert(overrides) {
@@ -42,7 +46,10 @@ test("templates.js — buildVariables / renderString", async (t) => {
   });
 
   await t.test("renderString remplace les placeholders connus", () => {
-    const out = renderString("{{severity}} sur {{targetValue}}", { severity: "critical", targetValue: "api" });
+    const out = renderString("{{severity}} sur {{targetValue}}", {
+      severity: "critical",
+      targetValue: "api",
+    });
     assert.equal(out, "critical sur api");
   });
 
@@ -140,8 +147,14 @@ test("routing/engine.js — RoutingEngine#routeMatches", async (t) => {
   await t.test("filtre process : ne matche que les alertes 'process' avec ce nom", () => {
     const engine = makeEngine();
     const route = { conditions: { process: ["api-prod"] } };
-    assert.equal(engine.routeMatches(route, makeAlert({ targetType: "process", targetValue: "api-prod" })), true);
-    assert.equal(engine.routeMatches(route, makeAlert({ targetType: "process", targetValue: "worker" })), false);
+    assert.equal(
+      engine.routeMatches(route, makeAlert({ targetType: "process", targetValue: "api-prod" })),
+      true,
+    );
+    assert.equal(
+      engine.routeMatches(route, makeAlert({ targetType: "process", targetValue: "worker" })),
+      false,
+    );
     assert.equal(engine.routeMatches(route, makeAlert({ targetType: "system", targetValue: null })), false);
   });
 
@@ -162,12 +175,18 @@ test("routing/engine.js — RoutingEngine#routeMatches", async (t) => {
     const engine = makeEngine();
     const route = { conditions: { severity: ["warning"], process: ["api-prod"] } };
     assert.equal(
-      engine.routeMatches(route, makeAlert({ severity: "warning", targetType: "process", targetValue: "api-prod" })),
-      true
+      engine.routeMatches(
+        route,
+        makeAlert({ severity: "warning", targetType: "process", targetValue: "api-prod" }),
+      ),
+      true,
     );
     assert.equal(
-      engine.routeMatches(route, makeAlert({ severity: "critical", targetType: "process", targetValue: "api-prod" })),
-      false
+      engine.routeMatches(
+        route,
+        makeAlert({ severity: "critical", targetType: "process", targetValue: "api-prod" }),
+      ),
+      false,
     );
   });
 });
@@ -193,7 +212,9 @@ test("routing/engine.js — RoutingEngine#dispatch", async (t) => {
   }
 
   await t.test("aucune route ne matche : aucun envoi, tableau vide", async () => {
-    const stores = makeStores({ routes: [{ enabled: true, conditions: { severity: ["critical"] }, providerIds: [1] }] });
+    const stores = makeStores({
+      routes: [{ enabled: true, conditions: { severity: ["critical"] }, providerIds: [1] }],
+    });
     const engine = new RoutingEngine(stores);
     const results = await engine.dispatch(makeAlert({ severity: "warning" }), "triggered");
     assert.deepEqual(results, []);
@@ -210,7 +231,9 @@ test("routing/engine.js — RoutingEngine#dispatch", async (t) => {
   await t.test("route matchée, provider connu et actif : envoi + historique 'success'", async () => {
     const stores = makeStores({
       routes: [{ id: 5, enabled: true, conditions: {}, providerIds: [1] }],
-      providers: { 1: { id: 1, type: "fake", enabled: true, configuration: { url: "https://example.test" } } },
+      providers: {
+        1: { id: 1, type: "fake", enabled: true, configuration: { url: "https://example.test" } },
+      },
       sendImpl: async (notification) => {
         assert.ok(notification.title);
         assert.ok(notification.message);
@@ -251,52 +274,67 @@ test("routing/engine.js — RoutingEngine#dispatch", async (t) => {
     assert.equal(stores.historyEntries[0].errorCode, "PROVIDER_DISABLED");
   });
 
-  await t.test("provider en échec réseau (send() renvoie success:false) : historique 'failed', pas d'exception", async () => {
-    const stores = makeStores({
-      routes: [{ id: 5, enabled: true, conditions: {}, providerIds: [1] }],
-      providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
-      sendImpl: async () => ({ success: false, provider: "fake", errorCode: "NETWORK_ERROR", safeMessage: "…", responseTime: 10 }),
-    });
-    const engine = new RoutingEngine(stores);
-    const results = await engine.dispatch(makeAlert(), "triggered");
-    assert.equal(results.length, 1);
-    assert.equal(stores.historyEntries[0].status, "failed");
-    assert.equal(stores.historyEntries[0].errorCode, "NETWORK_ERROR");
-  });
+  await t.test(
+    "provider en échec réseau (send() renvoie success:false) : historique 'failed', pas d'exception",
+    async () => {
+      const stores = makeStores({
+        routes: [{ id: 5, enabled: true, conditions: {}, providerIds: [1] }],
+        providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
+        sendImpl: async () => ({
+          success: false,
+          provider: "fake",
+          errorCode: "NETWORK_ERROR",
+          safeMessage: "…",
+          responseTime: 10,
+        }),
+      });
+      const engine = new RoutingEngine(stores);
+      const results = await engine.dispatch(makeAlert(), "triggered");
+      assert.equal(results.length, 1);
+      assert.equal(stores.historyEntries[0].status, "failed");
+      assert.equal(stores.historyEntries[0].errorCode, "NETWORK_ERROR");
+    },
+  );
 
-  await t.test("provider qui lance une exception : capturée, historique 'failed'/INTERNAL_ERROR", async () => {
-    const stores = makeStores({
-      routes: [{ id: 5, enabled: true, conditions: {}, providerIds: [1] }],
-      providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
-      sendImpl: async () => {
-        throw new Error("boom");
-      },
-    });
-    const engine = new RoutingEngine(stores);
-    const results = await engine.dispatch(makeAlert(), "triggered");
-    assert.equal(results.length, 1);
-    assert.equal(stores.historyEntries[0].status, "failed");
-    assert.equal(stores.historyEntries[0].errorCode, "INTERNAL_ERROR");
-  });
-
-  await t.test("route désactivée exclue par routeStore.list({enabledOnly:true}) (contrat, pas re-vérifié ici)", async () => {
-    // RoutingEngine délègue le filtre enabled/disabled à routeStore.list() —
-    // ce test vérifie juste qu'il l'appelle bien avec enabledOnly:true.
-    let receivedOpts = null;
-    const engine = new RoutingEngine({
-      routeStore: {
-        list: async (opts) => {
-          receivedOpts = opts;
-          return [];
+  await t.test(
+    "provider qui lance une exception : capturée, historique 'failed'/INTERNAL_ERROR",
+    async () => {
+      const stores = makeStores({
+        routes: [{ id: 5, enabled: true, conditions: {}, providerIds: [1] }],
+        providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
+        sendImpl: async () => {
+          throw new Error("boom");
         },
-      },
-      providerStore: { getById: async () => null, getDecryptedSecrets: async () => null },
-      registry: { getProvider: () => null },
-      historyStore: { create: async () => ({}) },
-    });
-    await engine.dispatch(makeAlert(), "triggered");
-    assert.deepEqual(receivedOpts, { enabledOnly: true });
-  });
+      });
+      const engine = new RoutingEngine(stores);
+      const results = await engine.dispatch(makeAlert(), "triggered");
+      assert.equal(results.length, 1);
+      assert.equal(stores.historyEntries[0].status, "failed");
+      assert.equal(stores.historyEntries[0].errorCode, "INTERNAL_ERROR");
+    },
+  );
+
+  await t.test(
+    "route désactivée exclue par routeStore.list({enabledOnly:true}) (contrat, pas re-vérifié ici)",
+    async () => {
+      // RoutingEngine délègue le filtre enabled/disabled à routeStore.list() —
+      // ce test vérifie juste qu'il l'appelle bien avec enabledOnly:true.
+      let receivedOpts = null;
+      const engine = new RoutingEngine({
+        routeStore: {
+          list: async (opts) => {
+            receivedOpts = opts;
+            return [];
+          },
+        },
+        providerStore: { getById: async () => null, getDecryptedSecrets: async () => null },
+        registry: { getProvider: () => null },
+        historyStore: { create: async () => ({}) },
+      });
+      await engine.dispatch(makeAlert(), "triggered");
+      assert.deepEqual(receivedOpts, { enabledOnly: true });
+    },
+  );
 
   await t.test("event 'resolved' : ignoré si notifyOnResolve n'est pas positionné", async () => {
     const stores = makeStores({
@@ -379,23 +417,26 @@ test("routing/engine.js — RoutingEngine#dispatch", async (t) => {
     assert.equal(called, false);
   });
 
-  await t.test("secrets fusionnés dans la config transmise à send() — jamais renvoyés dans le résultat/historique", async () => {
-    let receivedConfig = null;
-    const stores = makeStores({
-      routes: [{ id: 5, enabled: true, conditions: {}, providerIds: [1] }],
-      providers: { 1: { id: 1, type: "fake", enabled: true, configuration: { url: "https://x" } } },
-      secrets: { 1: { webhookToken: "super-secret" } },
-      sendImpl: async (_notification, config) => {
-        receivedConfig = config;
-        return { success: true };
-      },
-    });
-    const engine = new RoutingEngine(stores);
-    await engine.dispatch(makeAlert(), "triggered");
-    assert.equal(receivedConfig.webhookToken, "super-secret");
-    assert.equal(receivedConfig.url, "https://x");
-    // Rien dans l'historique ne doit contenir le secret.
-    const historyJson = JSON.stringify(stores.historyEntries);
-    assert.ok(!historyJson.includes("super-secret"));
-  });
+  await t.test(
+    "secrets fusionnés dans la config transmise à send() — jamais renvoyés dans le résultat/historique",
+    async () => {
+      let receivedConfig = null;
+      const stores = makeStores({
+        routes: [{ id: 5, enabled: true, conditions: {}, providerIds: [1] }],
+        providers: { 1: { id: 1, type: "fake", enabled: true, configuration: { url: "https://x" } } },
+        secrets: { 1: { webhookToken: "super-secret" } },
+        sendImpl: async (_notification, config) => {
+          receivedConfig = config;
+          return { success: true };
+        },
+      });
+      const engine = new RoutingEngine(stores);
+      await engine.dispatch(makeAlert(), "triggered");
+      assert.equal(receivedConfig.webhookToken, "super-secret");
+      assert.equal(receivedConfig.url, "https://x");
+      // Rien dans l'historique ne doit contenir le secret.
+      const historyJson = JSON.stringify(stores.historyEntries);
+      assert.ok(!historyJson.includes("super-secret"));
+    },
+  );
 });

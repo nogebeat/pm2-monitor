@@ -6,11 +6,11 @@ la [Bot API Telegram](https://core.telegram.org/bots/api#sendmessage)
 
 ## Configuration
 
-| Champ       | Requis | Type / valeurs        | Description |
-|-------------|--------|--------------------------|---------------|
-| `botToken`  | Oui    | string (**secret**)       | Token du bot, obtenu via [@BotFather](https://t.me/BotFather). |
-| `chatId`    | Oui    | string ou nombre           | Identifiant du salon/utilisateur/canal cible. |
-| `timeout`   | Non    | nombre (ms)                  | Délai avant abandon. Défaut : 10000, plafonné à 60000. |
+| Champ      | Requis | Type / valeurs      | Description                                                    |
+| ---------- | ------ | ------------------- | -------------------------------------------------------------- |
+| `botToken` | Oui    | string (**secret**) | Token du bot, obtenu via [@BotFather](https://t.me/BotFather). |
+| `chatId`   | Oui    | string ou nombre    | Identifiant du salon/utilisateur/canal cible.                  |
+| `timeout`  | Non    | nombre (ms)         | Délai avant abandon. Défaut : 10000, plafonné à 60000.         |
 
 ## Prérequis
 
@@ -44,12 +44,12 @@ la [Bot API Telegram](https://core.telegram.org/bots/api#sendmessage)
 
 ## Erreurs communes
 
-| `errorCode`     | Cause probable | À vérifier |
-|-------------------|------------------|--------------|
-| `INVALID_CONFIG`   | `botToken` ou `chatId` manquant. | Config du provider. |
-| `AUTH_ERROR`         | Token invalide/révoqué. | Régénérer le token via BotFather (`/revoke`). |
-| `NOT_FOUND`            | `chatId` inconnu, ou bot jamais démarré par l'utilisateur/salon. | Envoyer un message au bot au préalable, ou vérifier l'ajout au salon. |
-| `NETWORK_ERROR`          | Telegram injoignable (bloqué dans certains pays/réseaux). | Connectivité sortante vers `api.telegram.org`. |
-| `TIMEOUT`                  | Pas de réponse dans le délai imparti. | `timeout`, connectivité réseau. |
-| `MALFORMED_RESPONSE`         | Réponse JSON illisible. | Signalement à investiguer — ne devrait pas arriver en usage normal. |
-| `PROVIDER_ERROR`               | `ok: false` sans catégorie plus précise (ex. chat non trouvé selon Telegram). | Description Telegram non exposée par sécurité — vérifier `chatId`/droits du bot. |
+| `errorCode`          | Cause probable                                                                | À vérifier                                                                       |
+| -------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `INVALID_CONFIG`     | `botToken` ou `chatId` manquant.                                              | Config du provider.                                                              |
+| `AUTH_ERROR`         | Token invalide/révoqué.                                                       | Régénérer le token via BotFather (`/revoke`).                                    |
+| `NOT_FOUND`          | `chatId` inconnu, ou bot jamais démarré par l'utilisateur/salon.              | Envoyer un message au bot au préalable, ou vérifier l'ajout au salon.            |
+| `NETWORK_ERROR`      | Telegram injoignable (bloqué dans certains pays/réseaux).                     | Connectivité sortante vers `api.telegram.org`.                                   |
+| `TIMEOUT`            | Pas de réponse dans le délai imparti.                                         | `timeout`, connectivité réseau.                                                  |
+| `MALFORMED_RESPONSE` | Réponse JSON illisible.                                                       | Signalement à investiguer — ne devrait pas arriver en usage normal.              |
+| `PROVIDER_ERROR`     | `ok: false` sans catégorie plus précise (ex. chat non trouvé selon Telegram). | Description Telegram non exposée par sécurité — vérifier `chatId`/droits du bot. |

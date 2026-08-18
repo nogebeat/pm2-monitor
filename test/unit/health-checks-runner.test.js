@@ -75,7 +75,12 @@ test("runHttp() — réponse lente (> degradedThresholdMs) -> DEGRADED", async (
 });
 
 test("runHttp() — contenu attendu absent -> DOWN", async () => {
-  const httpRequestImpl = async () => ({ ok: true, statusCode: 200, responseTimeMs: 20, body: "tout va bien" });
+  const httpRequestImpl = async () => ({
+    ok: true,
+    statusCode: 200,
+    responseTimeMs: 20,
+    body: "tout va bien",
+  });
   const check = {
     url: "http://example.test",
     method: "GET",
@@ -178,7 +183,7 @@ test("runProbe() — dispatch selon check.type", async () => {
   const httpRequestImpl = async () => ({ ok: true, statusCode: 200, responseTimeMs: 1, body: "" });
   const r = await runProbe(
     { type: "http", url: "http://x", method: "GET", timeoutMs: 1000, expectedStatus: "200-299" },
-    { httpRequestImpl }
+    { httpRequestImpl },
   );
   assert.equal(r.status, "UP");
 });

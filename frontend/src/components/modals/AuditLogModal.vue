@@ -141,7 +141,12 @@ const currentPageLabel = computed(() => {
         <div class="audit-filters">
           <label>
             {{ t("auditLogModal.username") }}
-            <input v-model="filters.username" type="text" :placeholder="t('auditLogModal.usernamePlaceholder')" @keyup.enter="applyFilters" />
+            <input
+              v-model="filters.username"
+              type="text"
+              :placeholder="t('auditLogModal.usernamePlaceholder')"
+              @keyup.enter="applyFilters"
+            />
           </label>
           <label>
             {{ t("auditLogModal.action") }}
@@ -159,7 +164,12 @@ const currentPageLabel = computed(() => {
           </label>
           <label>
             {{ t("auditLogModal.target") }}
-            <input v-model="filters.target" type="text" :placeholder="t('auditLogModal.targetPlaceholder')" @keyup.enter="applyFilters" />
+            <input
+              v-model="filters.target"
+              type="text"
+              :placeholder="t('auditLogModal.targetPlaceholder')"
+              @keyup.enter="applyFilters"
+            />
           </label>
           <label>
             {{ t("auditLogModal.from") }}
@@ -200,9 +210,13 @@ const currentPageLabel = computed(() => {
         </table>
 
         <div v-if="items.length" class="audit-pagination">
-          <button class="icon-btn" :disabled="offset === 0" @click="prevPage">{{ t("auditLogModal.prev") }}</button>
+          <button class="icon-btn" :disabled="offset === 0" @click="prevPage">
+            {{ t("auditLogModal.prev") }}
+          </button>
           <span>{{ currentPageLabel }}</span>
-          <button class="icon-btn" :disabled="offset + PAGE_SIZE >= total" @click="nextPage">{{ t("auditLogModal.next") }}</button>
+          <button class="icon-btn" :disabled="offset + PAGE_SIZE >= total" @click="nextPage">
+            {{ t("auditLogModal.next") }}
+          </button>
         </div>
       </div>
 
@@ -212,11 +226,17 @@ const currentPageLabel = computed(() => {
           <dt>{{ t("auditLogModal.date") }}</dt>
           <dd>{{ fmtTime(selected.timestamp) }}</dd>
           <dt>{{ t("auditLogModal.user") }}</dt>
-          <dd>{{ selected.username || "–" }} <span v-if="selected.userId" class="audit-muted">(#{{ selected.userId }})</span></dd>
+          <dd>
+            {{ selected.username || "–" }}
+            <span v-if="selected.userId" class="audit-muted">(#{{ selected.userId }})</span>
+          </dd>
           <dt>{{ t("auditLogModal.action") }}</dt>
           <dd>{{ selected.action }}</dd>
           <dt>{{ t("auditLogModal.target") }}</dt>
-          <dd>{{ selected.target || "–" }} <span v-if="selected.targetType" class="audit-muted">({{ selected.targetType }})</span></dd>
+          <dd>
+            {{ selected.target || "–" }}
+            <span v-if="selected.targetType" class="audit-muted">({{ selected.targetType }})</span>
+          </dd>
           <dt>{{ t("auditLogModal.status") }}</dt>
           <dd>{{ STATUS_ICON[selected.status] || "" }} {{ selected.status }}</dd>
           <dt>{{ t("auditLogModal.server") }}</dt>
@@ -237,29 +257,94 @@ const currentPageLabel = computed(() => {
 </template>
 
 <style scoped>
-.audit-modal { display: flex; flex-direction: column; gap: 12px; min-width: 560px; max-width: 720px; }
+.audit-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 560px;
+  max-width: 720px;
+}
 .audit-filters {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px 12px;
   align-items: end;
 }
-.audit-filters label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
-.audit-filters-actions { display: flex; gap: 8px; grid-column: span 3; justify-content: flex-end; }
-.audit-empty { opacity: 0.7; padding: 12px 0; }
-.audit-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.audit-table th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); opacity: 0.7; }
-.audit-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
-.audit-row { cursor: pointer; }
-.audit-row:hover { background: var(--panel-alt, rgba(255, 255, 255, 0.05)); }
-.audit-pagination { display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 13px; }
-.audit-detail { display: flex; flex-direction: column; gap: 12px; }
-.audit-detail-grid { display: grid; grid-template-columns: 120px 1fr; gap: 6px 10px; font-size: 13px; margin: 0; }
-.audit-detail-grid dt { opacity: 0.7; }
-.audit-detail-grid dd { margin: 0; }
-.audit-muted { opacity: 0.6; font-size: 12px; }
-.audit-metadata { border-top: 1px solid var(--border); padding-top: 10px; }
-.audit-metadata-label { font-size: 12px; opacity: 0.7; margin-bottom: 6px; }
+.audit-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+.audit-filters-actions {
+  display: flex;
+  gap: 8px;
+  grid-column: span 3;
+  justify-content: flex-end;
+}
+.audit-empty {
+  opacity: 0.7;
+  padding: 12px 0;
+}
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.audit-table th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  opacity: 0.7;
+}
+.audit-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.audit-row {
+  cursor: pointer;
+}
+.audit-row:hover {
+  background: var(--panel-alt, rgba(255, 255, 255, 0.05));
+}
+.audit-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.audit-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.audit-detail-grid {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 6px 10px;
+  font-size: 13px;
+  margin: 0;
+}
+.audit-detail-grid dt {
+  opacity: 0.7;
+}
+.audit-detail-grid dd {
+  margin: 0;
+}
+.audit-muted {
+  opacity: 0.6;
+  font-size: 12px;
+}
+.audit-metadata {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.audit-metadata-label {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-bottom: 6px;
+}
 .audit-metadata pre {
   background: var(--panel-alt, rgba(255, 255, 255, 0.05));
   border-radius: 6px;

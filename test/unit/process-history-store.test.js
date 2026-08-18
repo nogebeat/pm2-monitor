@@ -51,7 +51,10 @@ test("process-history store", async (t) => {
 
     const rows = await store.queryRaw({ processName: "api", start: t0, end: t0 + 20_000 });
     assert.equal(rows.length, 2);
-    assert.deepEqual(rows.map((r) => r.cpu), [1, 2]);
+    assert.deepEqual(
+      rows.map((r) => r.cpu),
+      [1, 2],
+    );
   });
 
   await t.test("listRawProcessNames() et rawTimeRange()", async () => {
@@ -83,7 +86,10 @@ test("process-history store", async (t) => {
     assert.equal(purged, 1, "seule la ligne ts=1000 est strictement avant le cutoff");
 
     const remaining = await store.queryRaw({ processName: "api", start: 0, end: 100000 });
-    assert.deepEqual(remaining.map((r) => r.ts), [5000, 9000]);
+    assert.deepEqual(
+      remaining.map((r) => r.ts),
+      [5000, 9000],
+    );
   });
 
   await t.test("upsertRollup() : crée puis met à jour le même bucket (idempotent)", async () => {
@@ -157,7 +163,12 @@ test("process-history store", async (t) => {
     const purged = await store.purgeRollupOlderThan("medium", 5000);
     assert.equal(purged, 1);
 
-    const medium = await store.queryRollup({ processName: "api", resolution: "medium", start: 0, end: 10000 });
+    const medium = await store.queryRollup({
+      processName: "api",
+      resolution: "medium",
+      start: 0,
+      end: 10000,
+    });
     const long = await store.queryRollup({ processName: "api", resolution: "long", start: 0, end: 10000 });
     assert.equal(medium.length, 0, "medium purgé");
     assert.equal(long.length, 1, "long non affecté");

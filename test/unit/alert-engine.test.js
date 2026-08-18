@@ -124,18 +124,21 @@ test("AlertEngine — cycle de vie complet", async (t) => {
     assert.equal(r.state, "active");
   });
 
-  await t.test("condition redevient fausse avant la fin de duration -> pas d'alerte, ligne supprimée", async () => {
-    const store = fakeAlertStore();
-    let now = 0;
-    const engine = new AlertEngine({ alertStore: store, now: () => now });
-    const rule = makeRule({ durationSeconds: 300 });
+  await t.test(
+    "condition redevient fausse avant la fin de duration -> pas d'alerte, ligne supprimée",
+    async () => {
+      const store = fakeAlertStore();
+      let now = 0;
+      const engine = new AlertEngine({ alertStore: store, now: () => now });
+      const rule = makeRule({ durationSeconds: 300 });
 
-    await engine.evaluate(rule, "api", 81); // trigger
-    now = 100 * 1000;
-    const cleared = await engine.evaluate(rule, "api", 50); // redescend avant l'échéance
-    assert.equal(cleared, null);
-    assert.equal(store._all().length, 0, "aucune trace : ce n'était jamais une vraie alerte");
-  });
+      await engine.evaluate(rule, "api", 81); // trigger
+      now = 100 * 1000;
+      const cleared = await engine.evaluate(rule, "api", 50); // redescend avant l'échéance
+      assert.equal(cleared, null);
+      assert.equal(store._all().length, 0, "aucune trace : ce n'était jamais une vraie alerte");
+    },
+  );
 
   await t.test("active -> resolved quand la condition redevient fausse", async () => {
     const store = fakeAlertStore();
@@ -153,21 +156,24 @@ test("AlertEngine — cycle de vie complet", async (t) => {
     assert.equal(resolved.cooldownUntil, now + 1800 * 1000);
   });
 
-  await t.test("anti-spam : condition qui reste vraie -> une seule alerte active (touch, pas de doublon)", async () => {
-    const store = fakeAlertStore();
-    let now = 0;
-    const engine = new AlertEngine({ alertStore: store, now: () => now });
-    const rule = makeRule({ durationSeconds: 0 });
+  await t.test(
+    "anti-spam : condition qui reste vraie -> une seule alerte active (touch, pas de doublon)",
+    async () => {
+      const store = fakeAlertStore();
+      let now = 0;
+      const engine = new AlertEngine({ alertStore: store, now: () => now });
+      const rule = makeRule({ durationSeconds: 0 });
 
-    await engine.evaluate(rule, "api", 81); // trigger
-    await engine.evaluate(rule, "api", 81); // -> active
-    for (let i = 1; i <= 5; i++) {
-      now = i * 1000;
-      await engine.evaluate(rule, "api", 81 + i);
-    }
-    const activeRows = store._all().filter((r) => r.state === "active");
-    assert.equal(activeRows.length, 1, "une seule occurrence active malgré 6 évaluations vraies");
-  });
+      await engine.evaluate(rule, "api", 81); // trigger
+      await engine.evaluate(rule, "api", 81); // -> active
+      for (let i = 1; i <= 5; i++) {
+        now = i * 1000;
+        await engine.evaluate(rule, "api", 81 + i);
+      }
+      const activeRows = store._all().filter((r) => r.state === "active");
+      assert.equal(activeRows.length, 1, "une seule occurrence active malgré 6 évaluations vraies");
+    },
+  );
 
   await t.test("cooldown : pas de re-déclenchement immédiat après resolve", async () => {
     const store = fakeAlertStore();
@@ -206,24 +212,27 @@ test("AlertEngine — cycle de vie complet", async (t) => {
     await assert.rejects(() => engine.acknowledge(999, {}), /introuvable/i);
   });
 
-  await t.test("acknowledged : condition qui reste vraie ne spamme pas, redevient resolved si fausse", async () => {
-    const store = fakeAlertStore();
-    let now = 0;
-    const engine = new AlertEngine({ alertStore: store, now: () => now });
-    const rule = makeRule({ durationSeconds: 0 });
+  await t.test(
+    "acknowledged : condition qui reste vraie ne spamme pas, redevient resolved si fausse",
+    async () => {
+      const store = fakeAlertStore();
+      let now = 0;
+      const engine = new AlertEngine({ alertStore: store, now: () => now });
+      const rule = makeRule({ durationSeconds: 0 });
 
-    await engine.evaluate(rule, "api", 90); // trigger
-    const active = await engine.evaluate(rule, "api", 90); // active
-    await engine.acknowledge(active.id, { id: 1 });
+      await engine.evaluate(rule, "api", 90); // trigger
+      const active = await engine.evaluate(rule, "api", 90); // active
+      await engine.acknowledge(active.id, { id: 1 });
 
-    now = 1000;
-    const stillOpen = await engine.evaluate(rule, "api", 91);
-    assert.equal(stillOpen.state, "acknowledged", "reste acknowledged, pas de nouvelle occurrence");
+      now = 1000;
+      const stillOpen = await engine.evaluate(rule, "api", 91);
+      assert.equal(stillOpen.state, "acknowledged", "reste acknowledged, pas de nouvelle occurrence");
 
-    now = 2000;
-    const resolved = await engine.evaluate(rule, "api", 10);
-    assert.equal(resolved.state, "resolved");
-  });
+      now = 2000;
+      const resolved = await engine.evaluate(rule, "api", 10);
+      assert.equal(resolved.state, "resolved");
+    },
+  );
 
   await t.test("règle désactivée -> evaluate() ne fait rien", async () => {
     const store = fakeAlertStore();
@@ -244,17 +253,20 @@ test("AlertEngine — cycle de vie complet", async (t) => {
     assert.equal(store._all().length, 2);
   });
 
-  await t.test("plusieurs règles sur la même cible -> alertes indépendantes (clé de dédup différente)", async () => {
-    const store = fakeAlertStore();
-    const engine = new AlertEngine({ alertStore: store, now: () => 0 });
-    const cpuRule = makeRule({ id: 1, metric: "cpu", durationSeconds: 0 });
-    const memRule = makeRule({ id: 2, metric: "memory", durationSeconds: 0, threshold: 500 });
+  await t.test(
+    "plusieurs règles sur la même cible -> alertes indépendantes (clé de dédup différente)",
+    async () => {
+      const store = fakeAlertStore();
+      const engine = new AlertEngine({ alertStore: store, now: () => 0 });
+      const cpuRule = makeRule({ id: 1, metric: "cpu", durationSeconds: 0 });
+      const memRule = makeRule({ id: 2, metric: "memory", durationSeconds: 0, threshold: 500 });
 
-    const a = await engine.evaluate(cpuRule, "api", 90);
-    const b = await engine.evaluate(memRule, "api", 600);
-    assert.notEqual(a.dedupKey, b.dedupKey);
-    assert.equal(store._all().length, 2);
-  });
+      const a = await engine.evaluate(cpuRule, "api", 90);
+      const b = await engine.evaluate(memRule, "api", 600);
+      assert.notEqual(a.dedupKey, b.dedupKey);
+      assert.equal(store._all().length, 2);
+    },
+  );
 });
 
 test("evaluateProcessReadings() — filtre par targetValue et ignore les métriques indisponibles", async () => {

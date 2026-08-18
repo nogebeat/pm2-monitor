@@ -6,11 +6,11 @@ aucune dépendance supplémentaire (utilise `fetch`).
 
 ## Configuration
 
-| Champ         | Requis | Type / valeurs | Description |
-|---------------|--------|-------------------|---------------|
-| `webhookUrl`  | Oui    | string (**secret**) | URL du webhook, format `https://hooks.slack.com/services/<T>/<B>/<xyz>`. |
-| `channel`     | Non    | string               | Surcharge le salon configuré par défaut sur le webhook. |
-| `timeout`     | Non    | nombre (ms)          | Délai avant abandon. Défaut : 10000, plafonné à 60000. |
+| Champ        | Requis | Type / valeurs      | Description                                                              |
+| ------------ | ------ | ------------------- | ------------------------------------------------------------------------ |
+| `webhookUrl` | Oui    | string (**secret**) | URL du webhook, format `https://hooks.slack.com/services/<T>/<B>/<xyz>`. |
+| `channel`    | Non    | string              | Surcharge le salon configuré par défaut sur le webhook.                  |
+| `timeout`    | Non    | nombre (ms)         | Délai avant abandon. Défaut : 10000, plafonné à 60000.                   |
 
 ## Prérequis
 
@@ -44,11 +44,11 @@ réponse (`ok` en cas de succès, sinon un code d'erreur textuel type
 `channel_not_found`, `invalid_payload`) doit donc être inspecté. Le
 provider le fait automatiquement.
 
-| `errorCode`     | Cause probable | À vérifier |
-|-------------------|------------------|--------------|
-| `INVALID_CONFIG`   | `webhookUrl` absent ou ne correspondant pas au format Slack. | Copier l'URL complète depuis Slack. |
+| `errorCode`          | Cause probable                                                          | À vérifier                                         |
+| -------------------- | ----------------------------------------------------------------------- | -------------------------------------------------- |
+| `INVALID_CONFIG`     | `webhookUrl` absent ou ne correspondant pas au format Slack.            | Copier l'URL complète depuis Slack.                |
 | `PROVIDER_ERROR`     | Statut 200 mais corps ≠ `ok` (`channel_not_found`, `invalid_payload`…). | Salon toujours existant ? Webhook toujours actif ? |
-| `NOT_FOUND`            | 404 — webhook révoqué/supprimé. | Recréer le webhook. |
-| `NETWORK_ERROR`          | Slack injoignable. | Connectivité sortante vers `hooks.slack.com`. |
-| `TIMEOUT`                  | Pas de réponse dans le délai imparti. | `timeout`, connectivité réseau. |
-| `MALFORMED_RESPONSE`         | Corps de réponse illisible. | Signalement à investiguer. |
+| `NOT_FOUND`          | 404 — webhook révoqué/supprimé.                                         | Recréer le webhook.                                |
+| `NETWORK_ERROR`      | Slack injoignable.                                                      | Connectivité sortante vers `hooks.slack.com`.      |
+| `TIMEOUT`            | Pas de réponse dans le délai imparti.                                   | `timeout`, connectivité réseau.                    |
+| `MALFORMED_RESPONSE` | Corps de réponse illisible.                                             | Signalement à investiguer.                         |

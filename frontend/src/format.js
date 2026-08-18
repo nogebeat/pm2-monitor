@@ -31,21 +31,31 @@ export function time(ts) {
 }
 
 export function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 const ANSI_FG = {
-  30: "#5c6570", 31: "#e85d5d", 32: "#4fd68c", 33: "#e0a64f",
-  34: "#5fa8d3", 35: "#c17fd6", 36: "#4fc2d6", 37: "#e4e9ea",
-  90: "#7c8a8f", 91: "#f0a3a3", 92: "#8fe3b6", 93: "#eec688",
-  94: "#8fc4e6", 95: "#d6adea", 96: "#8fdcea", 97: "#ffffff",
+  30: "#5c6570",
+  31: "#e85d5d",
+  32: "#4fd68c",
+  33: "#e0a64f",
+  34: "#5fa8d3",
+  35: "#c17fd6",
+  36: "#4fc2d6",
+  37: "#e4e9ea",
+  90: "#7c8a8f",
+  91: "#f0a3a3",
+  92: "#8fe3b6",
+  93: "#eec688",
+  94: "#8fc4e6",
+  95: "#d6adea",
+  96: "#8fdcea",
+  97: "#ffffff",
 };
 
 // Convertit les codes couleur ANSI (déjà échappés en HTML) en <span> stylés.
 export function ansiToHtml(escapedText) {
+  // eslint-disable-next-line no-control-regex -- \x1b (ESC) est le code ANSI recherché, pas une erreur.
   const ESC = /\x1b\[([0-9;]*)m/g;
   let result = "";
   let openSpan = false;
@@ -66,7 +76,9 @@ export function ansiToHtml(escapedText) {
     const bold = codes.includes(1);
     if (fg || bold) {
       if (openSpan) result += "</span>";
-      const style = [fg ? `color:${ANSI_FG[fg]}` : "", bold ? "font-weight:600" : ""].filter(Boolean).join(";");
+      const style = [fg ? `color:${ANSI_FG[fg]}` : "", bold ? "font-weight:600" : ""]
+        .filter(Boolean)
+        .join(";");
       result += `<span style="${style}">`;
       openSpan = true;
     }

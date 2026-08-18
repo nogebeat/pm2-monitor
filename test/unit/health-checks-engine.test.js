@@ -67,17 +67,25 @@ function fakeAlertEngine() {
 }
 
 function fakeRuleStore(rules) {
-  return { async listEnabledByTargetType(targetType) {
-    return rules.filter((r) => r.enabled !== false).map((r) => ({ ...r, targetType }));
-  } };
+  return {
+    async listEnabledByTargetType(targetType) {
+      return rules.filter((r) => r.enabled !== false).map((r) => ({ ...r, targetType }));
+    },
+  };
 }
 
 test("HealthCheckEngine.run() — sonde OK -> UP, compteurs remis à zéro", async () => {
   const store = fakeStore();
   const check = await store.create({ name: "api", type: "http", enabled: true, intervalSeconds: 60 });
-  const engine = new HealthCheckEngine({ store, ruleStore: fakeRuleStore([]), alertEngine: fakeAlertEngine() });
+  const engine = new HealthCheckEngine({
+    store,
+    ruleStore: fakeRuleStore([]),
+    alertEngine: fakeAlertEngine(),
+  });
 
-  const impls = { httpRequestImpl: async () => ({ ok: true, statusCode: 200, responseTimeMs: 10, body: "" }) };
+  const impls = {
+    httpRequestImpl: async () => ({ ok: true, statusCode: 200, responseTimeMs: 10, body: "" }),
+  };
   const updated = await engine.run(check.id, impls);
   assert.equal(updated.status, "UP");
   assert.equal(updated.consecutiveFailures, 0);
@@ -87,7 +95,11 @@ test("HealthCheckEngine.run() — sonde OK -> UP, compteurs remis à zéro", asy
 test("HealthCheckEngine.run() — échecs consécutifs -> compteur incrémente, succès le remet à zéro", async () => {
   const store = fakeStore();
   const check = await store.create({ name: "api", type: "http", enabled: true, intervalSeconds: 60 });
-  const engine = new HealthCheckEngine({ store, ruleStore: fakeRuleStore([]), alertEngine: fakeAlertEngine() });
+  const engine = new HealthCheckEngine({
+    store,
+    ruleStore: fakeRuleStore([]),
+    alertEngine: fakeAlertEngine(),
+  });
 
   const down = { httpRequestImpl: async () => ({ ok: false, error: "ECONNREFUSED" }) };
   const up = { httpRequestImpl: async () => ({ ok: true, statusCode: 200, responseTimeMs: 5, body: "" }) };
@@ -111,14 +123,22 @@ test("HealthCheckEngine.run() — échecs consécutifs -> compteur incrémente, 
 test("HealthCheckEngine.run() — check désactivé -> ne s'exécute pas (null)", async () => {
   const store = fakeStore();
   const check = await store.create({ name: "api", type: "http", enabled: false, intervalSeconds: 60 });
-  const engine = new HealthCheckEngine({ store, ruleStore: fakeRuleStore([]), alertEngine: fakeAlertEngine() });
+  const engine = new HealthCheckEngine({
+    store,
+    ruleStore: fakeRuleStore([]),
+    alertEngine: fakeAlertEngine(),
+  });
   const result = await engine.run(check.id, {});
   assert.equal(result, null);
 });
 
 test("HealthCheckEngine.run() — check introuvable -> throw", async () => {
   const store = fakeStore();
-  const engine = new HealthCheckEngine({ store, ruleStore: fakeRuleStore([]), alertEngine: fakeAlertEngine() });
+  const engine = new HealthCheckEngine({
+    store,
+    ruleStore: fakeRuleStore([]),
+    alertEngine: fakeAlertEngine(),
+  });
   await assert.rejects(() => engine.run(999, {}), /introuvable/i);
 });
 
@@ -136,7 +156,11 @@ test("HealthCheckEngine — 3 DOWN consécutifs alimentent l'Alert Engine (evalu
   await engine.run(check.id, down);
   await engine.run(check.id, down);
 
-  assert.equal(alertEngine.calls.length, 3, "evaluate() appelé à chaque exécution (feed continu, comme les autres sources)");
+  assert.equal(
+    alertEngine.calls.length,
+    3,
+    "evaluate() appelé à chaque exécution (feed continu, comme les autres sources)",
+  );
   assert.equal(alertEngine.calls[2].targetValue, "api");
   assert.equal(alertEngine.calls[2].value, "DOWN");
 });
@@ -155,9 +179,27 @@ test("HealthCheckEngine — règle avec targetValue ciblant un autre check -> pa
 
 test("HealthCheckEngine.runDueChecks() — n'exécute que les checks dus (interval écoulé)", async () => {
   const store = fakeStore();
-  const fresh = await store.create({ name: "fresh", type: "http", enabled: true, intervalSeconds: 60, lastCheckAt: 2000 });
-  const due = await store.create({ name: "due", type: "http", enabled: true, intervalSeconds: 60, lastCheckAt: 0 });
-  const neverRun = await store.create({ name: "never", type: "http", enabled: true, intervalSeconds: 60, lastCheckAt: null });
+  const fresh = await store.create({
+    name: "fresh",
+    type: "http",
+    enabled: true,
+    intervalSeconds: 60,
+    lastCheckAt: 2000,
+  });
+  const due = await store.create({
+    name: "due",
+    type: "http",
+    enabled: true,
+    intervalSeconds: 60,
+    lastCheckAt: 0,
+  });
+  const neverRun = await store.create({
+    name: "never",
+    type: "http",
+    enabled: true,
+    intervalSeconds: 60,
+    lastCheckAt: null,
+  });
 
   const engine = new HealthCheckEngine({
     store,

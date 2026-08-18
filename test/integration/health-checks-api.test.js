@@ -185,7 +185,11 @@ test("API /api/health-checks", async (t) => {
   });
 
   await t.test("run test sans permission health_checks_test -> 403", async () => {
-    const readOnlyUser = { id: 4, isAdmin: false, permissions: [{ appName: "*", action: "health_checks_read" }] };
+    const readOnlyUser = {
+      id: 4,
+      isAdmin: false,
+      permissions: [{ appName: "*", action: "health_checks_read" }],
+    };
     const { server, baseUrl } = await startServer(readOnlyUser);
     try {
       const res = await fetch(`${baseUrl}/${checkId}/test`, { method: "POST" });
@@ -242,7 +246,9 @@ test("API /api/health-checks", async (t) => {
       const res = await fetch(`${baseUrl}/catalog`);
       const body = await res.json();
       assert.deepEqual(body.types, ["http", "tcp", "command"]);
-      assert.ok(body.statuses.includes("UP") && body.statuses.includes("DOWN") && body.statuses.includes("DEGRADED"));
+      assert.ok(
+        body.statuses.includes("UP") && body.statuses.includes("DOWN") && body.statuses.includes("DEGRADED"),
+      );
     } finally {
       await stopServer(server);
     }

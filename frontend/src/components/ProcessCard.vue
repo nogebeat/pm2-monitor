@@ -64,8 +64,10 @@ async function refreshMetricsChart() {
     await nextTick();
     if (!metricsCanvas.value) return;
     const c = chartColors();
-    const labels = r.points.map((p) => new Date(p.ts).toLocaleTimeString(locale.value === "fr" ? "fr-FR" : "en-US", { hour12: false }));
-    const cpuData = r.points.map((p) => (p.cpu ?? p.cpuAvg ?? null));
+    const labels = r.points.map((p) =>
+      new Date(p.ts).toLocaleTimeString(locale.value === "fr" ? "fr-FR" : "en-US", { hour12: false }),
+    );
+    const cpuData = r.points.map((p) => p.cpu ?? p.cpuAvg ?? null);
     const memData = r.points.map((p) => {
       const bytes = p.memory ?? p.memoryAvg ?? null;
       return bytes === null ? null : Math.round((bytes / (1024 * 1024)) * 10) / 10;
@@ -77,8 +79,26 @@ async function refreshMetricsChart() {
       data: {
         labels,
         datasets: [
-          { label: "CPU %", data: cpuData, borderColor: c.accent, backgroundColor: "transparent", tension: 0.25, pointRadius: 0, borderWidth: 1.6, yAxisID: "y" },
-          { label: "MEM Mo", data: memData, borderColor: c.online, backgroundColor: "transparent", tension: 0.25, pointRadius: 0, borderWidth: 1.6, yAxisID: "y1" },
+          {
+            label: "CPU %",
+            data: cpuData,
+            borderColor: c.accent,
+            backgroundColor: "transparent",
+            tension: 0.25,
+            pointRadius: 0,
+            borderWidth: 1.6,
+            yAxisID: "y",
+          },
+          {
+            label: "MEM Mo",
+            data: memData,
+            borderColor: c.online,
+            backgroundColor: "transparent",
+            tension: 0.25,
+            pointRadius: 0,
+            borderWidth: 1.6,
+            yAxisID: "y1",
+          },
         ],
       },
       options: {
@@ -87,7 +107,10 @@ async function refreshMetricsChart() {
         animation: false,
         interaction: { mode: "index", intersect: false },
         scales: {
-          x: { ticks: { color: c.text, maxTicksLimit: 6, font: { family: "JetBrains Mono", size: 9 } }, grid: { color: c.grid } },
+          x: {
+            ticks: { color: c.text, maxTicksLimit: 6, font: { family: "JetBrains Mono", size: 9 } },
+            grid: { color: c.grid },
+          },
           y: { position: "left", ticks: { color: c.text, font: { size: 9 } }, grid: { color: c.grid } },
           y1: { position: "right", ticks: { color: c.text, font: { size: 9 } }, grid: { display: false } },
         },
@@ -115,7 +138,7 @@ onBeforeUnmount(() => {
 
 watch(
   () => document.documentElement.getAttribute("data-theme"),
-  () => refreshMetricsChart()
+  () => refreshMetricsChart(),
 );
 </script>
 
@@ -126,16 +149,22 @@ watch(
         <span class="status-dot" :class="`status-${process.status}`"></span>
         <span class="label">{{ process.name }}</span>
       </div>
-      <div style="display:flex; align-items:center; gap:6px;">
+      <div style="display: flex; align-items: center; gap: 6px">
         <span v-if="errCount" class="err-badge">{{ errCount }}</span>
         <span class="proc-id">#{{ process.id }}</span>
       </div>
     </div>
 
     <div class="proc-meta">
-      <span>CPU <b>{{ process.cpu }}%</b></span>
-      <span>MEM <b>{{ fmtMem(process.memory) }}</b></span>
-      <span>↻ <b>{{ process.restarts }}</b></span>
+      <span
+        >CPU <b>{{ process.cpu }}%</b></span
+      >
+      <span
+        >MEM <b>{{ fmtMem(process.memory) }}</b></span
+      >
+      <span
+        >↻ <b>{{ process.restarts }}</b></span
+      >
       <span>{{ fmtUptime(process.uptime) }}</span>
       <span>{{ process.execMode }}{{ process.instances > 1 ? " x" + process.instances : "" }}</span>
       <span v-if="process.watching" :title="t('processCard.watchActive')">👁</span>
@@ -146,10 +175,18 @@ watch(
     </div>
 
     <div class="proc-actions">
-      <button v-if="can('start', process.name)" class="go" @click.stop="quickAction('start')">{{ t("processCard.start") }}</button>
-      <button v-if="can('restart', process.name)" @click.stop="quickAction('restart')">{{ t("processCard.restart") }}</button>
-      <button v-if="can('reload', process.name)" @click.stop="quickAction('reload')">{{ t("processCard.reload") }}</button>
-      <button v-if="can('stop', process.name)" class="danger" @click.stop="quickAction('stop')">{{ t("processCard.stop") }}</button>
+      <button v-if="can('start', process.name)" class="go" @click.stop="quickAction('start')">
+        {{ t("processCard.start") }}
+      </button>
+      <button v-if="can('restart', process.name)" @click.stop="quickAction('restart')">
+        {{ t("processCard.restart") }}
+      </button>
+      <button v-if="can('reload', process.name)" @click.stop="quickAction('reload')">
+        {{ t("processCard.reload") }}
+      </button>
+      <button v-if="can('stop', process.name)" class="danger" @click.stop="quickAction('stop')">
+        {{ t("processCard.stop") }}
+      </button>
       <button
         v-if="can('view', process.name)"
         class="more"

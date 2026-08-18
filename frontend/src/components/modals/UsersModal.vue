@@ -114,12 +114,20 @@ function changePassword(u) {
 
     <template v-else>
       <div class="users-new">
-        <div class="hint-text" style="margin-bottom:6px;">{{ t("usersModal.createUser") }}</div>
+        <div class="hint-text" style="margin-bottom: 6px">{{ t("usersModal.createUser") }}</div>
         <div class="users-new-row">
           <input v-model="newUser.username" type="text" :placeholder="t('usersModal.usernamePlaceholder')" />
-          <input v-model="newUser.password" type="password" :placeholder="t('usersModal.passwordPlaceholder')" />
-          <label class="chk"><input v-model="newUser.isAdmin" type="checkbox" /> {{ t("usersModal.admin") }}</label>
-          <button class="icon-btn go" type="button" @click="createUser">+ {{ t("usersModal.create") }}</button>
+          <input
+            v-model="newUser.password"
+            type="password"
+            :placeholder="t('usersModal.passwordPlaceholder')"
+          />
+          <label class="chk"
+            ><input v-model="newUser.isAdmin" type="checkbox" /> {{ t("usersModal.admin") }}</label
+          >
+          <button class="icon-btn go" type="button" @click="createUser">
+            + {{ t("usersModal.create") }}
+          </button>
         </div>
       </div>
 
@@ -128,8 +136,10 @@ function changePassword(u) {
           <div class="user-row-head" @click="toggleExpand(u)">
             <span class="label">{{ u.username }}</span>
             <span v-if="u.isAdmin" class="badge-admin">{{ t("usersModal.admin") }}</span>
-            <span v-else class="hint-text">{{ t("usersModal.permissionsCount", { n: u.permissions.length }) }}</span>
-            <span style="flex:1"></span>
+            <span v-else class="hint-text">{{
+              t("usersModal.permissionsCount", { n: u.permissions.length })
+            }}</span>
+            <span style="flex: 1"></span>
             <button
               v-if="u.username !== state.auth.user.username"
               type="button"
@@ -149,13 +159,19 @@ function changePassword(u) {
           </div>
 
           <div v-if="expanded === u.id" class="user-row-body">
-            <div class="users-new-row" style="margin-bottom:10px;">
-              <input v-model="pwdDrafts[u.id]" type="password" :placeholder="t('usersModal.newPasswordPlaceholder')" />
-              <button type="button" class="icon-btn" @click="changePassword(u)">{{ t("usersModal.changePassword") }}</button>
+            <div class="users-new-row" style="margin-bottom: 10px">
+              <input
+                v-model="pwdDrafts[u.id]"
+                type="password"
+                :placeholder="t('usersModal.newPasswordPlaceholder')"
+              />
+              <button type="button" class="icon-btn" @click="changePassword(u)">
+                {{ t("usersModal.changePassword") }}
+              </button>
             </div>
 
             <template v-if="!u.isAdmin">
-              <div class="hint-text" style="margin-bottom:4px;">
+              <div class="hint-text" style="margin-bottom: 4px">
                 {{ t("usersModal.globalPermsHint") }}
               </div>
               <table class="perm-table">
@@ -181,9 +197,14 @@ function changePassword(u) {
                 </tbody>
               </table>
 
-              <div class="hint-text" style="margin:10px 0 4px;">{{ t("usersModal.globalActionsHint") }}</div>
+              <div class="hint-text" style="margin: 10px 0 4px">{{ t("usersModal.globalActionsHint") }}</div>
               <div class="global-perms">
-                <label v-for="(label, action) in catalog.globalActions" :key="action" class="chk" :title="label">
+                <label
+                  v-for="(label, action) in catalog.globalActions"
+                  :key="action"
+                  class="chk"
+                  :title="label"
+                >
                   <input
                     type="checkbox"
                     :checked="hasPerm(u, '*', action)"

@@ -97,7 +97,12 @@ test("calculateGlobalStatus() — critical : RAM au-delà du seuil critique -> C
 
 test("calculateGlobalStatus() — critical : température CPU au-delà du seuil critique -> CRITICAL", () => {
   const status = calculateGlobalStatus({
-    system: { cpu: 10, mem: { percent: 10 }, disk: { percent: 10 }, temp: { celsius: DEFAULT_THRESHOLDS.temperature.critical + 1 } },
+    system: {
+      cpu: 10,
+      mem: { percent: 10 },
+      disk: { percent: 10 },
+      temp: { celsius: DEFAULT_THRESHOLDS.temperature.critical + 1 },
+    },
     processes: HEALTHY_PROCESSES,
   });
   assert.equal(status, "CRITICAL");

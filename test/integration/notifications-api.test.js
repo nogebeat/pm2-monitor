@@ -122,7 +122,11 @@ test("API /api/notifications (fondations Phase 5A + providers Phase 5B)", async 
 
   await t.test("GET /providers?type=discord filtre par type", async () => {
     const providerStore = require("../../lib/services/notifications/provider-store");
-    await providerStore.create({ name: "SMTP Admin", type: "email", configuration: { host: "smtp.example.com" } });
+    await providerStore.create({
+      name: "SMTP Admin",
+      type: "email",
+      configuration: { host: "smtp.example.com" },
+    });
 
     const { server, baseUrl } = await startServer(ADMIN);
     try {
@@ -176,7 +180,9 @@ test("API /api/notifications — CRUD providers (Phase 5C)", async (t) => {
       assert.equal(body.secrets, undefined);
 
       const db = require("../../lib/db");
-      const row = await db.get("SELECT configuration, secrets FROM notification_providers WHERE id = ?", [body.id]);
+      const row = await db.get("SELECT configuration, secrets FROM notification_providers WHERE id = ?", [
+        body.id,
+      ]);
       assert.equal(JSON.parse(row.configuration).webhookUrl, undefined);
       assert.ok(!row.secrets.includes("discord.com/api/webhooks"));
     } finally {
@@ -220,7 +226,11 @@ test("API /api/notifications — CRUD providers (Phase 5C)", async (t) => {
       const res = await fetch(`${baseUrl}/providers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "x", type: "slack", fields: { webhookUrl: "https://hooks.slack.com/services/x" } }),
+        body: JSON.stringify({
+          name: "x",
+          type: "slack",
+          fields: { webhookUrl: "https://hooks.slack.com/services/x" },
+        }),
       });
       assert.equal(res.status, 403);
     } finally {
@@ -307,26 +317,29 @@ test("API /api/notifications — CRUD providers (Phase 5C)", async (t) => {
     }
   });
 
-  await t.test("POST /providers/:id/test appelle réellement le provider et ne renvoie jamais de secret", async () => {
-    const providerStore = require("../../lib/services/notifications/provider-store");
-    const created = await providerStore.create({
-      name: "Discord Test",
-      type: "discord",
-      secrets: { webhookUrl: "https://discord.com/api/webhooks/000/does-not-exist" },
-    });
+  await t.test(
+    "POST /providers/:id/test appelle réellement le provider et ne renvoie jamais de secret",
+    async () => {
+      const providerStore = require("../../lib/services/notifications/provider-store");
+      const created = await providerStore.create({
+        name: "Discord Test",
+        type: "discord",
+        secrets: { webhookUrl: "https://discord.com/api/webhooks/000/does-not-exist" },
+      });
 
-    const { server, baseUrl } = await startServer(NOTIF_ADMIN);
-    try {
-      const res = await fetch(`${baseUrl}/providers/${created.id}/test`, { method: "POST" });
-      assert.equal(res.status, 200);
-      const body = await res.json();
-      assert.equal(body.provider, "discord");
-      assert.equal(typeof body.success, "boolean");
-      assert.equal(JSON.stringify(body).includes("discord.com/api/webhooks/000"), false);
-    } finally {
-      await stopServer(server);
-    }
-  });
+      const { server, baseUrl } = await startServer(NOTIF_ADMIN);
+      try {
+        const res = await fetch(`${baseUrl}/providers/${created.id}/test`, { method: "POST" });
+        assert.equal(res.status, 200);
+        const body = await res.json();
+        assert.equal(body.provider, "discord");
+        assert.equal(typeof body.success, "boolean");
+        assert.equal(JSON.stringify(body).includes("discord.com/api/webhooks/000"), false);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await t.test("POST /providers/:id/test -> 403 sans permission notifications_test", async () => {
     const providerStore = require("../../lib/services/notifications/provider-store");
@@ -548,37 +561,44 @@ test("API /api/notifications — routing + historique (Phase 5D)", async (t) => 
     }
   });
 
-  await t.test("GET /history renvoie l'historique écrit par routing/engine.js, jamais de secret", async () => {
-    const historyStore = require("../../lib/services/notifications/history-store");
-    const providerStore = require("../../lib/services/notifications/provider-store");
-    // FK réelle sur notification_history.provider_id (voir 006_notifications.js) :
-    // il faut un provider existant, pas un id arbitraire.
-    const provider = await providerStore.create({ name: "Fixture history", type: "webhook", configuration: {} });
-    await historyStore.create({
-      providerId: provider.id,
-      alertId: null, // FK sur alerts(id) : pas d'alerte réelle créée dans ce test, null reste valide (voir history-store.js)
-      status: "success",
-      responseTimeMs: 12,
-    });
-    await historyStore.create({
-      providerId: provider.id,
-      alertId: null,
-      status: "failed",
-      errorCode: "NETWORK_ERROR",
-    });
+  await t.test(
+    "GET /history renvoie l'historique écrit par routing/engine.js, jamais de secret",
+    async () => {
+      const historyStore = require("../../lib/services/notifications/history-store");
+      const providerStore = require("../../lib/services/notifications/provider-store");
+      // FK réelle sur notification_history.provider_id (voir 006_notifications.js) :
+      // il faut un provider existant, pas un id arbitraire.
+      const provider = await providerStore.create({
+        name: "Fixture history",
+        type: "webhook",
+        configuration: {},
+      });
+      await historyStore.create({
+        providerId: provider.id,
+        alertId: null, // FK sur alerts(id) : pas d'alerte réelle créée dans ce test, null reste valide (voir history-store.js)
+        status: "success",
+        responseTimeMs: 12,
+      });
+      await historyStore.create({
+        providerId: provider.id,
+        alertId: null,
+        status: "failed",
+        errorCode: "NETWORK_ERROR",
+      });
 
-    const { server, baseUrl } = await startServer(NOTIF_MANAGER);
-    try {
-      const res = await fetch(`${baseUrl}/history?status=failed`);
-      assert.equal(res.status, 200);
-      const body = await res.json();
-      assert.equal(body.length, 1);
-      assert.equal(body[0].errorCode, "NETWORK_ERROR");
-      assert.equal(body[0].providerId, provider.id);
-    } finally {
-      await stopServer(server);
-    }
-  });
+      const { server, baseUrl } = await startServer(NOTIF_MANAGER);
+      try {
+        const res = await fetch(`${baseUrl}/history?status=failed`);
+        assert.equal(res.status, 200);
+        const body = await res.json();
+        assert.equal(body.length, 1);
+        assert.equal(body[0].errorCode, "NETWORK_ERROR");
+        assert.equal(body[0].providerId, provider.id);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await cleanupDb(dbCtx);
   delete process.env.PM2_MONITOR_DISABLE_AUTH;
@@ -610,23 +630,26 @@ test("routing/route-store — modèle + templates/notifyOnResolve (Phase 5A + 5D
     assert.ok(!enabled.some((r) => r.name === "Disabled route"));
   });
 
-  await t.test("titleTemplate/messageTemplate/notifyOnResolve : round-trip et défauts (Phase 5D)", async () => {
-    const withTemplate = await routeStore.create({
-      name: "With template",
-      titleTemplate: "[{{severity}}] {{ruleName}}",
-      messageTemplate: "{{metric}} {{operator}} {{threshold}}",
-      notifyOnResolve: true,
-    });
-    const fetched = await routeStore.getById(withTemplate.id);
-    assert.equal(fetched.titleTemplate, "[{{severity}}] {{ruleName}}");
-    assert.equal(fetched.messageTemplate, "{{metric}} {{operator}} {{threshold}}");
-    assert.equal(fetched.notifyOnResolve, true);
+  await t.test(
+    "titleTemplate/messageTemplate/notifyOnResolve : round-trip et défauts (Phase 5D)",
+    async () => {
+      const withTemplate = await routeStore.create({
+        name: "With template",
+        titleTemplate: "[{{severity}}] {{ruleName}}",
+        messageTemplate: "{{metric}} {{operator}} {{threshold}}",
+        notifyOnResolve: true,
+      });
+      const fetched = await routeStore.getById(withTemplate.id);
+      assert.equal(fetched.titleTemplate, "[{{severity}}] {{ruleName}}");
+      assert.equal(fetched.messageTemplate, "{{metric}} {{operator}} {{threshold}}");
+      assert.equal(fetched.notifyOnResolve, true);
 
-    const withoutTemplate = await routeStore.create({ name: "No template" });
-    assert.equal(withoutTemplate.titleTemplate, null);
-    assert.equal(withoutTemplate.messageTemplate, null);
-    assert.equal(withoutTemplate.notifyOnResolve, false);
-  });
+      const withoutTemplate = await routeStore.create({ name: "No template" });
+      assert.equal(withoutTemplate.titleTemplate, null);
+      assert.equal(withoutTemplate.messageTemplate, null);
+      assert.equal(withoutTemplate.notifyOnResolve, false);
+    },
+  );
 
   await t.test("update() peut modifier uniquement notifyOnResolve sans toucher aux templates", async () => {
     const route = await routeStore.create({

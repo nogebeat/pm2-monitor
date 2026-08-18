@@ -101,7 +101,9 @@ function openAuditLog() {
       </div>
       <div class="conn" :class="state.connected ? 'is-connected' : 'is-disconnected'">
         <span class="conn-dot"></span>
-        <span class="conn-label">{{ state.connected ? t("topbar.connected") : t("topbar.disconnected") }}</span>
+        <span class="conn-label">{{
+          state.connected ? t("topbar.connected") : t("topbar.disconnected")
+        }}</span>
       </div>
       <button class="icon-btn" :title="t('topbar.pm2Actions')" @click="togglePm2Menu">PM2 ⋯</button>
       <button
@@ -137,10 +139,19 @@ function openAuditLog() {
         👤 {{ t("topbar.users") }}
       </button>
       <LanguageSwitch />
-      <button class="theme-toggle" :title="t('topbar.themeToggle')" :aria-label="t('topbar.themeToggle')" @click="toggleTheme">
+      <button
+        class="theme-toggle"
+        :title="t('topbar.themeToggle')"
+        :aria-label="t('topbar.themeToggle')"
+        @click="toggleTheme"
+      >
         <span class="theme-icon">◐</span>
       </button>
-      <div v-if="state.auth.authEnabled && state.auth.user" class="user-chip" :title="state.auth.user.username">
+      <div
+        v-if="state.auth.authEnabled && state.auth.user"
+        class="user-chip"
+        :title="state.auth.user.username"
+      >
         <span>{{ state.auth.user.username }}</span>
         <button class="icon-btn" :title="t('topbar.logout')" @click="logout">⏻</button>
       </div>

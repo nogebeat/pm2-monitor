@@ -1,7 +1,26 @@
 {
   "name": "pm2-monitor",
-  "version": "3.5.f",
-  "description": "Interface graphique de monitoring PM2 (liste des process + logs en direct) — frontend Vue 3 + Vite",
+  "version": "3.6.0",
+  "description": "Interface graphique de monitoring PM2 (liste des process, logs en direct, dashboard, alertes) — frontend Vue 3 + Vite",
+  "keywords": [
+    "pm2",
+    "monitoring",
+    "dashboard",
+    "process-manager",
+    "nodejs",
+    "vue3",
+    "self-hosted"
+  ],
+  "homepage": "https://github.com/nogebeat/pm2-monitor#readme",
+  "bugs": {
+    "url": "https://github.com/nogebeat/pm2-monitor/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nogebeat/pm2-monitor.git"
+  },
+  "license": "MIT",
+  "author": "PM2 Monitor contributors",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -14,10 +33,15 @@
     "migrate:up": "node bin/migrate.js up",
     "migrate:down": "node bin/migrate.js down",
     "migrate:status": "node bin/migrate.js status",
-    "test": "node --test",
-    "test:unit": "node --test test/unit/",
-    "test:integration": "node --test test/integration/",
-    "check:i18n": "node scripts/check-i18n.js"
+    "test": "node --test \"test/**/*.test.js\"",
+    "test:unit": "node --test \"test/unit/**/*.test.js\"",
+    "test:integration": "node --test \"test/integration/**/*.test.js\"",
+    "check:i18n": "node scripts/check-i18n.js",
+    "lint": "eslint . && npm --prefix frontend run lint",
+    "lint:fix": "eslint . --fix && npm --prefix frontend run lint:fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -32,12 +56,33 @@
     "mysql2": "^3.11.3"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0",
+    "@eslint/js": "^9.13.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^9.13.0",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.11.0",
+    "husky": "^9.1.6",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.3.3"
   },
   "engines": {
     "node": ">=20"
   },
-    "overrides": {
+  "overrides": {
     "js-yaml": "5.2.3"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "frontend/**/*.{js,vue}": [
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   }
 }

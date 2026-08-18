@@ -69,7 +69,7 @@ Health Checks et la Timeline d'événements) :
    branché sur la même fonction `dispatchAlertTransition()` que les
    notifications, voir `lib/alert-dispatch.js`). Couvre par construction les règles
    `memory > threshold`, `restart_count > N`, `status == stopped`, etc.
-2. **Health Checks** — un check `DOWN` est lui-même une nouvelle *source* de
+2. **Health Checks** — un check `DOWN` est lui-même une nouvelle _source_ de
    valeurs pour l'Alert Engine (voir `docs/health-checks/README.md`), donc
    déjà couvert par le point précédent : pas de deuxième chemin de code. Le
    nom du check (`alert.targetValue`) n'est **pas** utilisé tel quel comme
@@ -160,11 +160,11 @@ PUT /api/auto-healing/settings
 
 Champs modifiables :
 
-| Champ            | Type            | Défaut            | Description                                   |
-| ---------------- | --------------- | ------------------ | ---------------------------------------------- |
-| `enabled`         | boolean         | `false`            | Active/désactive Auto-Healing globalement.     |
-| `maxAttempts`      | entier (1–20)   | `3`                 | Nombre de restarts avant blocage.              |
-| `backoffSeconds`   | tableau de nombres | `[60, 300, 900]` | Paliers de cooldown, en secondes, par tentative. |
+| Champ            | Type               | Défaut           | Description                                      |
+| ---------------- | ------------------ | ---------------- | ------------------------------------------------ |
+| `enabled`        | boolean            | `false`          | Active/désactive Auto-Healing globalement.       |
+| `maxAttempts`    | entier (1–20)      | `3`              | Nombre de restarts avant blocage.                |
+| `backoffSeconds` | tableau de nombres | `[60, 300, 900]` | Paliers de cooldown, en secondes, par tentative. |
 
 ## Permissions
 
@@ -200,14 +200,14 @@ Journal **append-only** : aucun endpoint de suppression n'est exposé.
 
 ## API REST
 
-| Méthode | Route                                   | Permission          | Description                          |
-| ------- | ---------------------------------------- | -------------------- | ------------------------------------- |
-| GET     | `/api/auto-healing/settings`             | `authealing_read`    | Configuration globale.                |
-| PUT     | `/api/auto-healing/settings`             | `authealing_manage`  | Modifie la configuration globale.     |
-| GET     | `/api/auto-healing/state`                | `authealing_read`    | État de tous les process suivis.      |
-| GET     | `/api/auto-healing/state/:process`       | `authealing_read`    | État d'un process précis.             |
-| POST    | `/api/auto-healing/state/:process/unblock` | `authealing_manage` | Débloque un process `BLOCKED`.        |
-| GET     | `/api/auto-healing/audit`                | `authealing_read`    | Historique paginé des tentatives.     |
+| Méthode | Route                                      | Permission          | Description                       |
+| ------- | ------------------------------------------ | ------------------- | --------------------------------- |
+| GET     | `/api/auto-healing/settings`               | `authealing_read`   | Configuration globale.            |
+| PUT     | `/api/auto-healing/settings`               | `authealing_manage` | Modifie la configuration globale. |
+| GET     | `/api/auto-healing/state`                  | `authealing_read`   | État de tous les process suivis.  |
+| GET     | `/api/auto-healing/state/:process`         | `authealing_read`   | État d'un process précis.         |
+| POST    | `/api/auto-healing/state/:process/unblock` | `authealing_manage` | Débloque un process `BLOCKED`.    |
+| GET     | `/api/auto-healing/audit`                  | `authealing_read`   | Historique paginé des tentatives. |
 
 ## Sécurité
 
@@ -218,7 +218,7 @@ Journal **append-only** : aucun endpoint de suppression n'est exposé.
   utilisateur.
 - `reason` (le motif journalisé) est toujours une phrase courte et fixe
   choisie par le code appelant (`"process crashed"`, `"<metric> <op>
-  <threshold>"`), jamais une valeur libre injectée puis interprétée.
+<threshold>"`), jamais une valeur libre injectée puis interprétée.
 - Voir `test/unit/auto-healing-engine.test.js` (section "sécurité") pour la
   vérification explicite qu'une entrée malveillante en `processName`/`reason`
   ne se retrouve jamais exécutée : elle est transmise telle quelle à l'API

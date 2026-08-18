@@ -52,7 +52,12 @@ test("process-history rollup", async (t) => {
 
     assert.equal(report.mediumBucketsWritten, 1, "un seul bucket horaire complet à agréger");
 
-    const rows = await store.queryRollup({ processName: "api", resolution: "medium", start: 0, end: HOUR - 1 });
+    const rows = await store.queryRollup({
+      processName: "api",
+      resolution: "medium",
+      start: 0,
+      end: HOUR - 1,
+    });
     assert.equal(rows.length, 1);
     assert.equal(rows[0].cpu.avg, 20, "moyenne de 10/20/30");
     assert.equal(rows[0].sampleCount, 3);
@@ -141,6 +146,10 @@ test("process-history rollup", async (t) => {
     assert.ok(report.mediumPurged >= 1, "le bucket medium très ancien doit être purgé");
 
     const remainingRaw = await store.queryRaw({ processName: "api", start: 0, end: now });
-    assert.deepEqual(remainingRaw.map((r) => r.ts), [now - 1000], "seul l'échantillon récent survit");
+    assert.deepEqual(
+      remainingRaw.map((r) => r.ts),
+      [now - 1000],
+      "seul l'échantillon récent survit",
+    );
   });
 });

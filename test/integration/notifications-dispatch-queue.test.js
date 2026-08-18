@@ -56,58 +56,71 @@ test("NotificationDispatchQueue — intégration avec PersistentQueue + historyS
     assert.equal(stored.responseTimeMs, 7);
   });
 
-  await t.test("échecs répétés puis épuisement : historique finit 'failed', job supprimé de la file", async () => {
-    const created = await providerStoreReal.create({ name: "Fake 2", type: "fake", configuration: {} });
-    const providerStore = {
-      getById: async () => ({ id: created.id, type: "fake", enabled: true, configuration: {} }),
-      getDecryptedSecrets: async () => null,
-    };
-    const registry = { getProvider: () => ({ send: async () => ({ success: false, errorCode: "TIMEOUT" }) }) };
-    const queue = createQueue("notifications-dispatch-test-fail", { maxAttempts: 2, backoffMs: 0 });
-    const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
+  await t.test(
+    "échecs répétés puis épuisement : historique finit 'failed', job supprimé de la file",
+    async () => {
+      const created = await providerStoreReal.create({ name: "Fake 2", type: "fake", configuration: {} });
+      const providerStore = {
+        getById: async () => ({ id: created.id, type: "fake", enabled: true, configuration: {} }),
+        getDecryptedSecrets: async () => null,
+      };
+      const registry = {
+        getProvider: () => ({ send: async () => ({ success: false, errorCode: "TIMEOUT" }) }),
+      };
+      const queue = createQueue("notifications-dispatch-test-fail", { maxAttempts: 2, backoffMs: 0 });
+      const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
 
-    const { historyEntry } = await dq.enqueue({
-      providerId: created.id,
-      notification: {},
-      alertId: null,
-      event: "triggered",
-    });
+      const { historyEntry } = await dq.enqueue({
+        providerId: created.id,
+        notification: {},
+        alertId: null,
+        event: "triggered",
+      });
 
-    await dq.processOne(); // tentative 1/2
-    assert.equal((await historyStore.getById(historyEntry.id)).status, "retrying");
+      await dq.processOne(); // tentative 1/2
+      assert.equal((await historyStore.getById(historyEntry.id)).status, "retrying");
 
-    await dq.processOne(); // tentative 2/2 : épuisée
-    const finalEntry = await historyStore.getById(historyEntry.id);
-    assert.equal(finalEntry.status, "failed");
-    assert.equal(finalEntry.errorCode, "TIMEOUT");
+      await dq.processOne(); // tentative 2/2 : épuisée
+      const finalEntry = await historyStore.getById(historyEntry.id);
+      assert.equal(finalEntry.status, "failed");
+      assert.equal(finalEntry.errorCode, "TIMEOUT");
 
-    const pending = await queue.listByStatus("pending");
-    assert.equal(pending.length, 0); // plus rien à retenter
-  });
+      const pending = await queue.listByStatus("pending");
+      assert.equal(pending.length, 0); // plus rien à retenter
+    },
+  );
 
-  await t.test("un job orphelin ('active' suite à un arrêt brutal) est repris après recoverStaleActiveJobs()", async () => {
-    const created = await providerStoreReal.create({ name: "Fake 3", type: "fake", configuration: {} });
-    const providerStore = {
-      getById: async () => ({ id: created.id, type: "fake", enabled: true, configuration: {} }),
-      getDecryptedSecrets: async () => null,
-    };
-    const registry = { getProvider: () => ({ send: async () => ({ success: true }) }) };
-    const queue = createQueue("notifications-dispatch-test-restart", { maxAttempts: 3, backoffMs: 0 });
-    const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
+  await t.test(
+    "un job orphelin ('active' suite à un arrêt brutal) est repris après recoverStaleActiveJobs()",
+    async () => {
+      const created = await providerStoreReal.create({ name: "Fake 3", type: "fake", configuration: {} });
+      const providerStore = {
+        getById: async () => ({ id: created.id, type: "fake", enabled: true, configuration: {} }),
+        getDecryptedSecrets: async () => null,
+      };
+      const registry = { getProvider: () => ({ send: async () => ({ success: true }) }) };
+      const queue = createQueue("notifications-dispatch-test-restart", { maxAttempts: 3, backoffMs: 0 });
+      const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
 
-    const { jobId } = await dq.enqueue({ providerId: created.id, notification: {}, alertId: null, event: "triggered" });
+      const { jobId } = await dq.enqueue({
+        providerId: created.id,
+        notification: {},
+        alertId: null,
+        event: "triggered",
+      });
 
-    // Simule un process tué en plein traitement : job resté "active".
-    const db = require("../../lib/db");
-    await db.run("UPDATE jobs SET status = 'active' WHERE id = ?", [jobId]);
+      // Simule un process tué en plein traitement : job resté "active".
+      const db = require("../../lib/db");
+      await db.run("UPDATE jobs SET status = 'active' WHERE id = ?", [jobId]);
 
-    const before = await queue.listByStatus("pending");
-    assert.equal(before.length, 0);
+      const before = await queue.listByStatus("pending");
+      assert.equal(before.length, 0);
 
-    await dq.start();
-    dq.stop(); // on ne veut pas laisser le polling tourner après le test
+      await dq.start();
+      dq.stop(); // on ne veut pas laisser le polling tourner après le test
 
-    const after = await queue.listByStatus("pending");
-    assert.equal(after.length, 1); // recoverStaleActiveJobs() l'a remis en pending
-  });
+      const after = await queue.listByStatus("pending");
+      assert.equal(after.length, 1); // recoverStaleActiveJobs() l'a remis en pending
+    },
+  );
 });

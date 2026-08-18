@@ -55,20 +55,28 @@ test("Volume — collecte réaliste (10 process x 24h @15s) + maintenance", asyn
       longRetentionMs: 365 * 24 * 3600 * 1000,
     };
     const report = await runMaintenance(config, now);
-    assert.ok(report.rawPurged > 0, "la purge doit avoir supprimé les échantillons raw hors rétention courte");
+    assert.ok(
+      report.rawPurged > 0,
+      "la purge doit avoir supprimé les échantillons raw hors rétention courte",
+    );
 
     const remainingRaw = await store.queryRaw({ processName: "app-0", start: 0, end: now });
     const oldestAllowed = now - config.shortRetentionMs;
     assert.ok(
       remainingRaw.every((r) => r.ts >= oldestAllowed),
-      "aucune ligne raw ne doit survivre au-delà de shortRetentionMs après la purge"
+      "aucune ligne raw ne doit survivre au-delà de shortRetentionMs après la purge",
     );
     // 6h de rétention à 15s -> au plus 6*3600/15 = 1440 points par process, pas 24h complètes.
     assert.ok(remainingRaw.length <= 1440 + 1, `raw restant borné (${remainingRaw.length} points)`);
   });
 
   await t.test("les buckets 'medium' couvrent l'historique complet malgré la purge du raw", async () => {
-    const rollup = await store.queryRollup({ processName: "app-0", resolution: "medium", start: 0, end: now });
+    const rollup = await store.queryRollup({
+      processName: "app-0",
+      resolution: "medium",
+      start: 0,
+      end: now,
+    });
     // 24h de collecte -> jusqu'à 24 buckets horaires complets pour ce process.
     assert.ok(rollup.length >= 20, `attendu ~24 buckets horaires, obtenu ${rollup.length}`);
   });
@@ -76,7 +84,10 @@ test("Volume — collecte réaliste (10 process x 24h @15s) + maintenance", asyn
   await t.test("taille du fichier DB reste raisonnable pour un petit VPS", async () => {
     const stat = fs.statSync(dbCtx.dbPath);
     // ~10 process x 6h de raw (1440 pts) + rollups horaires/journaliers sur 24h : quelques Mo au grand maximum.
-    assert.ok(stat.size < 20 * 1024 * 1024, `DB size = ${(stat.size / 1024 / 1024).toFixed(2)} Mo, attendu < 20 Mo`);
+    assert.ok(
+      stat.size < 20 * 1024 * 1024,
+      `DB size = ${(stat.size / 1024 / 1024).toFixed(2)} Mo, attendu < 20 Mo`,
+    );
   });
 
   await t.test("query() reste rapide même après ce volume", async () => {

@@ -1,0 +1,21 @@
+# Ce fichier définit qui est automatiquement demandé en relecture sur une
+# Pull Request selon les fichiers touchés. Remplace @nogebeat par ton
+# pseudo GitHub (ou celui d'une équipe) une fois le dépôt publié.
+# Voir https://docs.github.com/articles/about-code-owners
+
+# Par défaut, tout le dépôt
+* @nogebeat
+
+# Backend
+/lib/            @nogebeat
+/bin/            @nogebeat
+/server.js       @nogebeat
+/test/           @nogebeat
+
+# Frontend
+/frontend/       @nogebeat
+
+# Gouvernance / CI
+/.github/        @nogebeat
+/SECURITY.md     @nogebeat
+/CODE_OF_CONDUCT.md @nogebeat

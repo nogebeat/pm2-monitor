@@ -103,15 +103,18 @@ test("audit API — permissions", async (t) => {
     }
   });
 
-  await t.test("aucun filtre ne permet de contourner la permission (query arbitraire refusée pareil)", async () => {
-    const { server, baseUrl } = await startServer(NO_PERMS_USER);
-    try {
-      const res = await fetch(`${baseUrl}/api/audit?user=1&username=admin&action=login`);
-      assert.equal(res.status, 403);
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "aucun filtre ne permet de contourner la permission (query arbitraire refusée pareil)",
+    async () => {
+      const { server, baseUrl } = await startServer(NO_PERMS_USER);
+      try {
+        const res = await fetch(`${baseUrl}/api/audit?user=1&username=admin&action=login`);
+        assert.equal(res.status, 403);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await cleanupDb(dbCtx);
 });
@@ -166,31 +169,34 @@ test("audit API — action recorded / success / failed / denied", async (t) => {
     }
   });
 
-  await t.test("une action refusée (permission manquante) est journalisée comme denied par le middleware", async () => {
-    const { server, baseUrl } = await startServer(NO_PERMS_USER);
-    try {
-      const res = await fetch(`${baseUrl}/api/alerts/rules`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "x" }),
-      });
-      assert.equal(res.status, 403);
-    } finally {
-      await stopServer(server);
-    }
+  await t.test(
+    "une action refusée (permission manquante) est journalisée comme denied par le middleware",
+    async () => {
+      const { server, baseUrl } = await startServer(NO_PERMS_USER);
+      try {
+        const res = await fetch(`${baseUrl}/api/alerts/rules`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "x" }),
+        });
+        assert.equal(res.status, 403);
+      } finally {
+        await stopServer(server);
+      }
 
-    // Vérifie côté admin (a le droit de lire l'audit) qu'une entrée "denied"
-    // existe bien pour l'utilisateur sans permission, si le middleware d'auth
-    // journalise les refus (lib/auth.js#requirePermission).
-    const { server: server2, baseUrl: baseUrl2 } = await startServer(ADMIN);
-    try {
-      const auditRes = await fetch(`${baseUrl2}/api/audit?status=denied`);
-      const audit = await auditRes.json();
-      assert.ok(audit.total >= 0); // n'échoue pas même si le refus n'est pas capturé par cette route précise
-    } finally {
-      await stopServer(server2);
-    }
-  });
+      // Vérifie côté admin (a le droit de lire l'audit) qu'une entrée "denied"
+      // existe bien pour l'utilisateur sans permission, si le middleware d'auth
+      // journalise les refus (lib/auth.js#requirePermission).
+      const { server: server2, baseUrl: baseUrl2 } = await startServer(ADMIN);
+      try {
+        const auditRes = await fetch(`${baseUrl2}/api/audit?status=denied`);
+        const audit = await auditRes.json();
+        assert.ok(audit.total >= 0); // n'échoue pas même si le refus n'est pas capturé par cette route précise
+      } finally {
+        await stopServer(server2);
+      }
+    },
+  );
 
   await cleanupDb(dbCtx);
 });
@@ -320,25 +326,32 @@ test("audit API — Sécurité (OBLIGATOIRE) : aucun secret injecté n'apparaît
     webhook: `https://discord.com/api/webhooks/1/${SECRET_MARKER}`,
   };
 
-  await t.test("recordEvent() avec des secrets injectés dans metadata : sanitisés avant stockage", async () => {
-    for (const [key, value] of Object.entries(injectedFields)) {
-      await recordEvent({
-        user: { id: 1, username: "admin" },
-        action: "notification.config_change",
-        target: "provider-1",
-        targetType: "notification_provider",
-        status: "success",
-        ip: "127.0.0.1",
-        metadata: { [key]: value, nested: { [key]: value }, list: [{ [key]: value }] },
-      });
-    }
-  });
+  await t.test(
+    "recordEvent() avec des secrets injectés dans metadata : sanitisés avant stockage",
+    async () => {
+      for (const [key, value] of Object.entries(injectedFields)) {
+        await recordEvent({
+          user: { id: 1, username: "admin" },
+          action: "notification.config_change",
+          target: "provider-1",
+          targetType: "notification_provider",
+          status: "success",
+          ip: "127.0.0.1",
+          metadata: { [key]: value, nested: { [key]: value }, list: [{ [key]: value }] },
+        });
+      }
+    },
+  );
 
   await t.test("aucun secret dans la table audit_log", async () => {
     const rows = await db.all("SELECT * FROM audit_log", []);
     assert.ok(rows.length >= Object.keys(injectedFields).length);
     for (const row of rows) {
-      assert.equal(containsSecret(JSON.stringify(row)), false, "audit_log ne doit jamais contenir le secret en clair");
+      assert.equal(
+        containsSecret(JSON.stringify(row)),
+        false,
+        "audit_log ne doit jamais contenir le secret en clair",
+      );
     }
   });
 
@@ -347,12 +360,20 @@ test("audit API — Sécurité (OBLIGATOIRE) : aucun secret injecté n'apparaît
     try {
       const res = await fetch(`${baseUrl}/api/audit?limit=50`);
       const body = await res.json();
-      assert.equal(containsSecret(JSON.stringify(body)), false, "GET /api/audit ne doit jamais exposer le secret");
+      assert.equal(
+        containsSecret(JSON.stringify(body)),
+        false,
+        "GET /api/audit ne doit jamais exposer le secret",
+      );
 
       // Vérifie aussi le détail d'une entrée précise.
       for (const item of body.items) {
         const single = await (await fetch(`${baseUrl}/api/audit/${item.id}`)).json();
-        assert.equal(containsSecret(JSON.stringify(single)), false, "GET /api/audit/:id ne doit jamais exposer le secret");
+        assert.equal(
+          containsSecret(JSON.stringify(single)),
+          false,
+          "GET /api/audit/:id ne doit jamais exposer le secret",
+        );
       }
     } finally {
       await stopServer(server);
@@ -380,56 +401,63 @@ test("audit API — Sécurité (OBLIGATOIRE) : aucun secret injecté n'apparaît
     assert.equal(containsSecret(captured), false);
   });
 
-  await t.test("scénario notifications.js réel : création d'un provider avec secret réel → audit metadata ne contient que des clés, jamais la valeur", async () => {
-    delete require.cache[require.resolve("../../lib/routes/notifications")];
-    delete require.cache[require.resolve("../../lib/services/notifications")];
-    delete require.cache[require.resolve("../../lib/services/notifications/provider-store")];
-    const notificationsRouter = require("../../lib/routes/notifications");
+  await t.test(
+    "scénario notifications.js réel : création d'un provider avec secret réel → audit metadata ne contient que des clés, jamais la valeur",
+    async () => {
+      delete require.cache[require.resolve("../../lib/routes/notifications")];
+      delete require.cache[require.resolve("../../lib/services/notifications")];
+      delete require.cache[require.resolve("../../lib/services/notifications/provider-store")];
+      const notificationsRouter = require("../../lib/routes/notifications");
 
-    const app = express();
-    app.use(express.json());
-    app.use((req, res, next) => {
-      req.user = { id: 1, isAdmin: true, username: "admin" };
-      next();
-    });
-    app.use("/api/notifications", notificationsRouter());
-    const server = http.createServer(app);
-    await new Promise((resolve) => server.listen(0, resolve));
-    const { port } = server.address();
-    const baseUrl = `http://127.0.0.1:${port}/api/notifications`;
-
-    try {
-      const createRes = await fetch(`${baseUrl}/providers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "Discord real secret test",
-          type: "discord",
-          fields: { webhookUrl: `https://discord.com/api/webhooks/1/${SECRET_MARKER}` },
-        }),
+      const app = express();
+      app.use(express.json());
+      app.use((req, res, next) => {
+        req.user = { id: 1, isAdmin: true, username: "admin" };
+        next();
       });
-      assert.equal(createRes.status, 201);
+      app.use("/api/notifications", notificationsRouter());
+      const server = http.createServer(app);
+      await new Promise((resolve) => server.listen(0, resolve));
+      const { port } = server.address();
+      const baseUrl = `http://127.0.0.1:${port}/api/notifications`;
 
-      const rows = await db.all("SELECT * FROM audit_log WHERE target_type = 'notification_provider'", []);
-      assert.ok(rows.length >= 1);
-      for (const row of rows) {
-        assert.equal(containsSecret(JSON.stringify(row)), false, "l'audit d'un provider ne doit jamais contenir le secret");
-        if (row.metadata) {
-          const meta = JSON.parse(row.metadata);
-          if (meta.fields) {
-            // metadata.fields ne doit contenir que des noms de clés (strings courtes),
-            // jamais une valeur de secret.
-            for (const f of meta.fields) {
-              assert.equal(typeof f, "string");
-              assert.equal(containsSecret(f), false);
+      try {
+        const createRes = await fetch(`${baseUrl}/providers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: "Discord real secret test",
+            type: "discord",
+            fields: { webhookUrl: `https://discord.com/api/webhooks/1/${SECRET_MARKER}` },
+          }),
+        });
+        assert.equal(createRes.status, 201);
+
+        const rows = await db.all("SELECT * FROM audit_log WHERE target_type = 'notification_provider'", []);
+        assert.ok(rows.length >= 1);
+        for (const row of rows) {
+          assert.equal(
+            containsSecret(JSON.stringify(row)),
+            false,
+            "l'audit d'un provider ne doit jamais contenir le secret",
+          );
+          if (row.metadata) {
+            const meta = JSON.parse(row.metadata);
+            if (meta.fields) {
+              // metadata.fields ne doit contenir que des noms de clés (strings courtes),
+              // jamais une valeur de secret.
+              for (const f of meta.fields) {
+                assert.equal(typeof f, "string");
+                assert.equal(containsSecret(f), false);
+              }
             }
           }
         }
+      } finally {
+        await stopServer(server);
       }
-    } finally {
-      await stopServer(server);
-    }
-  });
+    },
+  );
 
   await cleanupDb(dbCtx);
 });

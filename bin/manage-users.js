@@ -105,7 +105,7 @@ async function main() {
         if (action !== "*" && !APP_ACTIONS[action] && !GLOBAL_ACTIONS[action]) {
           throw new Error(
             `Action inconnue "${action}". Actions par app: ${Object.keys(APP_ACTIONS).join(", ")}. ` +
-              `Actions globales: ${Object.keys(GLOBAL_ACTIONS).join(", ")}.`
+              `Actions globales: ${Object.keys(GLOBAL_ACTIONS).join(", ")}.`,
           );
         }
         const row = await userStore.getByUsername(username);

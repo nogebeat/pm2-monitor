@@ -3,7 +3,7 @@ import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
 
-const props = defineProps({
+defineProps({
   title: { type: String, required: true },
   hideConfirm: { type: Boolean, default: false },
   confirmLabel: { type: String, default: "" },
@@ -27,7 +27,9 @@ function onOverlayClick(e) {
       </div>
       <div class="modal-foot">
         <button class="icon-btn" @click="emit('close')">{{ t("modalBase.cancel") }}</button>
-        <button v-if="!hideConfirm" class="icon-btn go" @click="emit('confirm')">{{ confirmLabel || t("modalBase.confirm") }}</button>
+        <button v-if="!hideConfirm" class="icon-btn go" @click="emit('confirm')">
+          {{ confirmLabel || t("modalBase.confirm") }}
+        </button>
       </div>
     </div>
   </div>

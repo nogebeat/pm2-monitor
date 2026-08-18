@@ -55,26 +55,26 @@ polling déjà existantes (voir [Évaluation périodique](#évaluation-périodiq
 
 ## Modèle de règle (alert rule)
 
-| Champ              | Type                      | Description                                                                 |
-|---------------------|----------------------------|-------------------------------------------------------------------------------|
-| `name`               | string (requis)             | Nom lisible.                                                                  |
-| `description`        | string                       | Optionnelle.                                                                  |
-| `enabled`             | bool (défaut `true`)         | Une règle désactivée n'est jamais évaluée.                                    |
-| `targetType`          | `"process"` \| `"system"`    | Cible une app PM2 précise, ou une métrique machine globale.                   |
-| `targetValue`         | string \| `"*"` \| `null`     | Nom de l'app PM2 (ou `"*"` = toutes les apps) si `targetType="process"`. Ignoré (mis à `null`) si `targetType="system"`. |
-| `metric`              | string (voir ci-dessous)     | Métrique surveillée.                                                          |
-| `operator`            | `>` `>=` `<` `<=` `==` `!=` | Opérateur de comparaison.                                                     |
-| `threshold`           | number \| string             | Seuil. Numérique pour la plupart des métriques ; chaîne pour `status` (ex: `"stopped"`). |
-| `durationSeconds`     | number (défaut `0`)          | La condition doit rester vraie sans interruption pendant cette durée avant de déclencher réellement l'alerte. |
-| `severity`            | `info` \| `warning` \| `critical` (défaut `warning`) | Utilisée pour trier/filtrer, pas de logique de routage dans cette phase.      |
-| `cooldownSeconds`     | number (défaut `0`)          | Délai minimum après résolution avant qu'une nouvelle occurrence puisse se déclencher pour la même règle+cible+métrique. |
+| Champ             | Type                                                 | Description                                                                                                              |
+| ----------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `name`            | string (requis)                                      | Nom lisible.                                                                                                             |
+| `description`     | string                                               | Optionnelle.                                                                                                             |
+| `enabled`         | bool (défaut `true`)                                 | Une règle désactivée n'est jamais évaluée.                                                                               |
+| `targetType`      | `"process"` \| `"system"`                            | Cible une app PM2 précise, ou une métrique machine globale.                                                              |
+| `targetValue`     | string \| `"*"` \| `null`                            | Nom de l'app PM2 (ou `"*"` = toutes les apps) si `targetType="process"`. Ignoré (mis à `null`) si `targetType="system"`. |
+| `metric`          | string (voir ci-dessous)                             | Métrique surveillée.                                                                                                     |
+| `operator`        | `>` `>=` `<` `<=` `==` `!=`                          | Opérateur de comparaison.                                                                                                |
+| `threshold`       | number \| string                                     | Seuil. Numérique pour la plupart des métriques ; chaîne pour `status` (ex: `"stopped"`).                                 |
+| `durationSeconds` | number (défaut `0`)                                  | La condition doit rester vraie sans interruption pendant cette durée avant de déclencher réellement l'alerte.            |
+| `severity`        | `info` \| `warning` \| `critical` (défaut `warning`) | Utilisée pour trier/filtrer, pas de logique de routage dans cette phase.                                                 |
+| `cooldownSeconds` | number (défaut `0`)                                  | Délai minimum après résolution avant qu'une nouvelle occurrence puisse se déclencher pour la même règle+cible+métrique.  |
 
 Métriques valides par `targetType` :
 
-| `targetType`  | Métriques                                            |
-|----------------|--------------------------------------------------------|
-| `process`       | `cpu` (%), `memory` (Mo, absolu — un process n'a pas de "total" de référence), `restart_count`, `status` |
-| `system`         | `cpu` (%), `memory` (% RAM utilisée), `disk` (% utilisé sur `/`), `temperature` (°C, Linux uniquement) |
+| `targetType` | Métriques                                                                                                |
+| ------------ | -------------------------------------------------------------------------------------------------------- |
+| `process`    | `cpu` (%), `memory` (Mo, absolu — un process n'a pas de "total" de référence), `restart_count`, `status` |
+| `system`     | `cpu` (%), `memory` (% RAM utilisée), `disk` (% utilisé sur `/`), `temperature` (°C, Linux uniquement)   |
 
 Si une métrique n'est pas disponible sur la plateforme (ex : température hors
 Linux, disque non lisible) la lecture renvoie `null` et la règle est
@@ -139,7 +139,7 @@ nouvelle. Une seule alerte "vivante" par règle+cible+métrique à la fois.
 - **`active`** : alerte réellement déclenchée. C'est l'état qu'un futur
   provider de notification consommerait.
 - **`acknowledged`** : un utilisateur a accusé réception (`POST
-  /api/alerts/:id/acknowledge`). L'alerte continue d'être suivie (la valeur
+/api/alerts/:id/acknowledge`). L'alerte continue d'être suivie (la valeur
   observée est mise à jour à chaque lecture) mais ne génère plus de bruit ;
   elle se résout normalement dès que la condition redevient fausse.
 - **`resolved`** : condition redevenue fausse. Ligne conservée pour
@@ -184,22 +184,22 @@ cas d'échec.
 
 ### Règles
 
-| Méthode | Route                    | Permission        | Description                                  |
-|----------|----------------------------|---------------------|------------------------------------------------|
-| GET      | `/api/alerts/rules`         | `alerts_read`        | Liste les règles. `?enabled=1` filtre les activées seulement. |
-| GET      | `/api/alerts/rules/:id`     | `alerts_read`        | Détail d'une règle. `404` si absente.          |
-| POST     | `/api/alerts/rules`          | `alerts_create`      | Crée une règle (voir [modèle](#modèle-de-règle-alert-rule)). `400` si invalide. |
-| PUT/PATCH | `/api/alerts/rules/:id`     | `alerts_update`      | Met à jour (partiel pour `PATCH` comme pour `PUT` dans cette implémentation — seuls les champs fournis sont validés). |
-| DELETE   | `/api/alerts/rules/:id`      | `alerts_delete`      | Supprime la règle. Les alertes déjà émises pour cette règle restent dans l'historique (`rule_id` passe à `NULL`, `rule_name` déjà dupliqué dans chaque alerte). |
-| GET      | `/api/alerts/catalog`         | `alerts_read`        | Catalogue des `targetTypes`/métriques par cible/opérateurs/sévérités valides — pratique pour construire un formulaire. |
+| Méthode   | Route                   | Permission      | Description                                                                                                                                                     |
+| --------- | ----------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET       | `/api/alerts/rules`     | `alerts_read`   | Liste les règles. `?enabled=1` filtre les activées seulement.                                                                                                   |
+| GET       | `/api/alerts/rules/:id` | `alerts_read`   | Détail d'une règle. `404` si absente.                                                                                                                           |
+| POST      | `/api/alerts/rules`     | `alerts_create` | Crée une règle (voir [modèle](#modèle-de-règle-alert-rule)). `400` si invalide.                                                                                 |
+| PUT/PATCH | `/api/alerts/rules/:id` | `alerts_update` | Met à jour (partiel pour `PATCH` comme pour `PUT` dans cette implémentation — seuls les champs fournis sont validés).                                           |
+| DELETE    | `/api/alerts/rules/:id` | `alerts_delete` | Supprime la règle. Les alertes déjà émises pour cette règle restent dans l'historique (`rule_id` passe à `NULL`, `rule_name` déjà dupliqué dans chaque alerte). |
+| GET       | `/api/alerts/catalog`   | `alerts_read`   | Catalogue des `targetTypes`/métriques par cible/opérateurs/sévérités valides — pratique pour construire un formulaire.                                          |
 
 ### Alertes (occurrences)
 
-| Méthode | Route                              | Permission            | Description |
-|----------|---------------------------------------|--------------------------|---------------|
-| GET      | `/api/alerts/active`                    | `alerts_read`             | Alertes actuellement vivantes (`active`/`acknowledged` par défaut). `?includePending=1` inclut aussi celles en état `trigger` (en attente de durée). Triées par sévérité (critical d'abord) puis date de déclenchement. |
-| GET      | `/api/alerts/history`                    | `alerts_read`             | Historique paginé, toutes occurrences confondues (y compris actives). Filtres : `?state=`, `?severity=`, `?ruleId=`, `?limit=` (défaut 100, max 1000), `?offset=`. |
-| POST     | `/api/alerts/:id/acknowledge`             | `alerts_acknowledge`      | Acquitte une alerte `active`. `400` si l'alerte n'est pas dans un état acquittable, `404` si elle n'existe pas. |
+| Méthode | Route                         | Permission           | Description                                                                                                                                                                                                             |
+| ------- | ----------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET     | `/api/alerts/active`          | `alerts_read`        | Alertes actuellement vivantes (`active`/`acknowledged` par défaut). `?includePending=1` inclut aussi celles en état `trigger` (en attente de durée). Triées par sévérité (critical d'abord) puis date de déclenchement. |
+| GET     | `/api/alerts/history`         | `alerts_read`        | Historique paginé, toutes occurrences confondues (y compris actives). Filtres : `?state=`, `?severity=`, `?ruleId=`, `?limit=` (défaut 100, max 1000), `?offset=`.                                                      |
+| POST    | `/api/alerts/:id/acknowledge` | `alerts_acknowledge` | Acquitte une alerte `active`. `400` si l'alerte n'est pas dans un état acquittable, `404` si elle n'existe pas.                                                                                                         |
 
 ### Exemple : créer une règle "CPU > 80% pendant 5 min"
 
@@ -226,13 +226,13 @@ sans nouveau mécanisme. Cinq actions **globales** (pas liées à une app
 précise, contrairement à `restart`/`logs`/etc. — gérer les règles d'alerte
 est une action de configuration du monitor lui-même) :
 
-| Action                | Description                                    |
-|-------------------------|---------------------------------------------------|
-| `alerts_read`             | Voir les règles, les alertes actives et l'historique. |
-| `alerts_create`           | Créer une règle.                                    |
-| `alerts_update`           | Modifier une règle.                                 |
-| `alerts_delete`           | Supprimer une règle.                                |
-| `alerts_acknowledge`       | Acquitter une alerte active.                        |
+| Action               | Description                                           |
+| -------------------- | ----------------------------------------------------- |
+| `alerts_read`        | Voir les règles, les alertes actives et l'historique. |
+| `alerts_create`      | Créer une règle.                                      |
+| `alerts_update`      | Modifier une règle.                                   |
+| `alerts_delete`      | Supprimer une règle.                                  |
+| `alerts_acknowledge` | Acquitter une alerte active.                          |
 
 Accordables via l'UI existante (menu utilisateurs, admin) ou en CLI :
 
@@ -294,4 +294,3 @@ production sans sauvegarde préalable.
 - Aucun provider de notification n'existe encore : une alerte qui passe à
   `active` ne déclenche pour l'instant aucun envoi externe, uniquement une
   ligne visible via `GET /api/alerts/active`.
-  

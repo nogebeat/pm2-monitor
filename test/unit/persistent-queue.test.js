@@ -77,28 +77,31 @@ test("PersistentQueue", async (t) => {
     assert.equal(job.lastError, "échec simulé");
   });
 
-  await t.test("failed job: après max_attempts échecs, le job passe en 'failed' et n'est plus repris", async () => {
-    const { createQueue } = require("../../lib/services/queue");
-    const q = createQueue("test-queue", { backoffMs: 0, maxAttempts: 2 });
-    const id = await q.add({ n: 1 });
+  await t.test(
+    "failed job: après max_attempts échecs, le job passe en 'failed' et n'est plus repris",
+    async () => {
+      const { createQueue } = require("../../lib/services/queue");
+      const q = createQueue("test-queue", { backoffMs: 0, maxAttempts: 2 });
+      const id = await q.add({ n: 1 });
 
-    await q.processOne(async () => {
-      throw new Error("échec 1");
-    });
-    await q.processOne(async () => {
-      throw new Error("échec 2");
-    });
+      await q.processOne(async () => {
+        throw new Error("échec 1");
+      });
+      await q.processOne(async () => {
+        throw new Error("échec 2");
+      });
 
-    const job = await q.getJob(id);
-    assert.equal(job.status, "failed");
-    assert.equal(job.attempts, 2);
+      const job = await q.getJob(id);
+      assert.equal(job.status, "failed");
+      assert.equal(job.attempts, 2);
 
-    // Un job "failed" ne doit plus être repris par processOne()
-    const next = await q.processOne(async () => {
-      throw new Error("ne devrait pas être appelé");
-    });
-    assert.equal(next, null);
-  });
+      // Un job "failed" ne doit plus être repris par processOne()
+      const next = await q.processOne(async () => {
+        throw new Error("ne devrait pas être appelé");
+      });
+      assert.equal(next, null);
+    },
+  );
 
   await t.test("delayed job: un job avec delayMs n'est pas traité avant son heure", async () => {
     const { createQueue } = require("../../lib/services/queue");
@@ -156,6 +159,6 @@ test("PersistentQueue", async (t) => {
       const processed = await queueB.processOne(async (payload) => seen.push(payload));
       assert.ok(processed);
       assert.deepEqual(seen, [{ task: "survive-restart" }]);
-    }
+    },
   );
 });

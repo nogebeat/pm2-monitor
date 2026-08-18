@@ -132,7 +132,8 @@ function buildPayload(f) {
     enabled: !!f.enabled,
     timeoutMs: Number(f.timeoutMs) || 5000,
     intervalSeconds: Number(f.intervalSeconds) || 60,
-    degradedThresholdMs: f.degradedThresholdMs === "" || f.degradedThresholdMs === null ? null : Number(f.degradedThresholdMs),
+    degradedThresholdMs:
+      f.degradedThresholdMs === "" || f.degradedThresholdMs === null ? null : Number(f.degradedThresholdMs),
   };
   if (f.type === "http") {
     payload.url = f.url;
@@ -153,7 +154,10 @@ function buildPayload(f) {
 function save() {
   const f = editing.value;
   const payload = buildPayload(f);
-  const req = f.mode === "create" ? apiPost("/api/health-checks", payload) : apiPut(`/api/health-checks/${f.id}`, payload);
+  const req =
+    f.mode === "create"
+      ? apiPost("/api/health-checks", payload)
+      : apiPut(`/api/health-checks/${f.id}`, payload);
   req
     .then(() => {
       editing.value = null;
@@ -205,7 +209,9 @@ const canTest = computed(() => can("health_checks_test"));
     <div class="hc-modal">
       <div v-if="!editing" class="hc-list">
         <div class="hc-toolbar">
-          <button v-if="canCreate" class="icon-btn go" @click="startCreate">{{ t("healthChecksModal.newCheck") }}</button>
+          <button v-if="canCreate" class="icon-btn go" @click="startCreate">
+            {{ t("healthChecksModal.newCheck") }}
+          </button>
         </div>
 
         <div v-if="loading">{{ t("healthChecksModal.loading") }}</div>
@@ -220,19 +226,30 @@ const canTest = computed(() => can("health_checks_test"));
             </div>
             <div class="hc-card-meta">
               <span>{{ t("healthChecksModal.lastCheck", { time: fmtTime(c.lastCheckAt) }) }}</span>
-              <span>{{ t("healthChecksModal.lastResponseTime", { time: fmtMs(c.lastResponseTimeMs) }) }}</span>
+              <span>{{
+                t("healthChecksModal.lastResponseTime", { time: fmtMs(c.lastResponseTimeMs) })
+              }}</span>
               <span>{{ t("healthChecksModal.lastFailure", { time: fmtTime(c.lastFailureAt) }) }}</span>
             </div>
             <div v-if="c.lastError" class="hc-card-error">{{ c.lastError }}</div>
             <div class="hc-card-actions">
-              <button v-if="canTest" class="icon-btn" :disabled="testResults[c.id]?.pending" @click="runTest(c)">
+              <button
+                v-if="canTest"
+                class="icon-btn"
+                :disabled="testResults[c.id]?.pending"
+                @click="runTest(c)"
+              >
                 {{ testResults[c.id]?.pending ? "…" : t("healthChecksModal.runTest") }}
               </button>
               <button v-if="canUpdate" class="icon-btn" @click="toggleEnabled(c)">
                 {{ c.enabled ? t("healthChecksModal.disable") : t("healthChecksModal.enable") }}
               </button>
-              <button v-if="canUpdate" class="icon-btn" @click="startEdit(c)">{{ t("healthChecksModal.edit") }}</button>
-              <button v-if="canDelete" class="icon-btn danger" @click="remove(c)">{{ t("healthChecksModal.delete") }}</button>
+              <button v-if="canUpdate" class="icon-btn" @click="startEdit(c)">
+                {{ t("healthChecksModal.edit") }}
+              </button>
+              <button v-if="canDelete" class="icon-btn danger" @click="remove(c)">
+                {{ t("healthChecksModal.delete") }}
+              </button>
             </div>
           </div>
         </div>
@@ -252,34 +269,63 @@ const canTest = computed(() => can("health_checks_test"));
         </label>
 
         <template v-if="editing.type === 'http'">
-          <label>{{ t("healthChecksModal.url") }} <input v-model="editing.url" type="text" placeholder="https://example.com/health" /></label>
+          <label
+            >{{ t("healthChecksModal.url") }}
+            <input v-model="editing.url" type="text" placeholder="https://example.com/health"
+          /></label>
           <label>
             {{ t("healthChecksModal.method") }}
             <select v-model="editing.method">
               <option v-for="m in catalog.methods" :key="m" :value="m">{{ m }}</option>
             </select>
           </label>
-          <label>{{ t("healthChecksModal.expectedStatus") }} <input v-model="editing.expectedStatus" type="text" placeholder="200-299" /></label>
-          <label>{{ t("healthChecksModal.expectedContent") }} <input v-model="editing.expectedContent" type="text" /></label>
+          <label
+            >{{ t("healthChecksModal.expectedStatus") }}
+            <input v-model="editing.expectedStatus" type="text" placeholder="200-299"
+          /></label>
+          <label
+            >{{ t("healthChecksModal.expectedContent") }}
+            <input v-model="editing.expectedContent" type="text"
+          /></label>
         </template>
 
         <template v-else-if="editing.type === 'tcp'">
-          <label>{{ t("healthChecksModal.host") }} <input v-model="editing.host" type="text" placeholder="db.internal" /></label>
-          <label>{{ t("healthChecksModal.port") }} <input v-model="editing.port" type="number" placeholder="5432" /></label>
+          <label
+            >{{ t("healthChecksModal.host") }}
+            <input v-model="editing.host" type="text" placeholder="db.internal"
+          /></label>
+          <label
+            >{{ t("healthChecksModal.port") }} <input v-model="editing.port" type="number" placeholder="5432"
+          /></label>
         </template>
 
         <template v-else-if="editing.type === 'command'">
           <p class="hc-command-warning">
             {{ t("healthChecksModal.commandWarning") }}
           </p>
-          <label>{{ t("healthChecksModal.command") }} <input v-model="editing.command" type="text" placeholder="/usr/local/bin/check.sh" /></label>
-          <label>{{ t("healthChecksModal.commandArgs") }} <input v-model="editing.commandArgsText" type="text" /></label>
-          <label>{{ t("healthChecksModal.expectedExitCode") }} <input v-model="editing.expectedExitCode" type="number" /></label>
+          <label
+            >{{ t("healthChecksModal.command") }}
+            <input v-model="editing.command" type="text" placeholder="/usr/local/bin/check.sh"
+          /></label>
+          <label
+            >{{ t("healthChecksModal.commandArgs") }} <input v-model="editing.commandArgsText" type="text"
+          /></label>
+          <label
+            >{{ t("healthChecksModal.expectedExitCode") }}
+            <input v-model="editing.expectedExitCode" type="number"
+          /></label>
         </template>
 
-        <label>{{ t("healthChecksModal.timeout") }} <input v-model="editing.timeoutMs" type="number" /></label>
-        <label>{{ t("healthChecksModal.interval") }} <input v-model="editing.intervalSeconds" type="number" /></label>
-        <label>{{ t("healthChecksModal.degradedThreshold") }} <input v-model="editing.degradedThresholdMs" type="number" /></label>
+        <label
+          >{{ t("healthChecksModal.timeout") }} <input v-model="editing.timeoutMs" type="number"
+        /></label>
+        <label
+          >{{ t("healthChecksModal.interval") }} <input v-model="editing.intervalSeconds" type="number"
+        /></label>
+        <label
+          >{{ t("healthChecksModal.degradedThreshold") }}
+          <input v-model="editing.degradedThresholdMs" type="number"
+        /></label>
         <label class="hc-inline-checkbox">
           <input v-model="editing.enabled" type="checkbox" /> {{ t("healthChecksModal.enabledLabel") }}
         </label>
@@ -294,21 +340,92 @@ const canTest = computed(() => can("health_checks_test"));
 </template>
 
 <style scoped>
-.hc-modal { display: flex; flex-direction: column; gap: 12px; min-width: 480px; }
-.hc-toolbar { display: flex; justify-content: flex-end; }
-.hc-empty { opacity: 0.7; padding: 12px 0; }
-.hc-cards { display: flex; flex-direction: column; gap: 10px; }
-.hc-card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
-.hc-card.disabled { opacity: 0.5; }
-.hc-card-head { display: flex; align-items: center; gap: 8px; }
-.hc-type { font-size: 12px; opacity: 0.7; border: 1px solid var(--border); border-radius: 4px; padding: 0 6px; }
-.hc-card-meta { display: flex; gap: 14px; font-size: 12px; opacity: 0.8; margin-top: 4px; flex-wrap: wrap; }
-.hc-card-error { font-size: 12px; color: var(--danger, #e5484d); margin-top: 4px; }
-.hc-card-actions { display: flex; gap: 6px; margin-top: 8px; }
-.hc-form { display: flex; flex-direction: column; gap: 10px; }
-.hc-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-.hc-inline-checkbox { flex-direction: row; align-items: center; gap: 6px; }
-.hc-form-actions { display: flex; justify-content: flex-end; gap: 8px; }
-.hc-command-warning { font-size: 12px; opacity: 0.8; background: var(--panel-alt, rgba(255,255,255,0.05)); padding: 8px; border-radius: 6px; }
-.icon-btn.danger { color: var(--danger, #e5484d); }
+.hc-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 480px;
+}
+.hc-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+.hc-empty {
+  opacity: 0.7;
+  padding: 12px 0;
+}
+.hc-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.hc-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.hc-card.disabled {
+  opacity: 0.5;
+}
+.hc-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hc-type {
+  font-size: 12px;
+  opacity: 0.7;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 6px;
+}
+.hc-card-meta {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  opacity: 0.8;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+.hc-card-error {
+  font-size: 12px;
+  color: var(--danger, #e5484d);
+  margin-top: 4px;
+}
+.hc-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.hc-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.hc-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+.hc-inline-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.hc-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.hc-command-warning {
+  font-size: 12px;
+  opacity: 0.8;
+  background: var(--panel-alt, rgba(255, 255, 255, 0.05));
+  padding: 8px;
+  border-radius: 6px;
+}
+.icon-btn.danger {
+  color: var(--danger, #e5484d);
+}
 </style>

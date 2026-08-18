@@ -65,14 +65,16 @@ test("bin/migrate.js CLI (process réel, pas juste la lib)", async (t) => {
     assert.match(secondUpOut, /déjà à jour/);
   });
 
-  await t.test("installation existante : DB legacy (tables déjà créées, pas de schema_migrations)", async () => {
-    const dbPath = tmpDbPath();
+  await t.test(
+    "installation existante : DB legacy (tables déjà créées, pas de schema_migrations)",
+    async () => {
+      const dbPath = tmpDbPath();
 
-    // Simule une base créée par une version antérieure du projet (avant le
-    // système de migrations), avec un compte admin déjà en place.
-    const Database = require("better-sqlite3");
-    const legacyDb = new Database(dbPath);
-    legacyDb.exec(`
+      // Simule une base créée par une version antérieure du projet (avant le
+      // système de migrations), avec un compte admin déjà en place.
+      const Database = require("better-sqlite3");
+      const legacyDb = new Database(dbPath);
+      legacyDb.exec(`
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT NOT NULL UNIQUE,
@@ -89,30 +91,31 @@ test("bin/migrate.js CLI (process réel, pas juste la lib)", async (t) => {
         UNIQUE(user_id, app_name, action)
       );
     `);
-    legacyDb
-      .prepare("INSERT INTO users (username, password_hash, is_admin, created_at) VALUES (?, ?, ?, ?)")
-      .run("admin", "existing-hash", 1, Date.now());
-    legacyDb.close();
+      legacyDb
+        .prepare("INSERT INTO users (username, password_hash, is_admin, created_at) VALUES (?, ?, ?, ?)")
+        .run("admin", "existing-hash", 1, Date.now());
+      legacyDb.close();
 
-    // La migration doit passer sans erreur et sans toucher aux données existantes.
-    const { stdout } = await runMigrate(["up"], dbPath);
-    assert.match(stdout, /001_initial_schema/);
-    assert.match(stdout, /002_job_queue/);
-    assert.match(stdout, /003_alert_engine/);
+      // La migration doit passer sans erreur et sans toucher aux données existantes.
+      const { stdout } = await runMigrate(["up"], dbPath);
+      assert.match(stdout, /001_initial_schema/);
+      assert.match(stdout, /002_job_queue/);
+      assert.match(stdout, /003_alert_engine/);
 
-    const verifyDb = new Database(dbPath);
-    const admin = verifyDb.prepare("SELECT * FROM users WHERE username = 'admin'").get();
-    assert.equal(admin.password_hash, "existing-hash", "le compte admin existant ne doit pas être perdu");
+      const verifyDb = new Database(dbPath);
+      const admin = verifyDb.prepare("SELECT * FROM users WHERE username = 'admin'").get();
+      assert.equal(admin.password_hash, "existing-hash", "le compte admin existant ne doit pas être perdu");
 
-    const tables = verifyDb
-      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
-      .all()
-      .map((r) => r.name);
-    assert.ok(tables.includes("jobs"), "la nouvelle table jobs doit avoir été créée par la migration");
-    assert.ok(tables.includes("alert_rules"), "la nouvelle table alert_rules doit avoir été créée");
-    assert.ok(tables.includes("alerts"), "la nouvelle table alerts doit avoir été créée");
-    verifyDb.close();
-  });
+      const tables = verifyDb
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .all()
+        .map((r) => r.name);
+      assert.ok(tables.includes("jobs"), "la nouvelle table jobs doit avoir été créée par la migration");
+      assert.ok(tables.includes("alert_rules"), "la nouvelle table alert_rules doit avoir été créée");
+      assert.ok(tables.includes("alerts"), "la nouvelle table alerts doit avoir été créée");
+      verifyDb.close();
+    },
+  );
 
   await t.test("down annule la dernière migration puis status le reflète", async () => {
     const dbPath = tmpDbPath();

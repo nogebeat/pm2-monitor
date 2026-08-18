@@ -21,9 +21,7 @@ function workerScript(action) {
   return `
     process.env.DB_SQLITE_PATH = ${JSON.stringify(process.env.__TEST_DB_PATH__)};
     const db = require(${JSON.stringify(path.join(PROJECT_ROOT, "lib", "db"))});
-    const { createQueue } = require(${JSON.stringify(
-      path.join(PROJECT_ROOT, "lib", "services", "queue")
-    )});
+    const { createQueue } = require(${JSON.stringify(path.join(PROJECT_ROOT, "lib", "services", "queue"))});
     const migrator = require(${JSON.stringify(path.join(PROJECT_ROOT, "lib", "db", "migrator"))});
 
     (async () => {
@@ -55,7 +53,7 @@ test("job survit à un redémarrage réel du process (deux processus Node distin
     `
       const id = await q.add({ task: "hello-from-process-A" });
       console.log("CREATED:" + id);
-    `
+    `,
   );
 
   // Rien ne tourne plus : simulate un vrai redémarrage (nouveau process Node,
@@ -72,7 +70,7 @@ test("job survit à un redémarrage réel du process (deux processus Node distin
         console.log("PROCESSED:" + JSON.stringify(payload));
       });
       console.log("PROCESSED_ID:" + (processed ? processed.id : "none"));
-    `
+    `,
   );
 
   assert.match(stdout, /PENDING_COUNT:1/, "le job créé par le process A doit être visible par le process B");

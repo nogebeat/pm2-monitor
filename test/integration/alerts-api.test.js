@@ -133,29 +133,32 @@ test("API /api/alerts", async (t) => {
     }
   });
 
-  await t.test("utilisateur avec alerts_read uniquement -> 200 en lecture, 403 en update/delete", async () => {
-    const { server, baseUrl } = await startServer(ADMIN);
-    let ruleId;
-    try {
-      const created = await fetch(`${baseUrl}/rules`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(VALID_RULE),
-      });
-      ruleId = (await created.json()).id;
-    } finally {
-      await stopServer(server);
-    }
+  await t.test(
+    "utilisateur avec alerts_read uniquement -> 200 en lecture, 403 en update/delete",
+    async () => {
+      const { server, baseUrl } = await startServer(ADMIN);
+      let ruleId;
+      try {
+        const created = await fetch(`${baseUrl}/rules`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(VALID_RULE),
+        });
+        ruleId = (await created.json()).id;
+      } finally {
+        await stopServer(server);
+      }
 
-    const { server: server2, baseUrl: baseUrl2 } = await startServer(ALERTS_USER);
-    try {
-      assert.equal((await fetch(`${baseUrl2}/rules`)).status, 200);
-      const del = await fetch(`${baseUrl2}/rules/${ruleId}`, { method: "DELETE" });
-      assert.equal(del.status, 403, "ALERTS_USER n'a pas alerts_delete");
-    } finally {
-      await stopServer(server2);
-    }
-  });
+      const { server: server2, baseUrl: baseUrl2 } = await startServer(ALERTS_USER);
+      try {
+        assert.equal((await fetch(`${baseUrl2}/rules`)).status, 200);
+        const del = await fetch(`${baseUrl2}/rules/${ruleId}`, { method: "DELETE" });
+        assert.equal(del.status, 403, "ALERTS_USER n'a pas alerts_delete");
+      } finally {
+        await stopServer(server2);
+      }
+    },
+  );
 
   await t.test("règle inconnue -> 404", async () => {
     const { server, baseUrl } = await startServer(ADMIN);

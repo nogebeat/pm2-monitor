@@ -55,15 +55,15 @@ l'audit (ex: DB temporairement indisponible) est loggée sur `stderr` et
 
 ## Événements audités
 
-| Catégorie      | Actions (`ACTIONS` dans `lib/services/audit/index.js`) |
-|----------------|----------------------------------------------------------|
-| Authentification | `login`, `logout` |
-| Process        | `process.start`, `process.stop`, `process.restart`, `process.reload`, `process.delete`, `process.env_change`, `process.config_change` |
-| PM2 (daemon)   | `pm2.save`, `pm2.resurrect`, `pm2.kill` |
-| Alertes        | `alert.rule_create`, `alert.rule_update`, `alert.rule_delete`, `alert.acknowledge` |
-| Notifications  | `notification.config_change` (providers **et** règles de routing — voir `lib/routes/notifications.js`) |
-| Health checks  | `health_check.change` |
-| Auto-Healing   | `auto_healing.action` (actions humaines/administratives — activer/désactiver, changer la config, débloquer un process ; les tentatives *automatiques* restent dans `auto_healing_audit`, pas de doublon ici) |
+| Catégorie        | Actions (`ACTIONS` dans `lib/services/audit/index.js`)                                                                                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Authentification | `login`, `logout`                                                                                                                                                                                            |
+| Process          | `process.start`, `process.stop`, `process.restart`, `process.reload`, `process.delete`, `process.env_change`, `process.config_change`                                                                        |
+| PM2 (daemon)     | `pm2.save`, `pm2.resurrect`, `pm2.kill`                                                                                                                                                                      |
+| Alertes          | `alert.rule_create`, `alert.rule_update`, `alert.rule_delete`, `alert.acknowledge`                                                                                                                           |
+| Notifications    | `notification.config_change` (providers **et** règles de routing — voir `lib/routes/notifications.js`)                                                                                                       |
+| Health checks    | `health_check.change`                                                                                                                                                                                        |
+| Auto-Healing     | `auto_healing.action` (actions humaines/administratives — activer/désactiver, changer la config, débloquer un process ; les tentatives _automatiques_ restent dans `auto_healing_audit`, pas de doublon ici) |
 
 Les actions de **lecture** (`GET`) ne sont volontairement **pas**
 journalisées : seules les actions qui créent, modifient, suppriment, ou
@@ -137,7 +137,7 @@ profondeur d'objet/tableau imbriqué :
    `webhook`, `authorization`, `credential`, `cookie`…) est remplacée par
    `"[REDACTED]"`, quelle que soit sa valeur.
 2. **Détection de forme** (filet de sécurité indépendant du nommage) : même
-   sous une clé au nom anodin, une valeur qui *ressemble* à un JWT, une clé
+   sous une clé au nom anodin, une valeur qui _ressemble_ à un JWT, une clé
    privée PEM, un header `Authorization: Bearer/Basic …`, ou une URL de
    webhook Discord/Slack connue, est masquée.
 
@@ -148,11 +148,11 @@ de classe internes) rejetés plutôt que stockés partiellement, et
 
 ## API REST
 
-| Méthode | Route | Description |
-|---|---|---|
-| `GET` | `/api/audit` | Liste paginée, filtrable |
-| `GET` | `/api/audit/:id` | Détail d'une entrée |
-| `GET` | `/api/audit/catalog` | Catalogue des actions/statuts connus |
+| Méthode | Route                | Description                          |
+| ------- | -------------------- | ------------------------------------ |
+| `GET`   | `/api/audit`         | Liste paginée, filtrable             |
+| `GET`   | `/api/audit/:id`     | Détail d'une entrée                  |
+| `GET`   | `/api/audit/catalog` | Catalogue des actions/statuts connus |
 
 Filtres disponibles sur `GET /api/audit` : `user` (id), `username`,
 `action`, `status`, `target`, `targetType`, `start`/`end` (timestamp ms,

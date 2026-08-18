@@ -51,7 +51,9 @@ function del() {
 
 <template>
   <ModalBase :title="t('moreMenu.title', { name: process.name })" hide-confirm @close="close">
-    <div class="hint-text">{{ t("moreMenu.quickActionsFor") }} <b>{{ process.name }}</b> (#{{ process.id }})</div>
+    <div class="hint-text">
+      {{ t("moreMenu.quickActionsFor") }} <b>{{ process.name }}</b> (#{{ process.id }})
+    </div>
     <div class="more-actions">
       <button v-if="can('scale', process.name)" class="icon-btn" @click="scale">
         📈 {{ t("moreMenu.scale", { n: process.instances }) }}

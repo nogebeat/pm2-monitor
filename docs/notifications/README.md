@@ -130,13 +130,13 @@ Cinq providers sont enregistrés et pleinement opérationnels :
 Documentation complète (configuration, prérequis, sécurité, test,
 erreurs communes) : [`docs/notifications/providers/`](./providers/).
 
-| Provider  | Fichier                     | Doc                                                       | `healthCheck()` |
-|-----------|------------------------------|------------------------------------------------------------|--------------------|
-| Email/SMTP | `providers/email.js`          | [providers/email.md](./providers/email.md)                  | Oui (`verify()`)     |
-| Discord    | `providers/discord.js`         | [providers/discord.md](./providers/discord.md)               | Oui (GET webhook)     |
-| Telegram   | `providers/telegram.js`         | [providers/telegram.md](./providers/telegram.md)              | Oui (`getMe()`)         |
-| Slack      | `providers/slack.js`             | [providers/slack.md](./providers/slack.md)                     | Non (webhook Slack sans introspection GET utile) |
-| Webhook générique | `providers/webhook.js`    | [providers/webhook.md](./providers/webhook.md)                  | Non (dépend du système externe) |
+| Provider          | Fichier                 | Doc                                              | `healthCheck()`                                  |
+| ----------------- | ----------------------- | ------------------------------------------------ | ------------------------------------------------ |
+| Email/SMTP        | `providers/email.js`    | [providers/email.md](./providers/email.md)       | Oui (`verify()`)                                 |
+| Discord           | `providers/discord.js`  | [providers/discord.md](./providers/discord.md)   | Oui (GET webhook)                                |
+| Telegram          | `providers/telegram.js` | [providers/telegram.md](./providers/telegram.md) | Oui (`getMe()`)                                  |
+| Slack             | `providers/slack.js`    | [providers/slack.md](./providers/slack.md)       | Non (webhook Slack sans introspection GET utile) |
+| Webhook générique | `providers/webhook.js`  | [providers/webhook.md](./providers/webhook.md)   | Non (dépend du système externe)                  |
 
 Résultat normalisé, commun à tous les providers (`send()`, `test()`,
 `healthCheck()`) :
@@ -169,13 +169,13 @@ Table `notification_providers`. Plusieurs configurations du même `type`
 sont supportées (ex : "Discord Production" + "Discord Staging", "SMTP
 Admin" + "SMTP Developers") — pas de contrainte d'unicité sur `type`.
 
-| Champ           | Type                    | Description                                                        |
-|------------------|--------------------------|------------------------------------------------------------------------|
-| `name`            | string (requis)           | Nom lisible, ex. "Discord Production".                                |
-| `type`            | string (requis)           | Doit correspondre à un provider du registry (validé côté manager/routes, pas par le store lui-même). |
-| `enabled`         | bool (défaut `true`)      | Non exploité côté orchestration (routing/queue, Phase 5C) — un provider `enabled: false` peut toujours être appelé directement via `send()`/`test()`. |
-| `configuration`   | objet JSON                | Champs publics du provider (ex. `fromEmail`, `username`).             |
-| `secrets`         | objet JSON, **chiffré**   | Champs sensibles (mot de passe SMTP, webhook, bot token…). Jamais retourné en clair — voir [Secrets](#secrets). |
+| Champ           | Type                    | Description                                                                                                                                           |
+| --------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`          | string (requis)         | Nom lisible, ex. "Discord Production".                                                                                                                |
+| `type`          | string (requis)         | Doit correspondre à un provider du registry (validé côté manager/routes, pas par le store lui-même).                                                  |
+| `enabled`       | bool (défaut `true`)    | Non exploité côté orchestration (routing/queue, Phase 5C) — un provider `enabled: false` peut toujours être appelé directement via `send()`/`test()`. |
+| `configuration` | objet JSON              | Champs publics du provider (ex. `fromEmail`, `username`).                                                                                             |
+| `secrets`       | objet JSON, **chiffré** | Champs sensibles (mot de passe SMTP, webhook, bot token…). Jamais retourné en clair — voir [Secrets](#secrets).                                       |
 
 `provider-store.js` reste indépendant du `ProviderRegistry` (pas de
 dépendance circulaire store ↔ providers/) : la validation "ce type
@@ -204,15 +204,15 @@ Table `notification_routes` (`routing/route-store.js`), évaluée par
 `routing/engine.js#RoutingEngine` à chaque transition d'alerte
 (déclenchement, et résolution si `notifyOnResolve`).
 
-| Champ             | Type                  | Description                                                    |
-|--------------------|-------------------------|----------------------------------------------------------------|
-| `name`               | string (requis)          | Nom lisible.                                                       |
-| `enabled`            | bool (défaut `true`)     | Une règle désactivée n'est jamais évaluée (`routeStore.list({ enabledOnly: true })`). |
-| `conditions`         | objet JSON               | `{ severity?, alertType?, process?, server?, tag? }`, chacun un tableau (vide/absent = toutes valeurs) — voir sémantique exacte ci-dessous. |
-| `providerIds`        | tableau d'ids            | Ids de `notification_providers` ciblés par la règle. Pas de FK SQL (même raison que `alert_rules.target_value`) : désactiver/supprimer un provider référencé ne casse pas la règle, il est juste ignoré au dispatch (voir [Limites connues](#limites-connues-de-cette-phase)). |
-| `titleTemplate`      | string, nullable         | Voir [Templates](#templates-phase-5d). `null` = titre par défaut. |
-| `messageTemplate`    | string, nullable         | Idem pour le message.                                              |
-| `notifyOnResolve`    | bool (défaut `false`)    | Si `true`, la règle notifie aussi à la résolution de l'alerte (en plus du déclenchement, toujours notifié si la règle matche). |
+| Champ             | Type                  | Description                                                                                                                                                                                                                                                                    |
+| ----------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`            | string (requis)       | Nom lisible.                                                                                                                                                                                                                                                                   |
+| `enabled`         | bool (défaut `true`)  | Une règle désactivée n'est jamais évaluée (`routeStore.list({ enabledOnly: true })`).                                                                                                                                                                                          |
+| `conditions`      | objet JSON            | `{ severity?, alertType?, process?, server?, tag? }`, chacun un tableau (vide/absent = toutes valeurs) — voir sémantique exacte ci-dessous.                                                                                                                                    |
+| `providerIds`     | tableau d'ids         | Ids de `notification_providers` ciblés par la règle. Pas de FK SQL (même raison que `alert_rules.target_value`) : désactiver/supprimer un provider référencé ne casse pas la règle, il est juste ignoré au dispatch (voir [Limites connues](#limites-connues-de-cette-phase)). |
+| `titleTemplate`   | string, nullable      | Voir [Templates](#templates-phase-5d). `null` = titre par défaut.                                                                                                                                                                                                              |
+| `messageTemplate` | string, nullable      | Idem pour le message.                                                                                                                                                                                                                                                          |
+| `notifyOnResolve` | bool (défaut `false`) | Si `true`, la règle notifie aussi à la résolution de l'alerte (en plus du déclenchement, toujours notifié si la règle matche).                                                                                                                                                 |
 
 **Sémantique de `conditions`** (`routeMatches()` dans `routing/engine.js`) :
 
@@ -233,19 +233,19 @@ placeholders `{{nom}}` sont remplacés par les variables suivantes
 (`buildVariables()`) — toutes dérivées uniquement de l'occurrence
 d'alerte, **jamais** d'un secret de provider :
 
-| Placeholder       | Source                                                        |
-|---------------------|-----------------------------------------------------------------|
-| `{{ruleName}}`         | `alert.ruleName`                                                  |
-| `{{severity}}`         | `alert.severity`                                                   |
-| `{{metric}}`           | `alert.metric`                                                       |
-| `{{operator}}`         | `alert.operator`                                                       |
-| `{{threshold}}`        | `alert.threshold`                                                       |
-| `{{value}}`            | `alert.value` (valeur observée au moment du dispatch)                    |
-| `{{targetType}}`       | `"process"` ou `"system"`                                                  |
-| `{{targetValue}}`      | nom du process, ou `"system"` si `targetType === "system"`                    |
-| `{{state}}`            | état de l'occurrence (`active`, `resolved`…)                                     |
-| `{{event}}`            | `"triggered"` ou `"resolved"` — l'événement qui a causé ce dispatch précis          |
-| `{{alertId}}`          | id de l'occurrence (`alerts.id`)                                                       |
+| Placeholder       | Source                                                                     |
+| ----------------- | -------------------------------------------------------------------------- |
+| `{{ruleName}}`    | `alert.ruleName`                                                           |
+| `{{severity}}`    | `alert.severity`                                                           |
+| `{{metric}}`      | `alert.metric`                                                             |
+| `{{operator}}`    | `alert.operator`                                                           |
+| `{{threshold}}`   | `alert.threshold`                                                          |
+| `{{value}}`       | `alert.value` (valeur observée au moment du dispatch)                      |
+| `{{targetType}}`  | `"process"` ou `"system"`                                                  |
+| `{{targetValue}}` | nom du process, ou `"system"` si `targetType === "system"`                 |
+| `{{state}}`       | état de l'occurrence (`active`, `resolved`…)                               |
+| `{{event}}`       | `"triggered"` ou `"resolved"` — l'événement qui a causé ce dispatch précis |
+| `{{alertId}}`     | id de l'occurrence (`alerts.id`)                                           |
 
 Un placeholder inconnu (faute de frappe) est laissé tel quel dans le
 texte plutôt que de faire échouer le rendu — une notification mal
@@ -330,15 +330,15 @@ provider ciblé), soit via la file d'attente (mode Phase 5E, voir
 puis mise à jour au fil des tentatives). Disponible en lecture/écriture
 manuelle (`create`/`update`/`getById`/`list`) pour d'autres usages futurs.
 
-| Champ            | Type    | Description                                                        |
-|--------------------|-----------|-------------------------------------------------------------------------|
-| `providerId`         | int, nullable | `ON DELETE SET NULL` — supprimer une config de provider ne fait pas disparaître l'historique déjà écrit. |
-| `alertId`            | int, nullable | `ON DELETE SET NULL` vers `alerts` — relie une notification à l'alerte qui l'a déclenchée. |
-| `status`             | string (requis) | `pending`, `retrying`, `success` ou `failed`. `pending`/`retrying` uniquement en mode file d'attente (Phase 5E, voir [Notification Queue](#notification-queue-phase-5e)) ; en mode direct (Phase 5D, sans `dispatchQueue`) seuls `success`/`failed` sont écrits. |
-| `timestamp`          | int          |                                                                          |
-| `responseTimeMs`     | int, optionnel | Temps de réponse renvoyé par le provider, ou mesuré par le RoutingEngine à défaut. |
-| `errorCode`          | string, optionnel | Ex. `PROVIDER_NOT_FOUND`, `PROVIDER_DISABLED`, `UNKNOWN_PROVIDER_TYPE`, `INTERNAL_ERROR`, ou un code de `providers/shared.js` (`NETWORK_ERROR`, `TIMEOUT`…). |
-| `metadata`           | objet JSON   | Non renseigné par le RoutingEngine à ce stade — réservé à un usage futur. Jamais de credentials. |
+| Champ            | Type              | Description                                                                                                                                                                                                                                                      |
+| ---------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `providerId`     | int, nullable     | `ON DELETE SET NULL` — supprimer une config de provider ne fait pas disparaître l'historique déjà écrit.                                                                                                                                                         |
+| `alertId`        | int, nullable     | `ON DELETE SET NULL` vers `alerts` — relie une notification à l'alerte qui l'a déclenchée.                                                                                                                                                                       |
+| `status`         | string (requis)   | `pending`, `retrying`, `success` ou `failed`. `pending`/`retrying` uniquement en mode file d'attente (Phase 5E, voir [Notification Queue](#notification-queue-phase-5e)) ; en mode direct (Phase 5D, sans `dispatchQueue`) seuls `success`/`failed` sont écrits. |
+| `timestamp`      | int               |                                                                                                                                                                                                                                                                  |
+| `responseTimeMs` | int, optionnel    | Temps de réponse renvoyé par le provider, ou mesuré par le RoutingEngine à défaut.                                                                                                                                                                               |
+| `errorCode`      | string, optionnel | Ex. `PROVIDER_NOT_FOUND`, `PROVIDER_DISABLED`, `UNKNOWN_PROVIDER_TYPE`, `INTERNAL_ERROR`, ou un code de `providers/shared.js` (`NETWORK_ERROR`, `TIMEOUT`…).                                                                                                     |
+| `metadata`       | objet JSON        | Non renseigné par le RoutingEngine à ce stade — réservé à un usage futur. Jamais de credentials.                                                                                                                                                                 |
 
 ## API REST
 
@@ -346,23 +346,23 @@ Toutes les routes sont sous `/api/notifications`. CRUD complet des
 providers et test HTTP depuis la Phase 5C ; CRUD des règles de routing
 (`/routes`) et lecture de l'historique (`/history`) depuis la Phase 5D.
 
-| Méthode | Route                                       | Permission              | Description |
-|----------|---------------------------------------------|--------------------------|----------------|
-| GET      | `/api/notifications/provider-types`         | `notifications_read`      | Catalogue des types de providers connus (`type`, `label`, `implemented: true`). |
-| GET      | `/api/notifications/providers`              | `notifications_read`      | Liste les configurations enregistrées. `?type=` filtre par type (`400` si type inconnu du registry). Ne renvoie jamais les secrets (`hasSecrets` uniquement). |
-| GET      | `/api/notifications/providers/:id`          | `notifications_read`      | Détail d'une configuration (`404` si absente). Mêmes garanties que la liste : jamais de secret en clair. |
-| POST     | `/api/notifications/providers`              | `notifications_create`    | Crée une configuration. Body : `{ name, type, enabled?, fields }` — `fields` fusionne champs publics et secrets, scindés côté serveur via `provider.secretFields` (voir [Secrets](#secrets)). `400` si `type` inconnu ou si la configuration ne passe pas `validateConfig()` du provider. |
-| PATCH    | `/api/notifications/providers/:id`          | `notifications_update`    | Modification partielle. `fields` omis = configuration/secrets inchangés ; un champ secret absent de `fields` = credential conservé (case "Keep existing credential" côté UI) ; présent (même vide) = remplacé. Le `type` ne peut pas être changé (`400`). `404` si absente. |
-| PUT      | `/api/notifications/providers/:id`          | `notifications_update`    | Même contrat que PATCH (remplacement complet recommandé côté appelant : fournir tous les `fields`). |
-| DELETE   | `/api/notifications/providers/:id`          | `notifications_delete`    | Supprime la configuration. `404` si absente. |
-| POST     | `/api/notifications/providers/:id/test`     | `notifications_test`      | Envoie réellement une notification de test avec la configuration stockée (secrets déchiffrés en mémoire pour cet appel uniquement). Réponse = résultat normalisé du provider (`success`, `safeMessage`/`errorCode`…, jamais de secret). `404` si absente. |
-| GET      | `/api/notifications/routes`                 | `notifications_read`      | Liste les règles de routing. `?enabledOnly=1` filtre les règles activées. |
-| GET      | `/api/notifications/routes/:id`             | `notifications_read`      | Détail d'une règle (`404` si absente). |
-| POST     | `/api/notifications/routes`                 | `notifications_manage`    | Crée une règle. Body : `{ name, enabled?, conditions?, providerIds?, titleTemplate?, messageTemplate?, notifyOnResolve? }` (voir [Routing](#routing-phase-5d)). `400` si `name` absent ou si un champ a le mauvais type. |
-| PATCH    | `/api/notifications/routes/:id`             | `notifications_manage`    | Modification partielle — seuls les champs fournis sont changés. `404` si absente. |
-| PUT      | `/api/notifications/routes/:id`             | `notifications_manage`    | Même contrat que PATCH. |
-| DELETE   | `/api/notifications/routes/:id`             | `notifications_manage`    | Supprime la règle. `404` si absente. |
-| GET      | `/api/notifications/history`                | `notifications_history`   | Liste l'historique d'envoi, plus récent d'abord. Filtres `?providerId=`, `?alertId=`, `?status=`, `?limit=` (1 à 500, défaut 50). Ne renvoie jamais de secret (voir [Historique](#historique)). |
+| Méthode | Route                                   | Permission              | Description                                                                                                                                                                                                                                                                               |
+| ------- | --------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET     | `/api/notifications/provider-types`     | `notifications_read`    | Catalogue des types de providers connus (`type`, `label`, `implemented: true`).                                                                                                                                                                                                           |
+| GET     | `/api/notifications/providers`          | `notifications_read`    | Liste les configurations enregistrées. `?type=` filtre par type (`400` si type inconnu du registry). Ne renvoie jamais les secrets (`hasSecrets` uniquement).                                                                                                                             |
+| GET     | `/api/notifications/providers/:id`      | `notifications_read`    | Détail d'une configuration (`404` si absente). Mêmes garanties que la liste : jamais de secret en clair.                                                                                                                                                                                  |
+| POST    | `/api/notifications/providers`          | `notifications_create`  | Crée une configuration. Body : `{ name, type, enabled?, fields }` — `fields` fusionne champs publics et secrets, scindés côté serveur via `provider.secretFields` (voir [Secrets](#secrets)). `400` si `type` inconnu ou si la configuration ne passe pas `validateConfig()` du provider. |
+| PATCH   | `/api/notifications/providers/:id`      | `notifications_update`  | Modification partielle. `fields` omis = configuration/secrets inchangés ; un champ secret absent de `fields` = credential conservé (case "Keep existing credential" côté UI) ; présent (même vide) = remplacé. Le `type` ne peut pas être changé (`400`). `404` si absente.               |
+| PUT     | `/api/notifications/providers/:id`      | `notifications_update`  | Même contrat que PATCH (remplacement complet recommandé côté appelant : fournir tous les `fields`).                                                                                                                                                                                       |
+| DELETE  | `/api/notifications/providers/:id`      | `notifications_delete`  | Supprime la configuration. `404` si absente.                                                                                                                                                                                                                                              |
+| POST    | `/api/notifications/providers/:id/test` | `notifications_test`    | Envoie réellement une notification de test avec la configuration stockée (secrets déchiffrés en mémoire pour cet appel uniquement). Réponse = résultat normalisé du provider (`success`, `safeMessage`/`errorCode`…, jamais de secret). `404` si absente.                                 |
+| GET     | `/api/notifications/routes`             | `notifications_read`    | Liste les règles de routing. `?enabledOnly=1` filtre les règles activées.                                                                                                                                                                                                                 |
+| GET     | `/api/notifications/routes/:id`         | `notifications_read`    | Détail d'une règle (`404` si absente).                                                                                                                                                                                                                                                    |
+| POST    | `/api/notifications/routes`             | `notifications_manage`  | Crée une règle. Body : `{ name, enabled?, conditions?, providerIds?, titleTemplate?, messageTemplate?, notifyOnResolve? }` (voir [Routing](#routing-phase-5d)). `400` si `name` absent ou si un champ a le mauvais type.                                                                  |
+| PATCH   | `/api/notifications/routes/:id`         | `notifications_manage`  | Modification partielle — seuls les champs fournis sont changés. `404` si absente.                                                                                                                                                                                                         |
+| PUT     | `/api/notifications/routes/:id`         | `notifications_manage`  | Même contrat que PATCH.                                                                                                                                                                                                                                                                   |
+| DELETE  | `/api/notifications/routes/:id`         | `notifications_manage`  | Supprime la règle. `404` si absente.                                                                                                                                                                                                                                                      |
+| GET     | `/api/notifications/history`            | `notifications_history` | Liste l'historique d'envoi, plus récent d'abord. Filtres `?providerId=`, `?alertId=`, `?status=`, `?limit=` (1 à 500, défaut 50). Ne renvoie jamais de secret (voir [Historique](#historique)).                                                                                           |
 
 ## Permissions
 
@@ -370,15 +370,15 @@ Réutilise le système existant (`lib/permissions.js`, `hasPermission()`),
 sans nouveau mécanisme. Action **globale** (pas liée à une app précise),
 même raisonnement que `alerts_*`/`events_read` :
 
-| Action                    | Description                                                | Vérifiée par une route à ce stade ? |
-|-----------------------------|------------------------------------------------------------|------------------------------------------|
-| `notifications_read`          | Voir les providers, leurs types, et les règles de routing.    | Oui                                        |
-| `notifications_create`        | Créer une configuration de provider.                         | Oui (Phase 5C)                             |
-| `notifications_update`        | Modifier une configuration de provider.                      | Oui (Phase 5C)                             |
-| `notifications_delete`        | Supprimer une configuration de provider.                     | Oui (Phase 5C)                             |
-| `notifications_test`          | Envoyer une notification de test avec une configuration.     | Oui (Phase 5C)                             |
-| `notifications_history`       | Voir l'historique détaillé des notifications envoyées.       | Oui (Phase 5D, GET /history)               |
-| `notifications_manage`        | Gérer les règles de routing des notifications.               | Oui (Phase 5D, CRUD /routes)               |
+| Action                  | Description                                                | Vérifiée par une route à ce stade ? |
+| ----------------------- | ---------------------------------------------------------- | ----------------------------------- |
+| `notifications_read`    | Voir les providers, leurs types, et les règles de routing. | Oui                                 |
+| `notifications_create`  | Créer une configuration de provider.                       | Oui (Phase 5C)                      |
+| `notifications_update`  | Modifier une configuration de provider.                    | Oui (Phase 5C)                      |
+| `notifications_delete`  | Supprimer une configuration de provider.                   | Oui (Phase 5C)                      |
+| `notifications_test`    | Envoyer une notification de test avec une configuration.   | Oui (Phase 5C)                      |
+| `notifications_history` | Voir l'historique détaillé des notifications envoyées.     | Oui (Phase 5D, GET /history)        |
+| `notifications_manage`  | Gérer les règles de routing des notifications.             | Oui (Phase 5D, CRUD /routes)        |
 
 Toutes déclarées dès la Phase 5A pour que le jeu de permissions complet
 soit disponible aux admins sans exiger une nouvelle migration de
@@ -519,7 +519,7 @@ accordée (pas de wildcard implicite sur l'action côté
 protections qui s'appliquent en production :
 
 1. **Côté Alert Engine** (déjà existant, indépendant des notifications) :
-   `dispatch()` n'est appelé qu'à la *transition* trigger→active, jamais à
+   `dispatch()` n'est appelé qu'à la _transition_ trigger→active, jamais à
    chaque tick où la condition reste vraie — 100 évaluations consécutives
    à condition constante ne produisent qu'une seule notification.
 2. **Côté dispatch-queue** (Phase 5E) : déduplication (deux dispatches

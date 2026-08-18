@@ -42,7 +42,9 @@ watch(dateValue, (v) => {
     <div class="search-results">
       <div v-if="status && !results.length" class="hint-text">{{ status }}</div>
       <div v-for="(row, i) in results" :key="i" class="search-result-line">
-        {{ new Date(row.t).toLocaleString(locale === "fr" ? "fr-FR" : "en-US") }} [{{ row.type }}]<br />{{ row.text }}
+        {{ new Date(row.t).toLocaleString(locale === "fr" ? "fr-FR" : "en-US") }} [{{ row.type }}]<br />{{
+          row.text
+        }}
       </div>
     </div>
   </ModalBase>

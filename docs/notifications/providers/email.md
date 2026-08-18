@@ -7,32 +7,32 @@ projet).
 
 ## Configuration
 
-| Champ       | Requis | Type / valeurs                      | Description |
-|-------------|--------|--------------------------------------|--------------|
-| `host`      | Oui    | string                                | Hôte du serveur SMTP. |
-| `port`      | Oui    | nombre, 1–65535                       | Port SMTP (25, 465, 587…). |
-| `security`  | Non    | `None` \| `STARTTLS` \| `SSL/TLS`     | Défaut : `None`. Insensible à la casse et aux variantes (`ssl`, `tls`, `ssl_tls` sont tous acceptés). |
-| `username`  | Non    | string (**secret**)                   | Doit être fourni avec `password`, ou aucun des deux. |
-| `password`  | Non    | string (**secret**)                   | Idem. |
-| `fromName`  | Non    | string                                 | Nom affiché de l'expéditeur. |
-| `fromEmail` | Oui    | string (adresse email valide)          | Adresse d'expédition. |
-| `to`        | Non\*   | string ou tableau de strings            | Destinataire(s). Voir note ci-dessous. |
+| Champ       | Requis | Type / valeurs                    | Description                                                                                           |
+| ----------- | ------ | --------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `host`      | Oui    | string                            | Hôte du serveur SMTP.                                                                                 |
+| `port`      | Oui    | nombre, 1–65535                   | Port SMTP (25, 465, 587…).                                                                            |
+| `security`  | Non    | `None` \| `STARTTLS` \| `SSL/TLS` | Défaut : `None`. Insensible à la casse et aux variantes (`ssl`, `tls`, `ssl_tls` sont tous acceptés). |
+| `username`  | Non    | string (**secret**)               | Doit être fourni avec `password`, ou aucun des deux.                                                  |
+| `password`  | Non    | string (**secret**)               | Idem.                                                                                                 |
+| `fromName`  | Non    | string                            | Nom affiché de l'expéditeur.                                                                          |
+| `fromEmail` | Oui    | string (adresse email valide)     | Adresse d'expédition.                                                                                 |
+| `to`        | Non\*  | string ou tableau de strings      | Destinataire(s). Voir note ci-dessous.                                                                |
 
 \* `to` n'est pas dans la liste stricte de champs de la tâche mais est
 indispensable pour qu'un envoi SMTP soit possible du tout : sans lui,
-`send()` échoue avec `INVALID_CONFIG` / *"Aucun destinataire (to)
-fourni."*. Une notification peut aussi porter son propre `to`
+`send()` échoue avec `INVALID_CONFIG` / _"Aucun destinataire (to)
+fourni."_. Une notification peut aussi porter son propre `to`
 (`notification.to`), qui a alors priorité sur `config.to` — utile pour
 un futur routing dynamique (Phase 5C) sans changer la config du
 provider.
 
 ### `security` et connexion
 
-| Valeur       | Comportement nodemailer                          |
-|---------------|----------------------------------------------------|
-| `None`         | Connexion en clair, pas de TLS forcé (`secure: false`, `requireTLS: false`). |
-| `STARTTLS`     | Connexion en clair puis upgrade TLS obligatoire (`requireTLS: true`). Port typique : 587. |
-| `SSL/TLS`      | TLS dès la connexion (`secure: true`). Port typique : 465. |
+| Valeur     | Comportement nodemailer                                                                   |
+| ---------- | ----------------------------------------------------------------------------------------- |
+| `None`     | Connexion en clair, pas de TLS forcé (`secure: false`, `requireTLS: false`).              |
+| `STARTTLS` | Connexion en clair puis upgrade TLS obligatoire (`requireTLS: true`). Port typique : 587. |
+| `SSL/TLS`  | TLS dès la connexion (`secure: true`). Port typique : 465.                                |
 
 ## Prérequis
 
@@ -68,11 +68,11 @@ provider.
 
 ## Erreurs communes
 
-| `errorCode`     | Cause probable | À vérifier |
-|-------------------|------------------|--------------|
-| `INVALID_CONFIG`   | Champ requis manquant, ou `to` absent. | `host`, `port`, `fromEmail`, `to`. |
-| `AUTH_ERROR`         | Identifiants SMTP refusés (`EAUTH`). | `username`/`password`, ou mot de passe applicatif requis par le fournisseur (Gmail, etc.). |
-| `NETWORK_ERROR`       | Hôte/port injoignable (`ECONNECTION`, `ESOCKET`, `ECONNREFUSED`, `EDNS`). | `host`, `port`, pare-feu sortant. |
-| `TIMEOUT`               | Le serveur ne répond pas dans le délai imparti (`ETIMEDOUT`). | Connectivité réseau, `timeout` trop court. |
-| `HTTP_ERROR`              | Expéditeur/destinataire refusé par le serveur (`EENVELOPE`). | `fromEmail`, `to`. |
-| `PROVIDER_ERROR`           | Toute autre erreur SMTP. | Consulter les logs du serveur SMTP lui-même (jamais exposés par PM2 Monitor). |
+| `errorCode`      | Cause probable                                                            | À vérifier                                                                                 |
+| ---------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `INVALID_CONFIG` | Champ requis manquant, ou `to` absent.                                    | `host`, `port`, `fromEmail`, `to`.                                                         |
+| `AUTH_ERROR`     | Identifiants SMTP refusés (`EAUTH`).                                      | `username`/`password`, ou mot de passe applicatif requis par le fournisseur (Gmail, etc.). |
+| `NETWORK_ERROR`  | Hôte/port injoignable (`ECONNECTION`, `ESOCKET`, `ECONNREFUSED`, `EDNS`). | `host`, `port`, pare-feu sortant.                                                          |
+| `TIMEOUT`        | Le serveur ne répond pas dans le délai imparti (`ETIMEDOUT`).             | Connectivité réseau, `timeout` trop court.                                                 |
+| `HTTP_ERROR`     | Expéditeur/destinataire refusé par le serveur (`EENVELOPE`).              | `fromEmail`, `to`.                                                                         |
+| `PROVIDER_ERROR` | Toute autre erreur SMTP.                                                  | Consulter les logs du serveur SMTP lui-même (jamais exposés par PM2 Monitor).              |

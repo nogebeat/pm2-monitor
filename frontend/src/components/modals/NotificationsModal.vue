@@ -59,7 +59,13 @@ const FIELD_SCHEMAS = {
     { key: "username", label: "Username", kind: "text", secret: true },
     { key: "password", label: "Password", kind: "password", secret: true },
     { key: "fromName", label: "From Name", kind: "text" },
-    { key: "fromEmail", label: "From Email", kind: "text", placeholder: "alerts@example.com", required: true },
+    {
+      key: "fromEmail",
+      label: "From Email",
+      kind: "text",
+      placeholder: "alerts@example.com",
+      required: true,
+    },
     { key: "to", label: "Recipients", kind: "text", placeholder: "ops@example.com, oncall@example.com" },
   ],
   discord: [
@@ -82,13 +88,30 @@ const FIELD_SCHEMAS = {
       kind: "select",
       options: ["GET", "POST", "PUT", "PATCH"].map((m) => ({ value: m, label: m })),
     },
-    { key: "headers", label: "Headers (JSON)", kind: "json", secret: true, placeholder: '{"Authorization": "Bearer …"}' },
+    {
+      key: "headers",
+      label: "Headers (JSON)",
+      kind: "json",
+      secret: true,
+      placeholder: '{"Authorization": "Bearer …"}',
+    },
     { key: "timeout", label: "Timeout (ms)", kind: "number", placeholder: "10000" },
-    { key: "payload", label: "Payload (JSON, optional)", kind: "json", placeholder: '{"text": "{{message}}"}' },
+    {
+      key: "payload",
+      label: "Payload (JSON, optional)",
+      kind: "json",
+      placeholder: '{"text": "{{message}}"}',
+    },
   ],
 };
 
-const TYPE_LABELS = { email: "Email / SMTP", discord: "Discord", telegram: "Telegram", slack: "Slack", webhook: "Generic Webhook" };
+const TYPE_LABELS = {
+  email: "Email / SMTP",
+  discord: "Discord",
+  telegram: "Telegram",
+  slack: "Slack",
+  webhook: "Generic Webhook",
+};
 
 // ---------- État ----------
 const providers = ref([]);
@@ -130,7 +153,15 @@ function startEdit(p) {
       keepSecret[f.key] = true; // par défaut : ne pas toucher au secret existant
     }
   }
-  editing.value = { mode: "edit", id: p.id, type: p.type, name: p.name, enabled: p.enabled, values, keepSecret };
+  editing.value = {
+    mode: "edit",
+    id: p.id,
+    type: p.type,
+    name: p.name,
+    enabled: p.enabled,
+    values,
+    keepSecret,
+  };
 }
 
 function cancelEdit() {
@@ -213,7 +244,9 @@ function apiFetch(url, method, body) {
 }
 
 function toggleEnabled(p) {
-  apiFetch(`/api/notifications/providers/${p.id}`, "PATCH", { enabled: !p.enabled }).then(load).catch(notifyError);
+  apiFetch(`/api/notifications/providers/${p.id}`, "PATCH", { enabled: !p.enabled })
+    .then(load)
+    .catch(notifyError);
 }
 
 function del(p) {
@@ -228,7 +261,9 @@ function test(p) {
       testResults[p.id] = {
         pending: false,
         success: result.success,
-        message: result.success ? t("notificationsModal.testSuccess") : result.safeMessage || t("notificationsModal.testFailure"),
+        message: result.success
+          ? t("notificationsModal.testSuccess")
+          : result.safeMessage || t("notificationsModal.testFailure"),
       };
     })
     .catch((e) => {
@@ -364,7 +399,9 @@ function saveRoute() {
 }
 
 function toggleRouteEnabled(r) {
-  apiFetch(`/api/notifications/routes/${r.id}`, "PATCH", { enabled: !r.enabled }).then(loadRoutes).catch(notifyError);
+  apiFetch(`/api/notifications/routes/${r.id}`, "PATCH", { enabled: !r.enabled })
+    .then(loadRoutes)
+    .catch(notifyError);
 }
 
 function deleteRoute(r) {
@@ -404,97 +441,154 @@ watch(tab, (t2) => {
 <template>
   <ModalBase :title="t('notificationsModal.title')" hide-confirm @close="close">
     <div class="notif-tabs">
-      <button class="icon-btn" :class="{ active: tab === 'providers' }" type="button" @click="tab = 'providers'">{{ t("notificationsModal.tabProviders") }}</button>
-      <button v-if="routingCanManage || can('notifications_read')" class="icon-btn" :class="{ active: tab === 'routing' }" type="button" @click="tab = 'routing'">
+      <button
+        class="icon-btn"
+        :class="{ active: tab === 'providers' }"
+        type="button"
+        @click="tab = 'providers'"
+      >
+        {{ t("notificationsModal.tabProviders") }}
+      </button>
+      <button
+        v-if="routingCanManage || can('notifications_read')"
+        class="icon-btn"
+        :class="{ active: tab === 'routing' }"
+        type="button"
+        @click="tab = 'routing'"
+      >
         {{ t("notificationsModal.tabRouting") }}
       </button>
     </div>
 
     <template v-if="tab === 'providers'">
-    <div v-if="loading" class="hint-text">{{ t("notificationsModal.loading") }}</div>
+      <div v-if="loading" class="hint-text">{{ t("notificationsModal.loading") }}</div>
 
-    <template v-else-if="editing">
-      <div class="hint-text" style="margin-bottom: 10px">
-        {{ editing.mode === "create" ? t("notificationsModal.newProvider") : t("notificationsModal.editProvider") }} — {{ TYPE_LABELS[editing.type] }}
-      </div>
+      <template v-else-if="editing">
+        <div class="hint-text" style="margin-bottom: 10px">
+          {{
+            editing.mode === "create"
+              ? t("notificationsModal.newProvider")
+              : t("notificationsModal.editProvider")
+          }}
+          — {{ TYPE_LABELS[editing.type] }}
+        </div>
 
-      <div class="notif-form">
-        <label class="notif-field">
-          <span>{{ t("notificationsModal.name") }}</span>
-          <input v-model="editing.name" type="text" :placeholder="t('notificationsModal.namePlaceholder')" />
-        </label>
-
-        <label class="notif-field chk">
-          <input v-model="editing.enabled" type="checkbox" />
-          <span>{{ t("notificationsModal.enabled") }}</span>
-        </label>
-
-        <template v-for="f in currentSchema" :key="f.key">
-          <label v-if="!(f.secret && editing.mode === 'edit' && editing.keepSecret[f.key])" class="notif-field">
-            <span>{{ f.label }}<span v-if="f.required" :title="t('notificationsModal.required')"> *</span></span>
-            <select v-if="f.kind === 'select'" v-model="editing.values[f.key]">
-              <option value="">—</option>
-              <option v-for="o in f.options" :key="o.value" :value="o.value">{{ o.label }}</option>
-            </select>
-            <textarea
-              v-else-if="f.kind === 'json'"
-              v-model="editing.values[f.key]"
-              rows="2"
-              :placeholder="f.placeholder"
-            ></textarea>
-            <input v-else :type="f.kind === 'password' ? 'password' : f.kind" v-model="editing.values[f.key]" :placeholder="f.placeholder" />
+        <div class="notif-form">
+          <label class="notif-field">
+            <span>{{ t("notificationsModal.name") }}</span>
+            <input
+              v-model="editing.name"
+              type="text"
+              :placeholder="t('notificationsModal.namePlaceholder')"
+            />
           </label>
-          <div v-else class="notif-field">
-            <span>{{ f.label }}</span>
-            <div class="secret-kept">
-              <span class="hint-text">{{ t("notificationsModal.passwordKept") }}</span>
-              <label class="chk">
-                <input type="checkbox" :checked="editing.keepSecret[f.key]" @change="toggleKeepSecret(f.key)" />
-                {{ t("notificationsModal.keepCredential") }}
-              </label>
+
+          <label class="notif-field chk">
+            <input v-model="editing.enabled" type="checkbox" />
+            <span>{{ t("notificationsModal.enabled") }}</span>
+          </label>
+
+          <template v-for="f in currentSchema" :key="f.key">
+            <label
+              v-if="!(f.secret && editing.mode === 'edit' && editing.keepSecret[f.key])"
+              class="notif-field"
+            >
+              <span
+                >{{ f.label
+                }}<span v-if="f.required" :title="t('notificationsModal.required')"> *</span></span
+              >
+              <select v-if="f.kind === 'select'" v-model="editing.values[f.key]">
+                <option value="">—</option>
+                <option v-for="o in f.options" :key="o.value" :value="o.value">{{ o.label }}</option>
+              </select>
+              <textarea
+                v-else-if="f.kind === 'json'"
+                v-model="editing.values[f.key]"
+                rows="2"
+                :placeholder="f.placeholder"
+              ></textarea>
+              <input
+                v-else
+                :type="f.kind === 'password' ? 'password' : f.kind"
+                v-model="editing.values[f.key]"
+                :placeholder="f.placeholder"
+              />
+            </label>
+            <div v-else class="notif-field">
+              <span>{{ f.label }}</span>
+              <div class="secret-kept">
+                <span class="hint-text">{{ t("notificationsModal.passwordKept") }}</span>
+                <label class="chk">
+                  <input
+                    type="checkbox"
+                    :checked="editing.keepSecret[f.key]"
+                    @change="toggleKeepSecret(f.key)"
+                  />
+                  {{ t("notificationsModal.keepCredential") }}
+                </label>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <div class="notif-form-actions">
+          <button class="icon-btn" type="button" @click="cancelEdit">{{ t("common.cancel") }}</button>
+          <button class="icon-btn go" type="button" :disabled="saving" @click="save">
+            {{ saving ? t("common.saving") : t("common.save") }}
+          </button>
+        </div>
+      </template>
+
+      <template v-else>
+        <div class="notif-add-row">
+          <span class="hint-text">{{ t("notificationsModal.addProvider") }}</span>
+          <button
+            v-for="(label, type) in TYPE_LABELS"
+            :key="type"
+            class="icon-btn"
+            type="button"
+            @click="startCreate(type)"
+          >
+            {{ label }}
+          </button>
+        </div>
+
+        <div v-if="!providers.length" class="hint-text" style="margin-top: 12px">
+          {{ t("notificationsModal.noProvider") }}
+        </div>
+
+        <div class="notif-list">
+          <div v-for="p in providers" :key="p.id" class="notif-row">
+            <div class="notif-row-head">
+              <span class="notif-status">{{ statusDot(p) }}</span>
+              <span class="label">{{ p.name }}</span>
+              <span class="hint-text">{{ TYPE_LABELS[p.type] || p.type }}</span>
+              <span style="flex: 1"></span>
+              <button class="icon-btn" type="button" @click="startEdit(p)">
+                {{ t("notificationsModal.edit") }}
+              </button>
+              <button class="icon-btn" type="button" @click="test(p)">
+                {{ t("notificationsModal.test") }}
+              </button>
+              <button class="icon-btn" type="button" @click="toggleEnabled(p)">
+                {{ p.enabled ? t("notificationsModal.disable") : t("notificationsModal.enable") }}
+              </button>
+              <button class="icon-btn danger-text" type="button" @click="del(p)">
+                {{ t("notificationsModal.delete") }}
+              </button>
+            </div>
+            <div
+              v-if="testResults[p.id]"
+              class="notif-test-result"
+              :class="{ ok: testResults[p.id].success, err: testResults[p.id].success === false }"
+            >
+              <template v-if="testResults[p.id].pending">{{ t("notificationsModal.testPending") }}</template>
+              <template v-else-if="testResults[p.id].success">🟢 {{ testResults[p.id].message }}</template>
+              <template v-else>🔴 {{ testResults[p.id].message }}</template>
             </div>
           </div>
-        </template>
-      </div>
-
-      <div class="notif-form-actions">
-        <button class="icon-btn" type="button" @click="cancelEdit">{{ t("common.cancel") }}</button>
-        <button class="icon-btn go" type="button" :disabled="saving" @click="save">
-          {{ saving ? t("common.saving") : t("common.save") }}
-        </button>
-      </div>
-    </template>
-
-    <template v-else>
-      <div class="notif-add-row">
-        <span class="hint-text">{{ t("notificationsModal.addProvider") }}</span>
-        <button v-for="(label, type) in TYPE_LABELS" :key="type" class="icon-btn" type="button" @click="startCreate(type)">
-          {{ label }}
-        </button>
-      </div>
-
-      <div v-if="!providers.length" class="hint-text" style="margin-top: 12px">{{ t("notificationsModal.noProvider") }}</div>
-
-      <div class="notif-list">
-        <div v-for="p in providers" :key="p.id" class="notif-row">
-          <div class="notif-row-head">
-            <span class="notif-status">{{ statusDot(p) }}</span>
-            <span class="label">{{ p.name }}</span>
-            <span class="hint-text">{{ TYPE_LABELS[p.type] || p.type }}</span>
-            <span style="flex: 1"></span>
-            <button class="icon-btn" type="button" @click="startEdit(p)">{{ t("notificationsModal.edit") }}</button>
-            <button class="icon-btn" type="button" @click="test(p)">{{ t("notificationsModal.test") }}</button>
-            <button class="icon-btn" type="button" @click="toggleEnabled(p)">{{ p.enabled ? t("notificationsModal.disable") : t("notificationsModal.enable") }}</button>
-            <button class="icon-btn danger-text" type="button" @click="del(p)">{{ t("notificationsModal.delete") }}</button>
-          </div>
-          <div v-if="testResults[p.id]" class="notif-test-result" :class="{ ok: testResults[p.id].success, err: testResults[p.id].success === false }">
-            <template v-if="testResults[p.id].pending">{{ t("notificationsModal.testPending") }}</template>
-            <template v-else-if="testResults[p.id].success">🟢 {{ testResults[p.id].message }}</template>
-            <template v-else>🔴 {{ testResults[p.id].message }}</template>
-          </div>
         </div>
-      </div>
-    </template>
+      </template>
     </template>
 
     <template v-else-if="tab === 'routing'">
@@ -502,7 +596,11 @@ watch(tab, (t2) => {
 
       <template v-else-if="routeEditing">
         <div class="hint-text" style="margin-bottom: 10px">
-          {{ routeEditing.mode === "create" ? t("notificationsModal.newRoute") : t("notificationsModal.editRoute") }}
+          {{
+            routeEditing.mode === "create"
+              ? t("notificationsModal.newRoute")
+              : t("notificationsModal.editRoute")
+          }}
         </div>
 
         <div class="notif-form">
@@ -520,7 +618,11 @@ watch(tab, (t2) => {
             <span>{{ t("notificationsModal.severityHint") }}</span>
             <div class="route-chip-row">
               <label v-for="sev in SEVERITY_OPTIONS" :key="sev" class="chk route-chip">
-                <input type="checkbox" :checked="routeEditing.severity.includes(sev)" @change="toggleRouteSeverity(sev)" />
+                <input
+                  type="checkbox"
+                  :checked="routeEditing.severity.includes(sev)"
+                  @change="toggleRouteSeverity(sev)"
+                />
                 {{ sev }}
               </label>
             </div>
@@ -548,20 +650,37 @@ watch(tab, (t2) => {
             </div>
             <div v-else class="route-chip-row">
               <label v-for="p in providers" :key="p.id" class="chk route-chip">
-                <input type="checkbox" :checked="routeEditing.providerIds.includes(p.id)" @change="toggleRouteProvider(p.id)" />
+                <input
+                  type="checkbox"
+                  :checked="routeEditing.providerIds.includes(p.id)"
+                  @change="toggleRouteProvider(p.id)"
+                />
                 {{ p.name }}
               </label>
             </div>
           </div>
 
           <label class="notif-field">
-            <span v-pre>Title template (optional — {{ '{{severity}}' }}, {{ '{{ruleName}}' }}, {{ '{{metric}}' }}, {{ '{{value}}' }}, {{ '{{targetValue}}' }}…)</span>
-            <input v-pre v-model="routeEditing.titleTemplate" type="text" placeholder="'[{{severity}}] {{ruleName}}'" />
+            <span v-pre
+              >Title template (optional — {{ '{{severity}}' }}, {{ '{{ruleName}}' }}, {{ '{{metric}}' }},
+              {{ '{{value}}' }}, {{ '{{targetValue}}' }}…)</span
+            >
+            <input
+              v-pre
+              v-model="routeEditing.titleTemplate"
+              type="text"
+              placeholder="'[{{severity}}] {{ruleName}}'"
+            />
           </label>
 
           <label class="notif-field">
             <span>{{ t("notificationsModal.messageTemplateHint") }}</span>
-            <textarea v-pre v-model="routeEditing.messageTemplate" rows="2" placeholder="'{{metric}} {{operator}} {{threshold}} sur {{targetValue}} (valeur : {{value}})'"></textarea>
+            <textarea
+              v-pre
+              v-model="routeEditing.messageTemplate"
+              rows="2"
+              placeholder="'{{metric}} {{operator}} {{threshold}} sur {{targetValue}} (valeur : {{value}})'"
+            ></textarea>
           </label>
 
           <label class="notif-field chk">
@@ -581,10 +700,14 @@ watch(tab, (t2) => {
       <template v-else>
         <div class="notif-add-row">
           <span class="hint-text">{{ t("notificationsModal.routingDescription") }}</span>
-          <button v-if="routingCanManage" class="icon-btn" type="button" @click="startCreateRoute">{{ t("notificationsModal.addRoute") }}</button>
+          <button v-if="routingCanManage" class="icon-btn" type="button" @click="startCreateRoute">
+            {{ t("notificationsModal.addRoute") }}
+          </button>
         </div>
 
-        <div v-if="!routes.length" class="hint-text" style="margin-top: 12px">{{ t("notificationsModal.noRoute") }}</div>
+        <div v-if="!routes.length" class="hint-text" style="margin-top: 12px">
+          {{ t("notificationsModal.noRoute") }}
+        </div>
 
         <div class="notif-list">
           <div v-for="r in routes" :key="r.id" class="notif-row">
@@ -594,15 +717,30 @@ watch(tab, (t2) => {
               <span class="hint-text">{{ conditionsSummary(r) }}</span>
               <span style="flex: 1"></span>
               <template v-if="routingCanManage">
-                <button class="icon-btn" type="button" @click="startEditRoute(r)">{{ t("notificationsModal.edit") }}</button>
-                <button class="icon-btn" type="button" @click="toggleRouteEnabled(r)">{{ r.enabled ? t("notificationsModal.disable") : t("notificationsModal.enable") }}</button>
-                <button class="icon-btn danger-text" type="button" @click="deleteRoute(r)">{{ t("notificationsModal.delete") }}</button>
+                <button class="icon-btn" type="button" @click="startEditRoute(r)">
+                  {{ t("notificationsModal.edit") }}
+                </button>
+                <button class="icon-btn" type="button" @click="toggleRouteEnabled(r)">
+                  {{ r.enabled ? t("notificationsModal.disable") : t("notificationsModal.enable") }}
+                </button>
+                <button class="icon-btn danger-text" type="button" @click="deleteRoute(r)">
+                  {{ t("notificationsModal.delete") }}
+                </button>
               </template>
             </div>
             <div class="notif-test-result">
               <span class="hint-text">
-                {{ t("notificationsModal.providersLabel", { list: r.providerIds && r.providerIds.length ? r.providerIds.map(providerName).join(", ") : t("notificationsModal.none") }) }}
-                <template v-if="r.notifyOnResolve">{{ t("notificationsModal.alsoNotifiesOnResolve") }}</template>
+                {{
+                  t("notificationsModal.providersLabel", {
+                    list:
+                      r.providerIds && r.providerIds.length
+                        ? r.providerIds.map(providerName).join(", ")
+                        : t("notificationsModal.none"),
+                  })
+                }}
+                <template v-if="r.notifyOnResolve">{{
+                  t("notificationsModal.alsoNotifiesOnResolve")
+                }}</template>
               </span>
             </div>
           </div>

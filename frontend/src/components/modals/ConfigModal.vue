@@ -14,7 +14,7 @@ const props = defineProps({
 const script = ref(props.process.script || "");
 const argsStr = ref((props.process.args || []).join(" "));
 const execMode = ref(
-  props.process.execMode === "cluster_mode" || props.process.execMode === "cluster" ? "cluster" : "fork"
+  props.process.execMode === "cluster_mode" || props.process.execMode === "cluster" ? "cluster" : "fork",
 );
 const instances = ref(props.process.instances || 1);
 

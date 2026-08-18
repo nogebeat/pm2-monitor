@@ -36,7 +36,10 @@ async function startServer(userForRequest) {
   app.use(
     "/api/dashboard",
     dashboardRouter({
-      pm2: { list: (cb) => cb(null, [{ pm_id: 0, name: "api", pm2_env: { status: "online" }, monit: { cpu: 1, memory: 2 } }]) },
+      pm2: {
+        list: (cb) =>
+          cb(null, [{ pm_id: 0, name: "api", pm2_env: { status: "online" }, monit: { cpu: 1, memory: 2 } }]),
+      },
       fmtProcess: (p) => ({ id: p.pm_id, name: p.name, status: p.pm2_env.status }),
       visibleProcesses: (user, list) => list,
       getSystemSnapshot: () => ({ cpu: 5, mem: { percent: 5 }, disk: { percent: 5 } }),
@@ -44,7 +47,7 @@ async function startServer(userForRequest) {
       healthChecksStore,
       eventsStore,
       autoHealingAuditStore,
-    })
+    }),
   );
 
   const server = http.createServer(app);
@@ -86,21 +89,24 @@ test("GET /api/dashboard", async (t) => {
     }
   });
 
-  await t.test('avec seulement "system" -> 200, processes/globalStatus présents, sections annexes à null', async () => {
-    const { server, baseUrl } = await startServer(SYSTEM_ONLY_USER);
-    try {
-      const res = await fetch(baseUrl);
-      const body = await res.json();
-      assert.equal(res.status, 200);
-      assert.ok(["HEALTHY", "WARNING", "CRITICAL"].includes(body.globalStatus));
-      assert.equal(body.processes.overview.total, 1);
-      assert.equal(body.alerts, null);
-      assert.equal(body.healthChecks, null);
-      assert.deepEqual(body.recentTimeline, []);
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    'avec seulement "system" -> 200, processes/globalStatus présents, sections annexes à null',
+    async () => {
+      const { server, baseUrl } = await startServer(SYSTEM_ONLY_USER);
+      try {
+        const res = await fetch(baseUrl);
+        const body = await res.json();
+        assert.equal(res.status, 200);
+        assert.ok(["HEALTHY", "WARNING", "CRITICAL"].includes(body.globalStatus));
+        assert.equal(body.processes.overview.total, 1);
+        assert.equal(body.alerts, null);
+        assert.equal(body.healthChecks, null);
+        assert.deepEqual(body.recentTimeline, []);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await t.test("avec toutes les permissions annexes -> sections alerts/healthChecks présentes", async () => {
     const { server, baseUrl } = await startServer(FULL_USER);
@@ -115,15 +121,18 @@ test("GET /api/dashboard", async (t) => {
     }
   });
 
-  await t.test("admin -> 200 sans permission explicite (isAdmin bypass, cohérent avec le reste de l'app)", async () => {
-    const { server, baseUrl } = await startServer(ADMIN);
-    try {
-      const res = await fetch(baseUrl);
-      assert.equal(res.status, 200);
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "admin -> 200 sans permission explicite (isAdmin bypass, cohérent avec le reste de l'app)",
+    async () => {
+      const { server, baseUrl } = await startServer(ADMIN);
+      try {
+        const res = await fetch(baseUrl);
+        assert.equal(res.status, 200);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await cleanupDb(dbCtx);
 });

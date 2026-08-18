@@ -1,0 +1,9 @@
+node_modules
+frontend/node_modules
+public
+frontend/dist
+data
+*.min.js
+package-lock.json
+frontend/package-lock.json
+CHANGELOG.md

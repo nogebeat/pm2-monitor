@@ -67,16 +67,45 @@ const ENDPOINTS = [
   { method: "GET", path: "/provider-types", permission: "notifications_read" },
   { method: "GET", path: "/providers", permission: "notifications_read" },
   { method: "GET", path: "/providers/:providerId", permission: "notifications_read" },
-  { method: "POST", path: "/providers", permission: "notifications_create", body: () => ({ name: "P", type: "discord", fields: { webhookUrl: "https://discord.com/api/webhooks/1/x" } }) },
-  { method: "PATCH", path: "/providers/:providerId", permission: "notifications_update", body: () => ({ name: "Renommé" }) },
-  { method: "PUT", path: "/providers/:providerId", permission: "notifications_update", body: () => ({ name: "Renommé", type: "discord", fields: {} }) },
+  {
+    method: "POST",
+    path: "/providers",
+    permission: "notifications_create",
+    body: () => ({
+      name: "P",
+      type: "discord",
+      fields: { webhookUrl: "https://discord.com/api/webhooks/1/x" },
+    }),
+  },
+  {
+    method: "PATCH",
+    path: "/providers/:providerId",
+    permission: "notifications_update",
+    body: () => ({ name: "Renommé" }),
+  },
+  {
+    method: "PUT",
+    path: "/providers/:providerId",
+    permission: "notifications_update",
+    body: () => ({ name: "Renommé", type: "discord", fields: {} }),
+  },
   { method: "DELETE", path: "/providers/:providerIdScratch", permission: "notifications_delete" },
   { method: "POST", path: "/providers/:providerId/test", permission: "notifications_test" },
   { method: "GET", path: "/routes", permission: "notifications_read" },
   { method: "GET", path: "/routes/:routeId", permission: "notifications_read" },
   { method: "POST", path: "/routes", permission: "notifications_manage", body: () => ({ name: "R" }) },
-  { method: "PATCH", path: "/routes/:routeId", permission: "notifications_manage", body: () => ({ name: "Renommée" }) },
-  { method: "PUT", path: "/routes/:routeId", permission: "notifications_manage", body: () => ({ name: "Renommée" }) },
+  {
+    method: "PATCH",
+    path: "/routes/:routeId",
+    permission: "notifications_manage",
+    body: () => ({ name: "Renommée" }),
+  },
+  {
+    method: "PUT",
+    path: "/routes/:routeId",
+    permission: "notifications_manage",
+    body: () => ({ name: "Renommée" }),
+  },
   { method: "DELETE", path: "/routes/:routeIdScratch", permission: "notifications_manage" },
   { method: "GET", path: "/history", permission: "notifications_history" },
 ];
@@ -102,7 +131,11 @@ test("Phase 5F — Permission Audit : chaque endpoint notifications exige exacte
     await fetch(`${adminBaseUrl}/providers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Fixture provider", type: "discord", fields: { webhookUrl: "https://discord.com/api/webhooks/1/x" } }),
+      body: JSON.stringify({
+        name: "Fixture provider",
+        type: "discord",
+        fields: { webhookUrl: "https://discord.com/api/webhooks/1/x" },
+      }),
     })
   ).json();
   const route = await (
@@ -131,7 +164,11 @@ test("Phase 5F — Permission Audit : chaque endpoint notifications exige exacte
           headers: { "Content-Type": "application/json" },
           body: endpoint.method === "GET" || endpoint.method === "DELETE" ? undefined : JSON.stringify({}),
         });
-        assert.equal(res.status, 403, `${endpoint.method} ${endpoint.path} doit refuser un utilisateur sans permission`);
+        assert.equal(
+          res.status,
+          403,
+          `${endpoint.method} ${endpoint.path} doit refuser un utilisateur sans permission`,
+        );
       } finally {
         await stopServer(server);
       }
@@ -139,66 +176,86 @@ test("Phase 5F — Permission Audit : chaque endpoint notifications exige exacte
 
     const otherPermissions = ALL_PERMISSIONS.filter((p) => p !== endpoint.permission);
     for (const wrongPermission of otherPermissions) {
-      await t.test(`${endpoint.method} ${endpoint.path} — avec seulement '${wrongPermission}' (permission adjacente) -> 403`, async () => {
-        const { server, baseUrl } = await startServer(userWithOnly(wrongPermission));
+      await t.test(
+        `${endpoint.method} ${endpoint.path} — avec seulement '${wrongPermission}' (permission adjacente) -> 403`,
+        async () => {
+          const { server, baseUrl } = await startServer(userWithOnly(wrongPermission));
+          try {
+            const res = await fetch(`${baseUrl}${resolvePath(endpoint.path)}`, {
+              method: endpoint.method,
+              headers: { "Content-Type": "application/json" },
+              body:
+                endpoint.method === "GET" || endpoint.method === "DELETE" ? undefined : JSON.stringify({}),
+            });
+            assert.equal(
+              res.status,
+              403,
+              `${endpoint.method} ${endpoint.path} ne doit pas être accessible avec seulement '${wrongPermission}' (attendu '${endpoint.permission}')`,
+            );
+          } finally {
+            await stopServer(server);
+          }
+        },
+      );
+    }
+
+    await t.test(
+      `${endpoint.method} ${endpoint.path} — avec exactement '${endpoint.permission}' -> pas de 403`,
+      async () => {
+        const { server, baseUrl } = await startServer(userWithOnly(endpoint.permission));
         try {
           const res = await fetch(`${baseUrl}${resolvePath(endpoint.path)}`, {
             method: endpoint.method,
             headers: { "Content-Type": "application/json" },
-            body: endpoint.method === "GET" || endpoint.method === "DELETE" ? undefined : JSON.stringify({}),
+            body:
+              endpoint.method === "GET" || endpoint.method === "DELETE"
+                ? undefined
+                : JSON.stringify(endpoint.body ? endpoint.body() : {}),
           });
-          assert.equal(
+          assert.notEqual(
             res.status,
             403,
-            `${endpoint.method} ${endpoint.path} ne doit pas être accessible avec seulement '${wrongPermission}' (attendu '${endpoint.permission}')`
+            `${endpoint.method} ${endpoint.path} doit être accessible avec '${endpoint.permission}'`,
           );
         } finally {
           await stopServer(server);
         }
-      });
-    }
+      },
+    );
+  }
 
-    await t.test(`${endpoint.method} ${endpoint.path} — avec exactement '${endpoint.permission}' -> pas de 403`, async () => {
-      const { server, baseUrl } = await startServer(userWithOnly(endpoint.permission));
+  await t.test(
+    "l'ID d'app '*' d'une permission ne donne pas accès à une action non accordée (pas de wildcard implicite sur l'action)",
+    async () => {
+      // hasPermission() (lib/permissions.js) ne doit matcher que sur l'action
+      // exacte, pas "toute action dès qu'il existe une permission '*'".
+      const user = { id: 43, isAdmin: false, permissions: [{ appName: "*", action: "notifications_read" }] };
+      const { server, baseUrl } = await startServer(user);
       try {
-        const res = await fetch(`${baseUrl}${resolvePath(endpoint.path)}`, {
-          method: endpoint.method,
+        const res = await fetch(`${baseUrl}/providers`, {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: endpoint.method === "GET" || endpoint.method === "DELETE" ? undefined : JSON.stringify(endpoint.body ? endpoint.body() : {}),
+          body: JSON.stringify({ name: "x", type: "discord", fields: {} }),
         });
-        assert.notEqual(res.status, 403, `${endpoint.method} ${endpoint.path} doit être accessible avec '${endpoint.permission}'`);
+        assert.equal(res.status, 403);
       } finally {
         await stopServer(server);
       }
-    });
-  }
+    },
+  );
 
-  await t.test("l'ID d'app '*' d'une permission ne donne pas accès à une action non accordée (pas de wildcard implicite sur l'action)", async () => {
-    // hasPermission() (lib/permissions.js) ne doit matcher que sur l'action
-    // exacte, pas "toute action dès qu'il existe une permission '*'".
-    const user = { id: 43, isAdmin: false, permissions: [{ appName: "*", action: "notifications_read" }] };
-    const { server, baseUrl } = await startServer(user);
-    try {
-      const res = await fetch(`${baseUrl}/providers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "x", type: "discord", fields: {} }),
-      });
-      assert.equal(res.status, 403);
-    } finally {
-      await stopServer(server);
-    }
-  });
-
-  await t.test("un utilisateur admin (isAdmin: true) contourne bien requirePermission, mais pas requireAuth (déjà authentifié ici)", async () => {
-    const { server, baseUrl } = await startServer(ADMIN);
-    try {
-      const res = await fetch(`${baseUrl}/providers`);
-      assert.equal(res.status, 200);
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "un utilisateur admin (isAdmin: true) contourne bien requirePermission, mais pas requireAuth (déjà authentifié ici)",
+    async () => {
+      const { server, baseUrl } = await startServer(ADMIN);
+      try {
+        const res = await fetch(`${baseUrl}/providers`);
+        assert.equal(res.status, 200);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await cleanupDb(dbCtx);
 });

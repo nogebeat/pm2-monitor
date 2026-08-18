@@ -1,0 +1,13 @@
+# Normalise les fins de ligne en LF pour tout le monde, quel que soit l'OS
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.woff binary
+*.woff2 binary
+*.ico binary
+
+package-lock.json linguist-generated=true
+frontend/package-lock.json linguist-generated=true

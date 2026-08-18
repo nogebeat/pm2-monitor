@@ -59,7 +59,11 @@ test("Phase 5F — end-to-end : seuil dépassé -> alerte -> routing -> queue ->
       return { success: true, responseTime: 3 };
     });
 
-    const provider = await providerStore.create({ name: "Webhook interne", type: "fake", configuration: { url: "https://internal" } });
+    const provider = await providerStore.create({
+      name: "Webhook interne",
+      type: "fake",
+      configuration: { url: "https://internal" },
+    });
     await routeStore.create({
       name: "CPU critique -> fake",
       conditions: { severity: ["critical"] },
@@ -84,7 +88,13 @@ test("Phase 5F — end-to-end : seuil dépassé -> alerte -> routing -> queue ->
       historyStore,
       queue: createQueue("e2e-test-queue", { maxAttempts: 3, backoffMs: 0 }),
     });
-    const routingEngine = new RoutingEngine({ routeStore, providerStore, registry, historyStore, dispatchQueue });
+    const routingEngine = new RoutingEngine({
+      routeStore,
+      providerStore,
+      registry,
+      historyStore,
+      dispatchQueue,
+    });
     const alertEngine = new AlertEngine({ ruleStore, alertStore });
 
     // Tick 1 : la métrique dépasse le seuil -> occurrence "trigger" (voir
@@ -149,7 +159,13 @@ test("Phase 5F — end-to-end : seuil dépassé -> alerte -> routing -> queue ->
       historyStore,
       queue: createQueue("e2e-test-queue-resolve", { maxAttempts: 3, backoffMs: 0 }),
     });
-    const routingEngine = new RoutingEngine({ routeStore, providerStore, registry, historyStore, dispatchQueue });
+    const routingEngine = new RoutingEngine({
+      routeStore,
+      providerStore,
+      registry,
+      historyStore,
+      dispatchQueue,
+    });
     const alertEngine = new AlertEngine({ ruleStore, alertStore });
 
     const activeFirst = await alertEngine.evaluate(rule, "system", 90);
@@ -174,60 +190,69 @@ test("Phase 5F — end-to-end : seuil dépassé -> alerte -> routing -> queue ->
     assert.equal(sentEvents.length, 2);
   });
 
-  await t.test("provider en panne (échecs répétés) : historique 'failed', mais le pipeline continue de fonctionner", async () => {
-    const registry = makeRegistryWithFakeProvider(async () => ({ success: false, errorCode: "SMTP_DOWN" }));
+  await t.test(
+    "provider en panne (échecs répétés) : historique 'failed', mais le pipeline continue de fonctionner",
+    async () => {
+      const registry = makeRegistryWithFakeProvider(async () => ({ success: false, errorCode: "SMTP_DOWN" }));
 
-    const provider = await providerStore.create({ name: "SMTP en panne", type: "fake", configuration: {} });
-    await routeStore.create({ name: "route", conditions: {}, providerIds: [provider.id] });
+      const provider = await providerStore.create({ name: "SMTP en panne", type: "fake", configuration: {} });
+      await routeStore.create({ name: "route", conditions: {}, providerIds: [provider.id] });
 
-    const rule = await ruleStore.create({
-      name: "Disque",
-      targetType: "system",
-      metric: "disk",
-      operator: ">",
-      threshold: 90,
-      durationSeconds: 0,
-      cooldownSeconds: 0,
-      severity: "critical",
-    });
+      const rule = await ruleStore.create({
+        name: "Disque",
+        targetType: "system",
+        metric: "disk",
+        operator: ">",
+        threshold: 90,
+        durationSeconds: 0,
+        cooldownSeconds: 0,
+        severity: "critical",
+      });
 
-    const dispatchQueue = new NotificationDispatchQueue({
-      registry,
-      providerStore,
-      historyStore,
-      queue: createQueue("e2e-test-queue-fail", { maxAttempts: 2, backoffMs: 0 }),
-    });
-    const routingEngine = new RoutingEngine({ routeStore, providerStore, registry, historyStore, dispatchQueue });
-    const alertEngine = new AlertEngine({ ruleStore, alertStore });
+      const dispatchQueue = new NotificationDispatchQueue({
+        registry,
+        providerStore,
+        historyStore,
+        queue: createQueue("e2e-test-queue-fail", { maxAttempts: 2, backoffMs: 0 }),
+      });
+      const routingEngine = new RoutingEngine({
+        routeStore,
+        providerStore,
+        registry,
+        historyStore,
+        dispatchQueue,
+      });
+      const alertEngine = new AlertEngine({ ruleStore, alertStore });
 
-    const activeFirst2 = await alertEngine.evaluate(rule, "system", 95);
-    assert.equal(activeFirst2.state, "trigger");
-    const active = await alertEngine.evaluate(rule, "system", 95);
-    assert.equal(active.state, "active");
-    const dispatched = await routingEngine.dispatch(active, "triggered");
+      const activeFirst2 = await alertEngine.evaluate(rule, "system", 95);
+      assert.equal(activeFirst2.state, "trigger");
+      const active = await alertEngine.evaluate(rule, "system", 95);
+      assert.equal(active.state, "active");
+      const dispatched = await routingEngine.dispatch(active, "triggered");
 
-    await dispatchQueue.processOne(); // tentative 1/2
-    await dispatchQueue.processOne(); // tentative 2/2 : épuisée -> failed
+      await dispatchQueue.processOne(); // tentative 1/2
+      await dispatchQueue.processOne(); // tentative 2/2 : épuisée -> failed
 
-    const entry = await historyStore.getById(dispatched[0].historyEntry.id);
-    assert.equal(entry.status, "failed");
-    assert.equal(entry.errorCode, "SMTP_DOWN");
+      const entry = await historyStore.getById(dispatched[0].historyEntry.id);
+      assert.equal(entry.status, "failed");
+      assert.equal(entry.errorCode, "SMTP_DOWN");
 
-    // Le moteur d'alertes lui-même n'a jamais été affecté : une nouvelle
-    // évaluation sur une autre cible fonctionne normalement.
-    const anotherRule = await ruleStore.create({
-      name: "CPU",
-      targetType: "system",
-      metric: "cpu",
-      operator: ">",
-      threshold: 50,
-      durationSeconds: 0,
-      cooldownSeconds: 0,
-      severity: "warning",
-    });
-    const anotherFirst = await alertEngine.evaluate(anotherRule, "system", 99);
-    assert.equal(anotherFirst.state, "trigger");
-    const anotherResult = await alertEngine.evaluate(anotherRule, "system", 99);
-    assert.equal(anotherResult.state, "active");
-  });
+      // Le moteur d'alertes lui-même n'a jamais été affecté : une nouvelle
+      // évaluation sur une autre cible fonctionne normalement.
+      const anotherRule = await ruleStore.create({
+        name: "CPU",
+        targetType: "system",
+        metric: "cpu",
+        operator: ">",
+        threshold: 50,
+        durationSeconds: 0,
+        cooldownSeconds: 0,
+        severity: "warning",
+      });
+      const anotherFirst = await alertEngine.evaluate(anotherRule, "system", 99);
+      assert.equal(anotherFirst.state, "trigger");
+      const anotherResult = await alertEngine.evaluate(anotherRule, "system", 99);
+      assert.equal(anotherResult.state, "active");
+    },
+  );
 });

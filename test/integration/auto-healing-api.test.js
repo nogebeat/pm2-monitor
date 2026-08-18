@@ -110,22 +110,25 @@ test("Auto-Healing API", async (t) => {
     }
   });
 
-  await t.test("PUT /settings — authealing_manage peut activer explicitement (et seulement lui)", async () => {
-    const { server, baseUrl } = await startServer(MANAGE_USER);
-    try {
-      const res = await fetch(`${baseUrl}/settings`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: true, maxAttempts: 5 }),
-      });
-      const body = await res.json();
-      assert.equal(res.status, 200);
-      assert.equal(body.enabled, true);
-      assert.equal(body.maxAttempts, 5);
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "PUT /settings — authealing_manage peut activer explicitement (et seulement lui)",
+    async () => {
+      const { server, baseUrl } = await startServer(MANAGE_USER);
+      try {
+        const res = await fetch(`${baseUrl}/settings`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled: true, maxAttempts: 5 }),
+        });
+        const body = await res.json();
+        assert.equal(res.status, 200);
+        assert.equal(body.enabled, true);
+        assert.equal(body.maxAttempts, 5);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await t.test("PUT /settings — maxAttempts invalide est rejeté (400)", async () => {
     const { server, baseUrl } = await startServer(MANAGE_USER);

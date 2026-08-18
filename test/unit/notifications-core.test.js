@@ -38,7 +38,10 @@ test("ProviderRegistry", async (t) => {
   await t.test("registerProvider() refuse un doublon de type", () => {
     const registry = new ProviderRegistry();
     registry.registerProvider(new NotificationProvider("dummy", "Dummy"));
-    assert.throws(() => registry.registerProvider(new NotificationProvider("dummy", "Dummy 2")), /déjà enregistré/);
+    assert.throws(
+      () => registry.registerProvider(new NotificationProvider("dummy", "Dummy 2")),
+      /déjà enregistré/,
+    );
   });
 
   await t.test("registerProvider() refuse un provider sans type", () => {
@@ -62,22 +65,28 @@ test("providers/index.js — providers réels du projet (Phase 5B)", async (t) =
     }
   });
 
-  await t.test("chaque provider rejette send() avec une config invalide, sans exception (résultat normalisé)", async () => {
-    for (const provider of providers) {
-      const result = await provider.send({}, {});
-      assert.equal(result.success, false, `${provider.type} doit échouer proprement`);
-      assert.equal(result.errorCode, "INVALID_CONFIG");
-      assert.equal(typeof result.safeMessage, "string");
-    }
-  });
+  await t.test(
+    "chaque provider rejette send() avec une config invalide, sans exception (résultat normalisé)",
+    async () => {
+      for (const provider of providers) {
+        const result = await provider.send({}, {});
+        assert.equal(result.success, false, `${provider.type} doit échouer proprement`);
+        assert.equal(result.errorCode, "INVALID_CONFIG");
+        assert.equal(typeof result.safeMessage, "string");
+      }
+    },
+  );
 
-  await t.test("chaque provider implémente réellement validateConfig()/test()/send() (voir Phase 5B — providers spécifiques testés dans notifications-providers.test.js)", () => {
-    for (const provider of providers) {
-      assert.equal(typeof provider.validateConfig, "function");
-      assert.equal(typeof provider.test, "function");
-      assert.equal(typeof provider.send, "function");
-    }
-  });
+  await t.test(
+    "chaque provider implémente réellement validateConfig()/test()/send() (voir Phase 5B — providers spécifiques testés dans notifications-providers.test.js)",
+    () => {
+      for (const provider of providers) {
+        assert.equal(typeof provider.validateConfig, "function");
+        assert.equal(typeof provider.test, "function");
+        assert.equal(typeof provider.send, "function");
+      }
+    },
+  );
 });
 
 test("NotificationManager", async (t) => {

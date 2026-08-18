@@ -7,6 +7,31 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    name: Lint & format check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: "npm"
+
+      - name: Install dependencies (backend + frontend)
+        run: npm ci
+
+      - name: ESLint (backend + frontend)
+        run: npm run lint
+
+      - name: Prettier format check
+        run: npm run format:check
+
+      - name: Check i18n key parity (fr/en)
+        run: npm run check:i18n
+
   test:
     name: Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
@@ -33,14 +58,8 @@ jobs:
       - name: Run integration tests
         run: npm run test:integration
 
-      - name: Check i18n key parity (fr/en)
-        run: npm run check:i18n
-
-      - name: Build frontend
-        run: npm run build
-
-  frontend-build-only:
-    name: Frontend build check
+  build:
+    name: Build frontend
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -60,3 +79,10 @@ jobs:
       - name: Build
         working-directory: frontend
         run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: public/
+          retention-days: 7

@@ -32,6 +32,6 @@ Décris les tests effectués (`npm test`, test manuel, capture d'écran...).
       fichiers de traduction (`frontend/src/i18n/locales/fr.json` et `en.json`)
 - [ ] Mes changements ne cassent pas de fonctionnalité existante
 
-## Captures d'écran 
+## Captures d'écran (si changement d'UI)
 
 <!-- Colle ici des captures avant/après si pertinent -->

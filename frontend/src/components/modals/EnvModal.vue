@@ -46,6 +46,8 @@ function confirm() {
         <button type="button" @click="removeRow(i)">✕</button>
       </div>
     </div>
-    <button type="button" class="icon-btn" style="margin-top:6px;" @click="addRow">{{ t("envModal.addVariable") }}</button>
+    <button type="button" class="icon-btn" style="margin-top: 6px" @click="addRow">
+      {{ t("envModal.addVariable") }}
+    </button>
   </ModalBase>
 </template>

@@ -39,10 +39,11 @@ mais pattern déjà connu) · 🔴 gros chantier (architecture nouvelle).
 `userStore.verifyCredentials()` sans aucune limite de tentatives. Un
 attaquant avec accès réseau au port peut brute-forcer un mot de passe sans
 frein (l'audit log enregistre bien chaque échec via `ACTIONS.LOGIN` /
-`status: "failed"`, mais seulement *après coup* — rien ne bloque l'attaque
+`status: "failed"`, mais seulement _après coup_ — rien ne bloque l'attaque
 en cours).
 
 **Pistes** :
+
 - Compteur en mémoire ou en base (`login_attempts` par IP + username),
   purgé après un login réussi ou un délai glissant.
 - Réponse `429` + `Retry-After` au-delà d'un seuil (ex. 5 échecs / 5 min),
@@ -58,6 +59,7 @@ tout : gestion des utilisateurs, actions PM2 destructrices, Auto-Healing.
 Pas de second facteur.
 
 **Pistes** :
+
 - Nouvelle table `user_totp` (secret chiffré avec la même clé AES-256-GCM
   déjà utilisée pour les secrets de providers de notification, voir
   `lib/services/notifications/` et `NOTIFICATIONS_ENCRYPTION_KEY` — même
@@ -79,6 +81,7 @@ passer par un cookie de session — donc un vrai login navigateur. Pas
 d'authentification programmatique dédiée.
 
 **Pistes** :
+
 - Nouvelle table `api_tokens` (id, user_id, nom, hash du token — jamais le
   token en clair, comme les mots de passe dans `user-store.js`, `scopes`
   optionnel, `last_used_at`, `created_at`, `revoked_at`).
@@ -103,12 +106,13 @@ des notifications "pour rien". Aujourd'hui la seule option est de couper
 `ALERTS_ENABLED` globalement — trop large, et manuel.
 
 **Pistes** :
+
 - Nouveau service `lib/services/maintenance/` sur le pattern de
   `lib/services/auto-healing/` (settings + store) : une fenêtre a un scope
   (`system` ou un nom de process précis), un début, une fin (ou "jusqu'à
   arrêt manuel"), et un auteur.
 - Point d'insertion unique : `lib/alert-dispatch.js#dispatchAlertTransition`
-  — vérifier la fenêtre active *avant* de dispatcher vers notifications/
+  — vérifier la fenêtre active _avant_ de dispatcher vers notifications/
   websocket/auto-healing. L'alerte continue d'être évaluée et stockée (pour
   l'historique), seule la diffusion est coupée — comportement cohérent avec
   la doc `docs/alerts/README.md` qui distingue déjà "évaluation" et
@@ -119,12 +123,13 @@ des notifications "pour rien". Aujourd'hui la seule option est de couper
 ### Suivi des déploiements
 
 🟡 — **Constat** : la timeline d'événements (`lib/services/events/`)
-capture les crashs et redémarrages PM2, mais rien ne dit *pourquoi* — un
+capture les crashs et redémarrages PM2, mais rien ne dit _pourquoi_ — un
 déploiement n'est pas distingué d'un crash. Corréler "ça a planté juste
 après le déploy de telle version" demande de croiser manuellement les logs
 de déploiement et la timeline.
 
 **Pistes** :
+
 - Nouvel endpoint `POST /api/deployments` (protégé par token API — voir
   ci-dessus — pas par cookie de session, puisqu'il sera appelé depuis un
   pipeline CI) acceptant `{ process, version, sha, author, notes }`.
@@ -147,6 +152,7 @@ mais **rien ne les supprime jamais** — contrairement à `process-history`,
 grossit indéfiniment.
 
 **Pistes** :
+
 - `LOG_RETENTION_MS` (env, désactivé par défaut comme `AUDIT_RETENTION_MS`
   pour ne rien casser sur les installations existantes) : purge des
   archives `.jsonl.gz` plus vieilles que ce seuil.
@@ -161,6 +167,7 @@ config d'un serveur vers un autre (staging → prod, ou après réinstallation)
 n'a pas de raccourci.
 
 **Pistes** :
+
 - `GET /api/config/export` : agrège `alert_rules`, `health_checks`,
   `notification_routes` (sans les secrets chiffrés des providers — ceux-là
   restent à ressaisir volontairement, pour ne jamais faire transiter un
@@ -186,6 +193,7 @@ Grafana/Alertmanager en place, il duplique le monitoring plutôt que de le
 brancher dessus.
 
 **Pistes** :
+
 - Nouveau `lib/routes/metrics.js`, monté sur `/metrics` (hors `/api`, pas de
   `Cache-Control: no-store` ni de session requise — Prometheus scrape sans
   cookie ; prévoir plutôt une protection par IP allowlist ou token statique
@@ -205,6 +213,7 @@ donne une vue d'ensemble périodique ("qu'est-ce qui s'est passé cette
 semaine ?") sans aller chercher soi-même dans la timeline/l'historique.
 
 **Pistes** :
+
 - Nouveau job planifié (réutilise `lib/services/queue/`, la file d'attente
   persistante déjà en place pour les notifications — pas de nouveau
   scheduler à écrire) qui tourne à intervalle fixe (quotidien/hebdo,
@@ -214,7 +223,7 @@ semaine ?") sans aller chercher soi-même dans la timeline/l'historique.
   sensibles) sur la période.
 - Envoi via les providers déjà écrits et opérationnels
   (`lib/services/notifications/providers/`) — aucun nouveau canal
-  d'envoi à implémenter, seulement un nouveau *déclencheur* (temporel au
+  d'envoi à implémenter, seulement un nouveau _déclencheur_ (temporel au
   lieu d'événementiel) et un template de contenu.
 
 ### Page de statut publique
@@ -224,11 +233,12 @@ semaine ?") sans aller chercher soi-même dans la timeline/l'historique.
 donner un compte).
 
 **Pistes** :
+
 - Route dédiée, hors du middleware `auth.requireAuth` global — nécessite de
   sortir cette route du `app.use(auth.requireAuth)` appliqué globalement
-  dans `server.js`, donc à monter *avant* ce middleware plutôt qu'après.
+  dans `server.js`, donc à monter _avant_ ce middleware plutôt qu'après.
 - Contenu strictement en lecture, agrégé et anonymisé : statut
-  online/dégradé/down par process *sélectionné explicitement* pour être
+  online/dégradé/down par process _sélectionné explicitement_ pour être
   public (nouveau flag `publicStatus` sur le process ou une liste blanche en
   config) + historique d'uptime sur 90 jours — jamais les logs, jamais les
   détails de configuration.
@@ -247,6 +257,7 @@ lent. Toutes les données (process, events, alertes, audit) sont déjà
 exposées en REST, il manque juste un point d'entrée unifié côté frontend.
 
 **Pistes** :
+
 - Purement frontend : une palette de commande (raccourci clavier) qui
   interroge en parallèle `/api/processes`, `/api/events`, `/api/alerts/active`
   côté client, sans nouvel endpoint backend.
@@ -261,6 +272,7 @@ recevoir une alerte directement sur le navigateur/mobile de la personne
 connectée, sans configuration externe.
 
 **Pistes** :
+
 - Nouveau provider dans `lib/services/notifications/providers/` (même
   interface `validateConfig`/`test`/`send` que les autres, voir
   `lib/services/notifications/types.js`) basé sur la Web Push API
@@ -281,6 +293,7 @@ une instance de pm2-monitor par machine, sans vue consolidée.
 
 **Pistes** (à ne considérer que si le besoin est réel — c'est le plus gros
 chantier de cette liste, il change une hypothèse structurelle du projet) :
+
 - Option agent : un petit process sur chaque machine distante expose une
   API minimale (réutilisant `fmtProcess()`, `systemStats.snapshot()`) que
   l'instance centrale interroge à intervalle régulier — pas de tunnel PM2

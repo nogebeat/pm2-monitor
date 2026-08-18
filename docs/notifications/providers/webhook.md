@@ -7,13 +7,13 @@ accepte une requête HTTP — aucune dépendance supplémentaire (utilise
 
 ## Configuration
 
-| Champ     | Requis | Type / valeurs                    | Description |
-|-----------|--------|--------------------------------------|---------------|
-| `url`     | Oui    | string (URL `http://` ou `https://`) | Destination de la requête. |
-| `method`  | Non    | `GET` \| `POST` \| `PUT` \| `PATCH`   | Défaut : `POST`. |
-| `headers` | Non    | objet clé/valeur (**secret**)          | En-têtes personnalisés, ex. `{ "Authorization": "Bearer …" }`. |
-| `timeout` | Non    | nombre (ms)                              | Délai avant abandon. Défaut : 10000, plafonné à 60000. |
-| `payload` | Non    | objet ou chaîne JSON-sérialisable          | Gabarit du corps envoyé (méthodes non-`GET` uniquement). Voir ci-dessous. |
+| Champ     | Requis | Type / valeurs                       | Description                                                               |
+| --------- | ------ | ------------------------------------ | ------------------------------------------------------------------------- |
+| `url`     | Oui    | string (URL `http://` ou `https://`) | Destination de la requête.                                                |
+| `method`  | Non    | `GET` \| `POST` \| `PUT` \| `PATCH`  | Défaut : `POST`.                                                          |
+| `headers` | Non    | objet clé/valeur (**secret**)        | En-têtes personnalisés, ex. `{ "Authorization": "Bearer …" }`.            |
+| `timeout` | Non    | nombre (ms)                          | Délai avant abandon. Défaut : 10000, plafonné à 60000.                    |
+| `payload` | Non    | objet ou chaîne JSON-sérialisable    | Gabarit du corps envoyé (méthodes non-`GET` uniquement). Voir ci-dessous. |
 
 ### Gabarit `payload`
 
@@ -70,12 +70,12 @@ avancé (conditions, boucles… hors scope de cette phase).
 
 ## Erreurs communes
 
-| `errorCode`     | Cause probable | À vérifier |
-|-------------------|------------------|--------------|
-| `INVALID_CONFIG`   | `url` absente/invalide, `method` non supportée, `headers` pas un objet, `timeout` non numérique. | Config du provider. |
-| `AUTH_ERROR`         | 401/403 côté système externe. | `headers.Authorization` ou équivalent. |
-| `NOT_FOUND`            | 404 — endpoint invalide. | `url`. |
-| `RATE_LIMITED`           | 429. | Fréquence d'envoi. |
-| `NETWORK_ERROR`            | Endpoint injoignable. | Connectivité sortante, `url`. |
-| `TIMEOUT`                    | Pas de réponse dans le délai imparti. | `timeout`, latence du système externe. |
-| `PROVIDER_ERROR`               | Erreur 5xx côté système externe. | Logs du système externe (hors périmètre PM2 Monitor). |
+| `errorCode`      | Cause probable                                                                                   | À vérifier                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| `INVALID_CONFIG` | `url` absente/invalide, `method` non supportée, `headers` pas un objet, `timeout` non numérique. | Config du provider.                                   |
+| `AUTH_ERROR`     | 401/403 côté système externe.                                                                    | `headers.Authorization` ou équivalent.                |
+| `NOT_FOUND`      | 404 — endpoint invalide.                                                                         | `url`.                                                |
+| `RATE_LIMITED`   | 429.                                                                                             | Fréquence d'envoi.                                    |
+| `NETWORK_ERROR`  | Endpoint injoignable.                                                                            | Connectivité sortante, `url`.                         |
+| `TIMEOUT`        | Pas de réponse dans le délai imparti.                                                            | `timeout`, latence du système externe.                |
+| `PROVIDER_ERROR` | Erreur 5xx côté système externe.                                                                 | Logs du système externe (hors périmètre PM2 Monitor). |

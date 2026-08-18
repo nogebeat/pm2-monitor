@@ -16,9 +16,7 @@ const { ProcessHistoryService } = require("./lib/services/process-history");
 const { EventsService } = require("./lib/services/events");
 const { AuditRetentionService } = require("./lib/services/audit");
 const eventsStore = require("./lib/services/events/event-store");
-const {
-  dispatchQueue: notificationDispatchQueue,
-} = require("./lib/services/notifications");
+const { dispatchQueue: notificationDispatchQueue } = require("./lib/services/notifications");
 const { engine: healthCheckEngine } = require("./lib/services/health-checks");
 const healthChecksStore = require("./lib/services/health-checks/store");
 const { AutoHealingService, auditStore: autoHealingAuditStore } = require("./lib/services/auto-healing");
@@ -165,7 +163,7 @@ app.use(
     healthChecksStore,
     eventsStore,
     autoHealingAuditStore,
-  })
+  }),
 );
 
 // Audit log (lib/services/audit/, Phase 9)

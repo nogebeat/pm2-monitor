@@ -16,7 +16,7 @@ function submit() {
 <template>
   <div class="login-screen">
     <form class="login-card" @submit.prevent="submit">
-      <div class="brand" style="justify-content: center; margin-bottom: 8px;">
+      <div class="brand" style="justify-content: center; margin-bottom: 8px">
         <span class="brand-mark" aria-hidden="true"></span>
         <div>
           <h1>PM2 Monitor</h1>

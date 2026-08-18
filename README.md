@@ -1,5 +1,10 @@
 # PM2 Monitor
 
+[![CI](https://github.com/nogebeat/pm2-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/nogebeat/pm2-monitor/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node.js >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 Interface graphique complète pour surveiller tes apps PM2 : liste des process,
 statut, CPU/mémoire, redémarrages, et **logs en direct** (stdout/stderr) via WebSocket.
 
@@ -113,6 +118,7 @@ chmod +x deploy.sh
 ```
 
 Ce script gère **toutes les situations** en une commande :
+
 - installe Node.js et PM2 s'ils sont absents (ne touche à rien s'ils sont déjà là)
 - installe les dépendances du serveur **et** celles du frontend
 - **compile le frontend Vue 3 / Vite** (`frontend/` → `public/`)
@@ -397,7 +403,7 @@ le dashboard temps réel (websocket) et l'Auto-Healing.
 - `ALERTS_EVAL_INTERVAL_MS` (défaut `15000`) : fréquence d'évaluation des
   règles "process" (règles "system" évaluées à chaque échantillon système).
 - **Endpoints** : `GET/POST /api/alerts/rules`, `GET/PUT/PATCH/DELETE
-  /api/alerts/rules/:id`, `GET /api/alerts/catalog`, `GET /api/alerts/active`,
+/api/alerts/rules/:id`, `GET /api/alerts/catalog`, `GET /api/alerts/active`,
   `GET /api/alerts/history`, `POST /api/alerts/:id/acknowledge`.
 - **Permissions** : `alerts_read`, `alerts_create`, `alerts_update`,
   `alerts_delete`, `alerts_acknowledge` (voir
@@ -486,11 +492,11 @@ pour la configuration détaillée de chaque provider.
   enregistré s'affiche masqué (`••••••••`) ; le laisser tel quel lors d'une
   modification conserve la valeur existante ("Keep existing credential").
   `Test` appelle réellement le provider et affiche `🟢 Notification sent
-  successfully` ou une erreur sûre (`🔴 …`, jamais de secret).
+successfully` ou une erreur sûre (`🔴 …`, jamais de secret).
 - **Endpoints providers** : `GET /api/notifications/provider-types`,
   `GET/POST /api/notifications/providers`, `GET/PATCH/PUT/DELETE
-  /api/notifications/providers/:id`, `POST
-  /api/notifications/providers/:id/test`. Permissions : `notifications_read`,
+/api/notifications/providers/:id`, `POST
+/api/notifications/providers/:id/test`. Permissions : `notifications_read`,
   `notifications_create`, `notifications_update`, `notifications_delete`,
   `notifications_test`.
 - **Routing par règles (Phase 5D)** : une règle (`notification_routes`)
@@ -575,8 +581,8 @@ sécurisée via `execFile`, jamais de shell — voir mise en garde ci-dessous).
   (défaut `5000`) contrôle la fréquence à laquelle le scheduler regarde
   quels checks sont dus (chaque check garde son propre `intervalSeconds`).
 - **Endpoints** : `GET/POST /api/health-checks`, `GET/PUT/PATCH/DELETE
-  /api/health-checks/:id`, `GET /api/health-checks/catalog`, `GET
-  /api/health-checks/status/summary`, `POST /api/health-checks/:id/enable`,
+/api/health-checks/:id`, `GET /api/health-checks/catalog`, `GET
+/api/health-checks/status/summary`, `POST /api/health-checks/:id/enable`,
   `POST /api/health-checks/:id/disable`, `POST /api/health-checks/:id/test`
   (exécution immédiate, persiste le résultat).
 - **Permissions** : `health_checks_read`, `health_checks_create`,
@@ -613,8 +619,8 @@ sur détection d'un crash, d'un health check `DOWN`, ou de toute alerte
 - **Audit complet** : chaque tentative (réussie, échouée, bloquée) est
   journalisée (`GET /api/auto-healing/audit`), sans exception.
 - **Endpoints** : `GET/PUT /api/auto-healing/settings`, `GET
-  /api/auto-healing/state`, `GET /api/auto-healing/state/:process`, `POST
-  /api/auto-healing/state/:process/unblock`, `GET /api/auto-healing/audit`.
+/api/auto-healing/state`, `GET /api/auto-healing/state/:process`, `POST
+/api/auto-healing/state/:process/unblock`, `GET /api/auto-healing/audit`.
 - **Permissions** : `authealing_read`, `authealing_manage` (voir
   [Multi-utilisateurs & permissions](#multi-utilisateurs--permissions)).
 - **Sécurité** : action limitée à l'API PM2 déjà utilisée par le reste de
@@ -646,7 +652,7 @@ volontairement **pas** journalisées.
   modifiés, jamais leurs valeurs — voir `lib/routes/notifications.js`).
 - **Endpoints** : `GET /api/audit` (pagination, filtres : date range,
   utilisateur, action, statut, cible), `GET /api/audit/:id`, `GET
-  /api/audit/catalog`.
+/api/audit/catalog`.
 - **Permission** : `audit_read` (lecture seule — l'audit log n'est jamais
   modifiable via l'API).
 - **UI** : `Settings → 🧾 Audit Log` — liste filtrable/paginée, clic sur une
@@ -870,4 +876,3 @@ npm run dev
 
 Puis ouvre une [issue](../../issues) ou une
 [pull request](../../pulls) — en français ou en anglais, comme tu préfères.
-

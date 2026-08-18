@@ -74,104 +74,136 @@ test("Phase 5F — Security Audit : le secret n'apparaît jamais hors du stockag
       });
       const created = await createRes.json();
       assert.equal(createRes.status, 201);
-      assert.equal(containsSecret(JSON.stringify(created)), false, "POST /providers ne doit jamais renvoyer le secret");
+      assert.equal(
+        containsSecret(JSON.stringify(created)),
+        false,
+        "POST /providers ne doit jamais renvoyer le secret",
+      );
 
       const getRes = await fetch(`${baseUrl}/providers/${created.id}`);
       const fetched = await getRes.json();
-      assert.equal(containsSecret(JSON.stringify(fetched)), false, "GET /providers/:id ne doit jamais renvoyer le secret");
+      assert.equal(
+        containsSecret(JSON.stringify(fetched)),
+        false,
+        "GET /providers/:id ne doit jamais renvoyer le secret",
+      );
       assert.equal(fetched.hasSecrets, true);
 
       const listRes = await fetch(`${baseUrl}/providers`);
       const list = await listRes.json();
-      assert.equal(containsSecret(JSON.stringify(list)), false, "GET /providers ne doit jamais renvoyer le secret");
+      assert.equal(
+        containsSecret(JSON.stringify(list)),
+        false,
+        "GET /providers ne doit jamais renvoyer le secret",
+      );
     } finally {
       await stopServer(server);
     }
   });
 
-  await t.test("réponses d'erreur (validation, 404, 500) : jamais le secret, jamais de message d'erreur brut du provider", async () => {
-    const { server, baseUrl } = await startServer(ADMIN);
-    try {
-      // Erreur de validation : le corps de la requête contenant le secret ne
-      // doit pas être renvoyé tel quel dans le message d'erreur.
-      const badRes = await fetch(`${baseUrl}/providers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "", type: "discord", fields: { webhookUrl: SECRET_MARKER } }),
-      });
-      const badBody = await badRes.text();
-      assert.equal(containsSecret(badBody), false);
-
-      // 404 sur un id inexistant.
-      const notFoundRes = await fetch(`${baseUrl}/providers/999999`);
-      assert.equal(notFoundRes.status, 404);
-      const notFoundBody = await notFoundRes.text();
-      assert.equal(containsSecret(notFoundBody), false);
-    } finally {
-      await stopServer(server);
-    }
-  });
-
-  await t.test("PATCH avec 'Keep existing credential' (fields omis) : le secret existant reste invisible", async () => {
-    const { server, baseUrl } = await startServer(ADMIN);
-    try {
-      const created = await (
-        await fetch(`${baseUrl}/providers`, {
+  await t.test(
+    "réponses d'erreur (validation, 404, 500) : jamais le secret, jamais de message d'erreur brut du provider",
+    async () => {
+      const { server, baseUrl } = await startServer(ADMIN);
+      try {
+        // Erreur de validation : le corps de la requête contenant le secret ne
+        // doit pas être renvoyé tel quel dans le message d'erreur.
+        const badRes = await fetch(`${baseUrl}/providers`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: "Slack audit",
-            type: "slack",
-            fields: { webhookUrl: `https://hooks.slack.com/services/${SECRET_MARKER}` },
-          }),
-        })
-      ).json();
+          body: JSON.stringify({ name: "", type: "discord", fields: { webhookUrl: SECRET_MARKER } }),
+        });
+        const badBody = await badRes.text();
+        assert.equal(containsSecret(badBody), false);
 
-      const patched = await (
-        await fetch(`${baseUrl}/providers/${created.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: "Slack audit renommé" }), // pas de `fields` : garde le secret existant
-        })
-      ).json();
+        // 404 sur un id inexistant.
+        const notFoundRes = await fetch(`${baseUrl}/providers/999999`);
+        assert.equal(notFoundRes.status, 404);
+        const notFoundBody = await notFoundRes.text();
+        assert.equal(containsSecret(notFoundBody), false);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
-      assert.equal(containsSecret(JSON.stringify(patched)), false);
-      assert.equal(patched.name, "Slack audit renommé");
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "PATCH avec 'Keep existing credential' (fields omis) : le secret existant reste invisible",
+    async () => {
+      const { server, baseUrl } = await startServer(ADMIN);
+      try {
+        const created = await (
+          await fetch(`${baseUrl}/providers`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: "Slack audit",
+              type: "slack",
+              fields: { webhookUrl: `https://hooks.slack.com/services/${SECRET_MARKER}` },
+            }),
+          })
+        ).json();
 
-  await t.test("POST /providers/:id/test : le résultat de test ne contient jamais le secret, même en cas d'échec", async () => {
-    const { server, baseUrl } = await startServer(ADMIN);
-    try {
-      const created = await (
-        await fetch(`${baseUrl}/providers`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: "Webhook audit",
-            type: "webhook",
-            fields: { url: `https://example.invalid/${SECRET_MARKER}`, method: "POST" },
-          }),
-        })
-      ).json();
+        const patched = await (
+          await fetch(`${baseUrl}/providers/${created.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: "Slack audit renommé" }), // pas de `fields` : garde le secret existant
+          })
+        ).json();
 
-      const testRes = await fetch(`${baseUrl}/providers/${created.id}/test`, { method: "POST" });
-      const testBody = await testRes.text();
-      assert.equal(containsSecret(testBody), false, "un test qui échoue (domaine .invalid, jamais appelé réellement en CI) ne doit pas exposer l'URL/le secret");
-    } finally {
-      await stopServer(server);
-    }
-  });
+        assert.equal(containsSecret(JSON.stringify(patched)), false);
+        assert.equal(patched.name, "Slack audit renommé");
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
-  await t.test("table notification_providers : le secret est bien chiffré au repos (pas en clair dans la colonne)", async () => {
-    const rows = await db.all("SELECT secrets FROM notification_providers", []);
-    for (const row of rows) {
-      if (!row.secrets) continue;
-      assert.equal(containsSecret(row.secrets), false, "la colonne `secrets` ne doit jamais contenir le marqueur en clair (chiffrement AES-256-GCM attendu)");
-    }
-  });
+  await t.test(
+    "POST /providers/:id/test : le résultat de test ne contient jamais le secret, même en cas d'échec",
+    async () => {
+      const { server, baseUrl } = await startServer(ADMIN);
+      try {
+        const created = await (
+          await fetch(`${baseUrl}/providers`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: "Webhook audit",
+              type: "webhook",
+              fields: { url: `https://example.invalid/${SECRET_MARKER}`, method: "POST" },
+            }),
+          })
+        ).json();
+
+        const testRes = await fetch(`${baseUrl}/providers/${created.id}/test`, { method: "POST" });
+        const testBody = await testRes.text();
+        assert.equal(
+          containsSecret(testBody),
+          false,
+          "un test qui échoue (domaine .invalid, jamais appelé réellement en CI) ne doit pas exposer l'URL/le secret",
+        );
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
+
+  await t.test(
+    "table notification_providers : le secret est bien chiffré au repos (pas en clair dans la colonne)",
+    async () => {
+      const rows = await db.all("SELECT secrets FROM notification_providers", []);
+      for (const row of rows) {
+        if (!row.secrets) continue;
+        assert.equal(
+          containsSecret(row.secrets),
+          false,
+          "la colonne `secrets` ne doit jamais contenir le marqueur en clair (chiffrement AES-256-GCM attendu)",
+        );
+      }
+    },
+  );
 
   await t.test("notification_history : jamais de secret, même en cas d'échec d'envoi", async () => {
     const historyStore = require("../../lib/services/notifications/history-store");
@@ -225,12 +257,21 @@ test("Phase 5F — Security Audit : le secret n'apparaît jamais hors du stockag
       queue: createQueue("security-audit-queue", { maxAttempts: 1, backoffMs: 0 }),
     });
 
-    await dq.enqueue({ providerId: provider.id, notification: { title: "t", message: "m" }, alertId: null, event: "triggered" });
+    await dq.enqueue({
+      providerId: provider.id,
+      notification: { title: "t", message: "m" },
+      alertId: null,
+      event: "triggered",
+    });
 
     const jobs = await db.all("SELECT payload FROM jobs WHERE queue_name = ?", ["security-audit-queue"]);
     assert.ok(jobs.length >= 1);
     for (const job of jobs) {
-      assert.equal(containsSecret(job.payload), false, "le job ne doit référencer que providerId, jamais le secret en clair");
+      assert.equal(
+        containsSecret(job.payload),
+        false,
+        "le job ne doit référencer que providerId, jamais le secret en clair",
+      );
     }
 
     await dq.processOne(); // vérifie aussi que send() a bien reçu le secret (assertion dans fake.send ci-dessus)

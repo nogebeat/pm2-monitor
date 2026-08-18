@@ -22,10 +22,7 @@ test("migrator", async (t) => {
     const migrator = require("../../lib/db/migrator");
     const { applied, pending } = await migrator.status();
     assert.equal(applied.length, 0);
-    assert.ok(
-      pending.length >= 8,
-      "au moins 001_initial_schema à 008_health_checks attendues"
-    );
+    assert.ok(pending.length >= 8, "au moins 001_initial_schema à 008_health_checks attendues");
     assert.equal(pending[0].version, "001_initial_schema");
   });
 
@@ -62,9 +59,9 @@ test("migrator", async (t) => {
     const migrator = require("../../lib/db/migrator");
     const db = require("../../lib/db");
     await migrator.up();
-    const tables = (
-      await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])
-    ).map((r) => r.name);
+    const tables = (await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])).map(
+      (r) => r.name,
+    );
     assert.ok(tables.includes("users"));
     assert.ok(tables.includes("permissions"));
     assert.ok(tables.includes("jobs"));
@@ -103,31 +100,42 @@ test("migrator", async (t) => {
         "008_health_checks",
         "009_auto_healing",
         "010_health_checks_process_name",
-      ]
+      ],
     );
 
     // 011 crée une table dédiée (audit_log) : elle doit disparaître après
     // son rollback, sans toucher aux tables des phases précédentes.
-    const tables = (
-      await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])
-    ).map((r) => r.name);
-    assert.ok(!tables.includes("audit_log"), "audit_log (Phase 9/011) doit disparaître après son propre rollback");
-    assert.ok(tables.includes("auto_healing_settings"), "auto_healing_settings (Phase 7/009) n'est pas affectée par le rollback de 011");
-    assert.ok(tables.includes("health_checks"), "health_checks (Phase 6/008) n'est pas affectée par le rollback de 011");
-    assert.ok(tables.includes("notification_providers"), "notification_providers (Phase 5A/006) n'est pas affectée par le rollback de 011");
+    const tables = (await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])).map(
+      (r) => r.name,
+    );
+    assert.ok(
+      !tables.includes("audit_log"),
+      "audit_log (Phase 9/011) doit disparaître après son propre rollback",
+    );
+    assert.ok(
+      tables.includes("auto_healing_settings"),
+      "auto_healing_settings (Phase 7/009) n'est pas affectée par le rollback de 011",
+    );
+    assert.ok(
+      tables.includes("health_checks"),
+      "health_checks (Phase 6/008) n'est pas affectée par le rollback de 011",
+    );
+    assert.ok(
+      tables.includes("notification_providers"),
+      "notification_providers (Phase 5A/006) n'est pas affectée par le rollback de 011",
+    );
     assert.ok(tables.includes("notification_routes"));
-    assert.ok(tables.includes("process_events"), "process_events ne doit pas être affectée par le rollback de 011");
+    assert.ok(
+      tables.includes("process_events"),
+      "process_events ne doit pas être affectée par le rollback de 011",
+    );
   });
 
   await t.test("down({ steps: 3 }) annule les trois dernières migrations", async () => {
     const migrator = require("../../lib/db/migrator");
     await migrator.up();
     const reverted = await migrator.down({ steps: 3 });
-    assert.deepEqual(reverted, [
-      "011_audit_log",
-      "010_health_checks_process_name",
-      "009_auto_healing",
-    ]);
+    assert.deepEqual(reverted, ["011_audit_log", "010_health_checks_process_name", "009_auto_healing"]);
 
     const status = await migrator.status();
     assert.equal(status.applied.length, 8);
@@ -175,9 +183,9 @@ test("migrator", async (t) => {
       }
     }, /boom/);
 
-    const tables = (
-      await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])
-    ).map((r) => r.name);
+    const tables = (await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])).map(
+      (r) => r.name,
+    );
     assert.ok(!tables.includes("should_not_survive"), "le CREATE TABLE doit avoir été annulé");
 
     const applied = await migrator.getAppliedVersions();

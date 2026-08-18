@@ -6,14 +6,19 @@ const { buildSnapshot } = require("../../lib/services/dashboard");
 
 test("buildSnapshot() — agrège processes/system/alerts/health-checks et calcule le statut global", async () => {
   const snapshot = await buildSnapshot({
-    listProcesses: async () => [{ name: "api", status: "online" }, { name: "worker", status: "errored" }],
+    listProcesses: async () => [
+      { name: "api", status: "online" },
+      { name: "worker", status: "errored" },
+    ],
     getSystemSnapshot: () => ({ cpu: 10, mem: { percent: 20 }, disk: { percent: 30 } }),
     alertStore: {
       listActive: async () => [{ severity: "critical", state: "active", triggeredAt: 1, lastSeenAt: 1 }],
       listHistory: async () => [],
     },
     healthChecksStore: { list: async () => [{ status: "UP", enabled: true }] },
-    eventsStore: { list: async () => ({ items: [{ timestamp: 5, process: "api", type: "started", severity: "info" }] }) },
+    eventsStore: {
+      list: async () => ({ items: [{ timestamp: 5, process: "api", type: "started", severity: "info" }] }),
+    },
     autoHealingAuditStore: { list: async () => [] },
   });
 

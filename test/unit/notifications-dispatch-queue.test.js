@@ -91,26 +91,40 @@ test("NotificationDispatchQueue#enqueue", async (t) => {
     const queue = new FakeQueue();
     const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
 
-    const result = await dq.enqueue({ providerId: 1, notification: { title: "x", message: "y" }, alertId: 10, event: "triggered" });
+    const result = await dq.enqueue({
+      providerId: 1,
+      notification: { title: "x", message: "y" },
+      alertId: 10,
+      event: "triggered",
+    });
 
     assert.equal(result.status, "queued");
     assert.equal(historyEntries.get(result.historyEntry.id).status, "pending");
     assert.equal(queue._jobs.length, 1);
   });
 
-  await t.test("déduplique deux enqueue identiques (même provider/alerte/event) dans la fenêtre", async () => {
-    const { historyStore, providerStore } = makeStores();
-    const registry = { getProvider: () => ({ send: async () => ({ success: true }) }) };
-    const queue = new FakeQueue();
-    const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue, dedupWindowMs: 60000 });
+  await t.test(
+    "déduplique deux enqueue identiques (même provider/alerte/event) dans la fenêtre",
+    async () => {
+      const { historyStore, providerStore } = makeStores();
+      const registry = { getProvider: () => ({ send: async () => ({ success: true }) }) };
+      const queue = new FakeQueue();
+      const dq = new NotificationDispatchQueue({
+        registry,
+        providerStore,
+        historyStore,
+        queue,
+        dedupWindowMs: 60000,
+      });
 
-    const first = await dq.enqueue({ providerId: 1, notification: {}, alertId: 10, event: "triggered" });
-    const second = await dq.enqueue({ providerId: 1, notification: {}, alertId: 10, event: "triggered" });
+      const first = await dq.enqueue({ providerId: 1, notification: {}, alertId: 10, event: "triggered" });
+      const second = await dq.enqueue({ providerId: 1, notification: {}, alertId: 10, event: "triggered" });
 
-    assert.equal(first.status, "queued");
-    assert.equal(second.status, "deduplicated");
-    assert.equal(queue._jobs.length, 1);
-  });
+      assert.equal(first.status, "queued");
+      assert.equal(second.status, "deduplicated");
+      assert.equal(queue._jobs.length, 1);
+    },
+  );
 
   await t.test("un event différent (ex: resolved) n'est pas déduplié avec triggered", async () => {
     const { historyStore, providerStore } = makeStores();
@@ -125,29 +139,32 @@ test("NotificationDispatchQueue#enqueue", async (t) => {
     assert.equal(resolved.status, "queued");
   });
 
-  await t.test("rate limit : au-delà du max par fenêtre, plus de mise en file (historique 'failed'/RATE_LIMITED)", async () => {
-    const { historyStore, providerStore } = makeStores();
-    const registry = { getProvider: () => ({ send: async () => ({ success: true }) }) };
-    const queue = new FakeQueue();
-    const dq = new NotificationDispatchQueue({
-      registry,
-      providerStore,
-      historyStore,
-      queue,
-      rateLimit: { windowMs: 60000, max: 2 },
-      dedupWindowMs: 0, // pas de dedup ici, on veut isoler le rate limit
-    });
+  await t.test(
+    "rate limit : au-delà du max par fenêtre, plus de mise en file (historique 'failed'/RATE_LIMITED)",
+    async () => {
+      const { historyStore, providerStore } = makeStores();
+      const registry = { getProvider: () => ({ send: async () => ({ success: true }) }) };
+      const queue = new FakeQueue();
+      const dq = new NotificationDispatchQueue({
+        registry,
+        providerStore,
+        historyStore,
+        queue,
+        rateLimit: { windowMs: 60000, max: 2 },
+        dedupWindowMs: 0, // pas de dedup ici, on veut isoler le rate limit
+      });
 
-    const r1 = await dq.enqueue({ providerId: 1, notification: {}, alertId: 1, event: "triggered" });
-    const r2 = await dq.enqueue({ providerId: 1, notification: {}, alertId: 2, event: "triggered" });
-    const r3 = await dq.enqueue({ providerId: 1, notification: {}, alertId: 3, event: "triggered" });
+      const r1 = await dq.enqueue({ providerId: 1, notification: {}, alertId: 1, event: "triggered" });
+      const r2 = await dq.enqueue({ providerId: 1, notification: {}, alertId: 2, event: "triggered" });
+      const r3 = await dq.enqueue({ providerId: 1, notification: {}, alertId: 3, event: "triggered" });
 
-    assert.equal(r1.status, "queued");
-    assert.equal(r2.status, "queued");
-    assert.equal(r3.status, "rate_limited");
-    assert.equal(r3.historyEntry.errorCode, "RATE_LIMITED");
-    assert.equal(queue._jobs.length, 2);
-  });
+      assert.equal(r1.status, "queued");
+      assert.equal(r2.status, "queued");
+      assert.equal(r3.status, "rate_limited");
+      assert.equal(r3.historyEntry.errorCode, "RATE_LIMITED");
+      assert.equal(queue._jobs.length, 2);
+    },
+  );
 
   await t.test("le rate limit est par provider : un autre provider n'est pas affecté", async () => {
     const { historyStore, providerStore } = makeStores();
@@ -196,7 +213,12 @@ test("NotificationDispatchQueue#handleJob (via processOne)", async (t) => {
     const queue = new FakeQueue({ maxAttempts: 3 });
     const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
 
-    const { historyEntry } = await dq.enqueue({ providerId: 1, notification: {}, alertId: 1, event: "triggered" });
+    const { historyEntry } = await dq.enqueue({
+      providerId: 1,
+      notification: {},
+      alertId: 1,
+      event: "triggered",
+    });
     const job = await dq.processOne();
 
     assert.ok(job); // job traité et retourné (comme PersistentQueue#processOne)
@@ -204,45 +226,60 @@ test("NotificationDispatchQueue#handleJob (via processOne)", async (t) => {
     assert.equal(historyEntries.get(historyEntry.id).responseTimeMs, 12);
   });
 
-  await t.test("échec récupérable avant la dernière tentative : historique 'retrying', job retenté", async () => {
-    let calls = 0;
-    const { historyStore, providerStore, historyEntries } = makeStores({
-      providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
-    });
-    const registry = {
-      getProvider: () => ({
-        send: async () => {
-          calls += 1;
-          return calls < 3 ? { success: false, errorCode: "NETWORK_ERROR" } : { success: true };
-        },
-      }),
-    };
-    const queue = new FakeQueue({ maxAttempts: 4 });
-    const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
+  await t.test(
+    "échec récupérable avant la dernière tentative : historique 'retrying', job retenté",
+    async () => {
+      let calls = 0;
+      const { historyStore, providerStore, historyEntries } = makeStores({
+        providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
+      });
+      const registry = {
+        getProvider: () => ({
+          send: async () => {
+            calls += 1;
+            return calls < 3 ? { success: false, errorCode: "NETWORK_ERROR" } : { success: true };
+          },
+        }),
+      };
+      const queue = new FakeQueue({ maxAttempts: 4 });
+      const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
 
-    const { historyEntry } = await dq.enqueue({ providerId: 1, notification: {}, alertId: 1, event: "triggered" });
+      const { historyEntry } = await dq.enqueue({
+        providerId: 1,
+        notification: {},
+        alertId: 1,
+        event: "triggered",
+      });
 
-    await dq.processOne(); // tentative 1 : échec -> retrying
-    assert.equal(historyEntries.get(historyEntry.id).status, "retrying");
-    assert.equal(historyEntries.get(historyEntry.id).errorCode, "NETWORK_ERROR");
+      await dq.processOne(); // tentative 1 : échec -> retrying
+      assert.equal(historyEntries.get(historyEntry.id).status, "retrying");
+      assert.equal(historyEntries.get(historyEntry.id).errorCode, "NETWORK_ERROR");
 
-    await dq.processOne(); // tentative 2 : échec -> retrying
-    assert.equal(historyEntries.get(historyEntry.id).status, "retrying");
+      await dq.processOne(); // tentative 2 : échec -> retrying
+      assert.equal(historyEntries.get(historyEntry.id).status, "retrying");
 
-    await dq.processOne(); // tentative 3 : succès
-    assert.equal(historyEntries.get(historyEntry.id).status, "success");
-    assert.equal(calls, 3);
-  });
+      await dq.processOne(); // tentative 3 : succès
+      assert.equal(historyEntries.get(historyEntry.id).status, "success");
+      assert.equal(calls, 3);
+    },
+  );
 
   await t.test("épuisement des tentatives : historique 'failed', job non retenté ensuite", async () => {
     const { historyStore, providerStore, historyEntries } = makeStores({
       providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
     });
-    const registry = { getProvider: () => ({ send: async () => ({ success: false, errorCode: "SMTP_DOWN" }) }) };
+    const registry = {
+      getProvider: () => ({ send: async () => ({ success: false, errorCode: "SMTP_DOWN" }) }),
+    };
     const queue = new FakeQueue({ maxAttempts: 2 });
     const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
 
-    const { historyEntry } = await dq.enqueue({ providerId: 1, notification: {}, alertId: 1, event: "triggered" });
+    const { historyEntry } = await dq.enqueue({
+      providerId: 1,
+      notification: {},
+      alertId: 1,
+      event: "triggered",
+    });
 
     await dq.processOne(); // tentative 1/2 : échec -> retrying
     assert.equal(historyEntries.get(historyEntry.id).status, "retrying");
@@ -255,88 +292,120 @@ test("NotificationDispatchQueue#handleJob (via processOne)", async (t) => {
     assert.equal(again, null);
   });
 
-  await t.test("provider désactivé : historique 'failed'/PROVIDER_DISABLED, aucune tentative de renvoi", async () => {
-    let sendCalled = false;
-    const { historyStore, providerStore, historyEntries } = makeStores({
-      providers: { 1: { id: 1, type: "fake", enabled: false, configuration: {} } },
-    });
-    const registry = {
-      getProvider: () => ({
-        send: async () => {
-          sendCalled = true;
-          return { success: true };
-        },
-      }),
-    };
-    const queue = new FakeQueue({ maxAttempts: 3 });
-    const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
+  await t.test(
+    "provider désactivé : historique 'failed'/PROVIDER_DISABLED, aucune tentative de renvoi",
+    async () => {
+      let sendCalled = false;
+      const { historyStore, providerStore, historyEntries } = makeStores({
+        providers: { 1: { id: 1, type: "fake", enabled: false, configuration: {} } },
+      });
+      const registry = {
+        getProvider: () => ({
+          send: async () => {
+            sendCalled = true;
+            return { success: true };
+          },
+        }),
+      };
+      const queue = new FakeQueue({ maxAttempts: 3 });
+      const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
 
-    const { historyEntry } = await dq.enqueue({ providerId: 1, notification: {}, alertId: 1, event: "triggered" });
-    await dq.processOne();
+      const { historyEntry } = await dq.enqueue({
+        providerId: 1,
+        notification: {},
+        alertId: 1,
+        event: "triggered",
+      });
+      await dq.processOne();
 
-    assert.equal(sendCalled, false);
-    assert.equal(historyEntries.get(historyEntry.id).status, "failed");
-    assert.equal(historyEntries.get(historyEntry.id).errorCode, "PROVIDER_DISABLED");
-    const again = await dq.processOne();
-    assert.equal(again, null); // pas de retry pour une condition permanente
-  });
+      assert.equal(sendCalled, false);
+      assert.equal(historyEntries.get(historyEntry.id).status, "failed");
+      assert.equal(historyEntries.get(historyEntry.id).errorCode, "PROVIDER_DISABLED");
+      const again = await dq.processOne();
+      assert.equal(again, null); // pas de retry pour une condition permanente
+    },
+  );
 
-  await t.test("provider introuvable (supprimé entre-temps) : historique 'failed'/PROVIDER_NOT_FOUND", async () => {
-    const { historyStore, providerStore, historyEntries } = makeStores({ providers: {} });
-    const registry = { getProvider: () => null };
-    const queue = new FakeQueue({ maxAttempts: 3 });
-    const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
+  await t.test(
+    "provider introuvable (supprimé entre-temps) : historique 'failed'/PROVIDER_NOT_FOUND",
+    async () => {
+      const { historyStore, providerStore, historyEntries } = makeStores({ providers: {} });
+      const registry = { getProvider: () => null };
+      const queue = new FakeQueue({ maxAttempts: 3 });
+      const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
 
-    const { historyEntry } = await dq.enqueue({ providerId: 999, notification: {}, alertId: 1, event: "triggered" });
-    await dq.processOne();
+      const { historyEntry } = await dq.enqueue({
+        providerId: 999,
+        notification: {},
+        alertId: 1,
+        event: "triggered",
+      });
+      await dq.processOne();
 
-    assert.equal(historyEntries.get(historyEntry.id).status, "failed");
-    assert.equal(historyEntries.get(historyEntry.id).errorCode, "PROVIDER_NOT_FOUND");
-  });
+      assert.equal(historyEntries.get(historyEntry.id).status, "failed");
+      assert.equal(historyEntries.get(historyEntry.id).errorCode, "PROVIDER_NOT_FOUND");
+    },
+  );
 
-  await t.test("provider qui lance une exception : traité comme un échec récupérable, jamais propagé", async () => {
-    const { historyStore, providerStore, historyEntries } = makeStores({
-      providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
-    });
-    const registry = {
-      getProvider: () => ({
-        send: async () => {
-          throw new Error("boom");
-        },
-      }),
-    };
-    const queue = new FakeQueue({ maxAttempts: 2 });
-    const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
+  await t.test(
+    "provider qui lance une exception : traité comme un échec récupérable, jamais propagé",
+    async () => {
+      const { historyStore, providerStore, historyEntries } = makeStores({
+        providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
+      });
+      const registry = {
+        getProvider: () => ({
+          send: async () => {
+            throw new Error("boom");
+          },
+        }),
+      };
+      const queue = new FakeQueue({ maxAttempts: 2 });
+      const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
 
-    const { historyEntry } = await dq.enqueue({ providerId: 1, notification: {}, alertId: 1, event: "triggered" });
-    await assert.doesNotReject(() => dq.processOne());
-    assert.equal(historyEntries.get(historyEntry.id).status, "retrying");
-  });
+      const { historyEntry } = await dq.enqueue({
+        providerId: 1,
+        notification: {},
+        alertId: 1,
+        event: "triggered",
+      });
+      await assert.doesNotReject(() => dq.processOne());
+      assert.equal(historyEntries.get(historyEntry.id).status, "retrying");
+    },
+  );
 
-  await t.test("secrets déchiffrés fusionnés dans la config transmise à send(), jamais dans l'historique", async () => {
-    let receivedConfig = null;
-    const { historyStore, providerStore, historyEntries } = makeStores({
-      providers: { 1: { id: 1, type: "fake", enabled: true, configuration: { url: "https://x" } } },
-      secrets: { 1: { webhookToken: "super-secret" } },
-    });
-    const registry = {
-      getProvider: () => ({
-        send: async (_n, config) => {
-          receivedConfig = config;
-          return { success: true };
-        },
-      }),
-    };
-    const queue = new FakeQueue({ maxAttempts: 3 });
-    const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
+  await t.test(
+    "secrets déchiffrés fusionnés dans la config transmise à send(), jamais dans l'historique",
+    async () => {
+      let receivedConfig = null;
+      const { historyStore, providerStore, historyEntries } = makeStores({
+        providers: { 1: { id: 1, type: "fake", enabled: true, configuration: { url: "https://x" } } },
+        secrets: { 1: { webhookToken: "super-secret" } },
+      });
+      const registry = {
+        getProvider: () => ({
+          send: async (_n, config) => {
+            receivedConfig = config;
+            return { success: true };
+          },
+        }),
+      };
+      const queue = new FakeQueue({ maxAttempts: 3 });
+      const dq = new NotificationDispatchQueue({ registry, providerStore, historyStore, queue });
 
-    const { historyEntry } = await dq.enqueue({ providerId: 1, notification: {}, alertId: 1, event: "triggered" });
-    await dq.processOne();
+      const { historyEntry } = await dq.enqueue({
+        providerId: 1,
+        notification: {},
+        alertId: 1,
+        event: "triggered",
+      });
+      await dq.processOne();
 
-    assert.equal(receivedConfig.webhookToken, "super-secret");
-    const historyJson = JSON.stringify(historyEntries.get(historyEntry.id));
-    assert.ok(!historyJson.includes("super-secret"));
-  });
+      assert.equal(receivedConfig.webhookToken, "super-secret");
+      const historyJson = JSON.stringify(historyEntries.get(historyEntry.id));
+      assert.ok(!historyJson.includes("super-secret"));
+    },
+  );
 });
 
 test("RoutingEngine + dispatchQueue (Phase 5E)", async (t) => {
@@ -351,12 +420,26 @@ test("RoutingEngine + dispatchQueue (Phase 5E)", async (t) => {
     const dispatchQueue = {
       enqueue: async (job) => {
         enqueued.push(job);
-        return { status: "queued", providerId: job.providerId, alertId: job.alertId, historyEntry: { id: 1, status: "pending" } };
+        return {
+          status: "queued",
+          providerId: job.providerId,
+          alertId: job.alertId,
+          historyEntry: { id: 1, status: "pending" },
+        };
       },
     };
 
     const engine = new RoutingEngine({ routeStore, providerStore, registry, historyStore, dispatchQueue });
-    const alert = { id: 42, severity: "warning", metric: "cpu", targetType: "process", targetValue: "api", state: "active", triggeredAt: 1, lastSeenAt: 1 };
+    const alert = {
+      id: 42,
+      severity: "warning",
+      metric: "cpu",
+      targetType: "process",
+      targetValue: "api",
+      state: "active",
+      triggeredAt: 1,
+      lastSeenAt: 1,
+    };
     const results = await engine.dispatch(alert, "triggered");
 
     assert.equal(enqueued.length, 2);
@@ -382,7 +465,16 @@ test("RoutingEngine + dispatchQueue (Phase 5E)", async (t) => {
     };
 
     const engine = new RoutingEngine({ routeStore, providerStore, registry, historyStore });
-    const alert = { id: 1, severity: "warning", metric: "cpu", targetType: "process", targetValue: "api", state: "active", triggeredAt: 1, lastSeenAt: 1 };
+    const alert = {
+      id: 1,
+      severity: "warning",
+      metric: "cpu",
+      targetType: "process",
+      targetValue: "api",
+      state: "active",
+      triggeredAt: 1,
+      lastSeenAt: 1,
+    };
     await engine.dispatch(alert, "triggered");
 
     assert.equal(historyEntries.length, 1);

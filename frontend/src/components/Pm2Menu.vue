@@ -25,7 +25,17 @@ onUnmounted(() => document.removeEventListener("click", closeOnOutsideClick));
     <button v-if="can('pm2_flush_all')" @click="run('flush-all')">🧹 {{ t("pm2Menu.flushAll") }}</button>
     <button v-if="can('pm2_update')" @click="run('update')">⬆️ {{ t("pm2Menu.update") }}</button>
     <button v-if="can('pm2_kill')" class="danger" @click="run('kill')">☠️ {{ t("pm2Menu.kill") }}</button>
-    <div v-if="!can('pm2_save') && !can('pm2_resurrect') && !can('pm2_flush_all') && !can('pm2_update') && !can('pm2_kill')" class="hint-text" style="padding:8px;">
+    <div
+      v-if="
+        !can('pm2_save') &&
+        !can('pm2_resurrect') &&
+        !can('pm2_flush_all') &&
+        !can('pm2_update') &&
+        !can('pm2_kill')
+      "
+      class="hint-text"
+      style="padding: 8px"
+    >
       {{ t("pm2Menu.noAction") }}
     </div>
   </div>

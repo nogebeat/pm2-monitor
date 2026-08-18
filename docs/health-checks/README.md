@@ -10,7 +10,7 @@ Un health check sonde une cible (URL HTTP, port TCP, ou commande) à
 intervalle régulier, en déduit un statut (`UP`/`DOWN`/`DEGRADED`/`UNKNOWN`),
 et alimente le moteur d'alertes existant ([`docs/alerts/README.md`](../alerts/README.md))
 — **il n'existe pas de deuxième système d'alerte** : un health check n'est
-qu'une nouvelle *source* de valeurs pour `AlertEngine.evaluate()`, comme le
+qu'une nouvelle _source_ de valeurs pour `AlertEngine.evaluate()`, comme le
 sont déjà les métriques process/système.
 
 ## Sommaire
@@ -62,15 +62,15 @@ Checks). Le catalogue des types/méthodes/statuts valides est exposé par
 
 ### HTTP
 
-| Champ                | Description                                                      |
-|-----------------------|--------------------------------------------------------------------|
-| `url`                  | URL complète (`http://` ou `https://` uniquement).                  |
-| `method`               | `GET`/`HEAD`/`POST`/`PUT`/`DELETE`/`PATCH` (défaut `GET`).           |
-| `timeoutMs`            | Délai avant `DOWN` (défaut `5000`).                                  |
-| `expectedStatus`       | Code(s) de statut attendu(s) : `"200-299"`, `"200,201,204"`, `"200"` (défaut `"200-299"`). |
-| `expectedContent`      | Sous-chaîne attendue dans le corps de la réponse (optionnel, comparaison brute — pas de regex). |
-| `intervalSeconds`      | Fréquence d'exécution (défaut `60`).                                 |
-| `degradedThresholdMs`  | Au-delà : `DEGRADED` même si le reste est correct (optionnel).       |
+| Champ                 | Description                                                                                     |
+| --------------------- | ----------------------------------------------------------------------------------------------- |
+| `url`                 | URL complète (`http://` ou `https://` uniquement).                                              |
+| `method`              | `GET`/`HEAD`/`POST`/`PUT`/`DELETE`/`PATCH` (défaut `GET`).                                      |
+| `timeoutMs`           | Délai avant `DOWN` (défaut `5000`).                                                             |
+| `expectedStatus`      | Code(s) de statut attendu(s) : `"200-299"`, `"200,201,204"`, `"200"` (défaut `"200-299"`).      |
+| `expectedContent`     | Sous-chaîne attendue dans le corps de la réponse (optionnel, comparaison brute — pas de regex). |
+| `intervalSeconds`     | Fréquence d'exécution (défaut `60`).                                                            |
+| `degradedThresholdMs` | Au-delà : `DEGRADED` même si le reste est correct (optionnel).                                  |
 
 Mesuré à chaque exécution : `responseTimeMs` (temps total requête) et
 `statusCode`. Le corps de la réponse n'est lu qu'à hauteur de 64 Ko (juste
@@ -79,13 +79,13 @@ de quoi vérifier `expectedContent`), pour ne jamais charger une réponse
 
 ### TCP
 
-| Champ                | Description                                       |
-|-----------------------|------------------------------------------------------|
-| `host`                 | Hôte à joindre.                                        |
-| `port`                 | Port TCP (1-65535).                                    |
-| `timeoutMs`            | Délai avant `DOWN` (défaut `5000`).                     |
-| `intervalSeconds`      | Fréquence d'exécution (défaut `60`).                    |
-| `degradedThresholdMs`  | Au-delà du temps de connexion : `DEGRADED` (optionnel). |
+| Champ                 | Description                                             |
+| --------------------- | ------------------------------------------------------- |
+| `host`                | Hôte à joindre.                                         |
+| `port`                | Port TCP (1-65535).                                     |
+| `timeoutMs`           | Délai avant `DOWN` (défaut `5000`).                     |
+| `intervalSeconds`     | Fréquence d'exécution (défaut `60`).                    |
+| `degradedThresholdMs` | Au-delà du temps de connexion : `DEGRADED` (optionnel). |
 
 Un simple test de connexion (`net.Socket#connect`) : succès de la poignée
 de main TCP = `UP` (ou `DEGRADED` si lent), refus de connexion/timeout =
@@ -103,9 +103,9 @@ sécurisée est garantie par construction :
   chaînes) sont **toujours passés séparément** à `execFile` — aucune
   concaténation de chaîne, donc **aucune interprétation shell** des
   métacaractères (`; | & $() \`` …) qu'un argument pourrait contenir. Un
-  argument comme `"http://x; rm -rf /"` est transmis tel quel au binaire
-  cible en tant qu'argument unique, jamais exécuté comme une sous-commande
-  (voir `test/unit/health-checks-runner.test.js`, test "args passés
+argument comme `"http://x; rm -rf /"`est transmis tel quel au binaire
+cible en tant qu'argument unique, jamais exécuté comme une sous-commande
+(voir`test/unit/health-checks-runner.test.js`, test "args passés
   séparément à execFile").
 - `shell: false` est explicite dans les options d'`execFile`.
 - Un `timeout` est toujours appliqué ; le process est tué (`SIGTERM`) s'il
@@ -126,23 +126,23 @@ serveur. Un déploiement qui ne fait confiance à personne pour lancer des
 commandes côté serveur peut simplement ne créer aucun check de ce type ;
 rien ne l'exige.
 
-| Champ                | Description                                                       |
-|-----------------------|-----------------------------------------------------------------------|
-| `command`              | Chemin de l'exécutable (pas de recherche dans un shell : chemin absolu recommandé). |
-| `commandArgs`          | Tableau d'arguments (chaînes), passés séparément — jamais concaténés. |
-| `expectedExitCode`     | Code de sortie attendu (défaut `0`).                                    |
-| `timeoutMs`            | Délai avant `DOWN` (défaut `5000`).                                     |
-| `intervalSeconds`      | Fréquence d'exécution (défaut `60`).                                    |
-| `degradedThresholdMs`  | Au-delà du temps d'exécution : `DEGRADED` (optionnel).                  |
+| Champ                 | Description                                                                         |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| `command`             | Chemin de l'exécutable (pas de recherche dans un shell : chemin absolu recommandé). |
+| `commandArgs`         | Tableau d'arguments (chaînes), passés séparément — jamais concaténés.               |
+| `expectedExitCode`    | Code de sortie attendu (défaut `0`).                                                |
+| `timeoutMs`           | Délai avant `DOWN` (défaut `5000`).                                                 |
+| `intervalSeconds`     | Fréquence d'exécution (défaut `60`).                                                |
+| `degradedThresholdMs` | Au-delà du temps d'exécution : `DEGRADED` (optionnel).                              |
 
 ## Statuts et transitions
 
-| Statut     | Signification                                                                                   |
-|-------------|----------------------------------------------------------------------------------------------------|
-| `UNKNOWN`   | État initial, avant la première exécution (ou check désactivé — aucune exécution en cours).          |
-| `UP`        | La dernière sonde a réussi et le temps de réponse est sous `degradedThresholdMs` (ou aucun seuil configuré). |
-| `DEGRADED`  | La dernière sonde a réussi mais le temps de réponse dépasse `degradedThresholdMs`.                    |
-| `DOWN`      | La dernière sonde a échoué : timeout, connexion refusée, code de statut/sortie inattendu, contenu attendu absent. |
+| Statut     | Signification                                                                                                     |
+| ---------- | ----------------------------------------------------------------------------------------------------------------- |
+| `UNKNOWN`  | État initial, avant la première exécution (ou check désactivé — aucune exécution en cours).                       |
+| `UP`       | La dernière sonde a réussi et le temps de réponse est sous `degradedThresholdMs` (ou aucun seuil configuré).      |
+| `DEGRADED` | La dernière sonde a réussi mais le temps de réponse dépasse `degradedThresholdMs`.                                |
+| `DOWN`     | La dernière sonde a échoué : timeout, connexion refusée, code de statut/sortie inattendu, contenu attendu absent. |
 
 Le statut affiché est **toujours celui de la dernière exécution** (pas de
 lissage/moyenne). Ce qui s'accumule, ce sont `consecutiveFailures` et
@@ -209,18 +209,18 @@ routing.
 Toutes les routes sont montées sous `/api/health-checks` (voir
 `lib/routes/health-checks.js`).
 
-| Méthode | Route                     | Permission              | Description                                              |
-|----------|-----------------------------|---------------------------|--------------------------------------------------------------|
-| GET      | `/`                          | `health_checks_read`      | Liste tous les checks (`?enabled=1` pour ne lister que ceux activés). |
-| GET      | `/catalog`                   | `health_checks_read`      | Types/méthodes/statuts valides (pour construire un formulaire). |
-| GET      | `/status/summary`            | `health_checks_read`      | Vue condensée statut/dernier check/temps de réponse (dashboard). |
-| GET      | `/:id`                       | `health_checks_read`      | Détail d'un check.                                            |
-| POST     | `/`                          | `health_checks_create`    | Crée un check.                                                 |
-| PUT/PATCH| `/:id`                       | `health_checks_update`    | Modifie la configuration d'un check.                            |
-| POST     | `/:id/enable`                | `health_checks_update`    | Active un check.                                                |
-| POST     | `/:id/disable`               | `health_checks_update`    | Désactive un check (le scheduler l'ignore, la config reste).    |
-| DELETE   | `/:id`                       | `health_checks_delete`    | Supprime un check.                                              |
-| POST     | `/:id/test`                  | `health_checks_test`      | Exécute la sonde immédiatement, persiste le résultat (alimente aussi l'Alert Engine — pas un chemin de code séparé). |
+| Méthode   | Route             | Permission             | Description                                                                                                          |
+| --------- | ----------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| GET       | `/`               | `health_checks_read`   | Liste tous les checks (`?enabled=1` pour ne lister que ceux activés).                                                |
+| GET       | `/catalog`        | `health_checks_read`   | Types/méthodes/statuts valides (pour construire un formulaire).                                                      |
+| GET       | `/status/summary` | `health_checks_read`   | Vue condensée statut/dernier check/temps de réponse (dashboard).                                                     |
+| GET       | `/:id`            | `health_checks_read`   | Détail d'un check.                                                                                                   |
+| POST      | `/`               | `health_checks_create` | Crée un check.                                                                                                       |
+| PUT/PATCH | `/:id`            | `health_checks_update` | Modifie la configuration d'un check.                                                                                 |
+| POST      | `/:id/enable`     | `health_checks_update` | Active un check.                                                                                                     |
+| POST      | `/:id/disable`    | `health_checks_update` | Désactive un check (le scheduler l'ignore, la config reste).                                                         |
+| DELETE    | `/:id`            | `health_checks_delete` | Supprime un check.                                                                                                   |
+| POST      | `/:id/test`       | `health_checks_test`   | Exécute la sonde immédiatement, persiste le résultat (alimente aussi l'Alert Engine — pas un chemin de code séparé). |
 
 ## Permissions
 

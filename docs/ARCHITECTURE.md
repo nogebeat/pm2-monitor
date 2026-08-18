@@ -90,15 +90,15 @@ réellement besoin, pour éviter le code mort.
 
 ## 3. Harness de tests : `node:test` (pas Vitest)
 
-| Critère                | `node:test`                          | Vitest                              |
-|-------------------------|---------------------------------------|--------------------------------------|
-| Dépendance ajoutée       | Aucune (module natif Node ≥ 18)       | Nouvelle dépendance (+ config)       |
-| Stack existante          | Déjà 100% CommonJS, aucun bundler     | Pensé pour Vite/ESM (le projet a un Vite… mais côté frontend Vue, pas backend) |
-| Mocks                    | `node:test` + `node:assert` suffisent pour les besoins actuels (pas de mocking DB complexe : tests contre de vraies bases SQLite temporaires) | Mocking plus riche, pas nécessaire ici |
-| Tests async               | Support natif (`async` test functions, `t.beforeEach`/`t.afterEach`) | Support natif aussi |
-| Tests API (CLI/process)   | `child_process.execFile` natif, aucune dépendance | Idem, mais via une couche en plus |
-| Maintenance               | Zéro dépendance à mettre à jour       | Dépendance à suivre (versions, breaking changes) |
-| CI                         | `node --test` fonctionne tel quel dans n'importe quelle image Node | Nécessite d'installer Vitest dans l'image CI |
+| Critère                 | `node:test`                                                                                                                                   | Vitest                                                                         |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Dépendance ajoutée      | Aucune (module natif Node ≥ 18)                                                                                                               | Nouvelle dépendance (+ config)                                                 |
+| Stack existante         | Déjà 100% CommonJS, aucun bundler                                                                                                             | Pensé pour Vite/ESM (le projet a un Vite… mais côté frontend Vue, pas backend) |
+| Mocks                   | `node:test` + `node:assert` suffisent pour les besoins actuels (pas de mocking DB complexe : tests contre de vraies bases SQLite temporaires) | Mocking plus riche, pas nécessaire ici                                         |
+| Tests async             | Support natif (`async` test functions, `t.beforeEach`/`t.afterEach`)                                                                          | Support natif aussi                                                            |
+| Tests API (CLI/process) | `child_process.execFile` natif, aucune dépendance                                                                                             | Idem, mais via une couche en plus                                              |
+| Maintenance             | Zéro dépendance à mettre à jour                                                                                                               | Dépendance à suivre (versions, breaking changes)                               |
+| CI                      | `node --test` fonctionne tel quel dans n'importe quelle image Node                                                                            | Nécessite d'installer Vitest dans l'image CI                                   |
 
 Le projet est un backend Express/Socket.IO pur CommonJS sans bundler
 côté serveur ; `node:test` couvre tous les besoins de cette phase
@@ -184,10 +184,10 @@ futurs services (`alerts/`, `notifications/`) dans une phase ultérieure.
   occurrence "ouverte" par combinaison règle/cible/métrique à la fois — une
   condition qui reste vraie met à jour (`touch`) l'occurrence existante au
   lieu d'en créer une nouvelle (anti-spam), indépendamment du cooldown (qui,
-  lui, ne s'applique qu'*après* une résolution, pour bloquer un
+  lui, ne s'applique qu'_après_ une résolution, pour bloquer un
   redéclenchement immédiat).
 - **Permissions séparées par action** (`alerts_read/create/update/delete/
-  acknowledge`) plutôt qu'une permission unique `alerts` : cohérent avec le
+acknowledge`) plutôt qu'une permission unique `alerts` : cohérent avec le
   découpage fin déjà en place pour les actions PM2 par app
   (`lib/permissions.js`), permet par exemple un rôle "peut acquitter sans
   pouvoir modifier les règles".

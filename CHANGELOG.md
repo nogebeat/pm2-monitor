@@ -21,6 +21,22 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
   et 22, build du frontend, vérification de parité des clés de traduction.
 - Script `scripts/check-i18n.js` (`npm run check:i18n`) pour vérifier que
   les fichiers `fr.json` et `en.json` restent synchronisés.
+- Outillage qualité : ESLint (backend + frontend), Prettier, EditorConfig,
+  `.gitattributes`, `.nvmrc`.
+- Hygiène Git : hooks Husky (`pre-commit` → lint-staged, `commit-msg` →
+  commitlint / Conventional Commits), `.github/CODEOWNERS`.
+- CI étendue avec un job `lint` dédié (ESLint + Prettier + parité i18n) en
+  plus des tests et du build.
+
+### Corrigé
+
+- `package.json` : le champ `version` n'était pas un semver valide
+  (`3.5.f`) — corrigé en `3.5.0`.
+- `npm run test:unit` / `test:integration` utilisaient un pattern de glob
+  non supporté par le test runner de Node et plantaient immédiatement
+  (`Cannot find module 'test/unit'`) — corrigé.
+- Suite de tests validée à 576/576 (unitaires + intégration, exécutés
+  ensemble comme en CI) après réinstallation propre des dépendances.
 
 ## Format des entrées futures
 

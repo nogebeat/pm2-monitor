@@ -73,7 +73,8 @@ function timelineLabel(item) {
     if (item.type === "acknowledged") return t("dashboard.alertAcknowledged", { name: item.ruleName || "?" });
     return t("dashboard.alertTriggered", { name: item.ruleName || "?" });
   }
-  if (item.kind === "auto_healing") return t("dashboard.autoHealing", { type: item.type, result: item.result || "?" });
+  if (item.kind === "auto_healing")
+    return t("dashboard.autoHealing", { type: item.type, result: item.result || "?" });
   return item.kind;
 }
 
@@ -103,7 +104,9 @@ function statusDotClass(status) {
       <div class="global-status-main">
         <span class="global-status-icon">{{ STATUS_ICON[globalStatus] || "…" }}</span>
         <div>
-          <div class="global-status-label">{{ STATUS_LABEL[globalStatus] || t("dashboard.statusLoading") }}</div>
+          <div class="global-status-label">
+            {{ STATUS_LABEL[globalStatus] || t("dashboard.statusLoading") }}
+          </div>
           <div class="global-status-sub">{{ t("dashboard.statusSub") }}</div>
         </div>
       </div>
@@ -136,7 +139,10 @@ function statusDotClass(status) {
           <div class="bar">
             <div
               class="bar-fill"
-              :class="{ danger: (sys?.mem?.percent || 0) >= 90, warn: (sys?.mem?.percent || 0) >= 75 && (sys?.mem?.percent || 0) < 90 }"
+              :class="{
+                danger: (sys?.mem?.percent || 0) >= 90,
+                warn: (sys?.mem?.percent || 0) >= 75 && (sys?.mem?.percent || 0) < 90,
+              }"
               :style="{ width: (sys?.mem?.percent || 0) + '%' }"
             ></div>
           </div>
@@ -147,7 +153,10 @@ function statusDotClass(status) {
           <div class="bar">
             <div
               class="bar-fill"
-              :class="{ danger: (sys?.disk?.percent || 0) >= 90, warn: (sys?.disk?.percent || 0) >= 80 && (sys?.disk?.percent || 0) < 90 }"
+              :class="{
+                danger: (sys?.disk?.percent || 0) >= 90,
+                warn: (sys?.disk?.percent || 0) >= 80 && (sys?.disk?.percent || 0) < 90,
+              }"
               :style="{ width: (sys?.disk?.percent || 0) + '%' }"
             ></div>
           </div>
@@ -170,12 +179,30 @@ function statusDotClass(status) {
       <section class="dash-section dash-col">
         <h2>{{ t("dashboard.processes") }}</h2>
         <div v-if="overview" class="overview-grid">
-          <div class="overview-item"><span class="overview-value">{{ overview.total }}</span><span class="overview-label">total</span></div>
-          <div class="overview-item ok"><span class="overview-value">{{ overview.online }}</span><span class="overview-label">online</span></div>
-          <div class="overview-item"><span class="overview-value">{{ overview.stopped }}</span><span class="overview-label">stopped</span></div>
-          <div class="overview-item danger"><span class="overview-value">{{ overview.errored }}</span><span class="overview-label">errored</span></div>
-          <div class="overview-item danger"><span class="overview-value">{{ overview.crashed }}</span><span class="overview-label">crashed</span></div>
-          <div class="overview-item warn"><span class="overview-value">{{ overview.restarting }}</span><span class="overview-label">restarting</span></div>
+          <div class="overview-item">
+            <span class="overview-value">{{ overview.total }}</span
+            ><span class="overview-label">total</span>
+          </div>
+          <div class="overview-item ok">
+            <span class="overview-value">{{ overview.online }}</span
+            ><span class="overview-label">online</span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-value">{{ overview.stopped }}</span
+            ><span class="overview-label">stopped</span>
+          </div>
+          <div class="overview-item danger">
+            <span class="overview-value">{{ overview.errored }}</span
+            ><span class="overview-label">errored</span>
+          </div>
+          <div class="overview-item danger">
+            <span class="overview-value">{{ overview.crashed }}</span
+            ><span class="overview-label">crashed</span>
+          </div>
+          <div class="overview-item warn">
+            <span class="overview-value">{{ overview.restarting }}</span
+            ><span class="overview-label">restarting</span>
+          </div>
         </div>
         <div v-else class="dash-empty">{{ t("dashboard.statusLoading") }}</div>
       </section>
@@ -184,10 +211,22 @@ function statusDotClass(status) {
       <section class="dash-section dash-col">
         <h2>{{ t("dashboard.alerts") }}</h2>
         <div v-if="alerts" class="overview-grid">
-          <div class="overview-item"><span class="overview-value">{{ alerts.active }}</span><span class="overview-label">{{ t('dashboard.alertsActive') }}</span></div>
-          <div class="overview-item danger"><span class="overview-value">{{ alerts.critical }}</span><span class="overview-label">{{ t('dashboard.alertsCritical') }}</span></div>
-          <div class="overview-item warn"><span class="overview-value">{{ alerts.warning }}</span><span class="overview-label">warning</span></div>
-          <div class="overview-item"><span class="overview-value">{{ alerts.acknowledged }}</span><span class="overview-label">{{ t('dashboard.alertsAcked') }}</span></div>
+          <div class="overview-item">
+            <span class="overview-value">{{ alerts.active }}</span
+            ><span class="overview-label">{{ t("dashboard.alertsActive") }}</span>
+          </div>
+          <div class="overview-item danger">
+            <span class="overview-value">{{ alerts.critical }}</span
+            ><span class="overview-label">{{ t("dashboard.alertsCritical") }}</span>
+          </div>
+          <div class="overview-item warn">
+            <span class="overview-value">{{ alerts.warning }}</span
+            ><span class="overview-label">warning</span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-value">{{ alerts.acknowledged }}</span
+            ><span class="overview-label">{{ t("dashboard.alertsAcked") }}</span>
+          </div>
         </div>
         <div v-else class="dash-empty">{{ t("dashboard.alertsMissingPerm") }}</div>
       </section>
@@ -221,7 +260,11 @@ function statusDotClass(status) {
               <td>{{ p.restarts }}</td>
               <td>{{ fmtUptime(p.uptime) }}</td>
               <td>
-                <span v-if="healthFor(p.name)" class="health-badge" :class="`health-${healthFor(p.name).toLowerCase()}`">
+                <span
+                  v-if="healthFor(p.name)"
+                  class="health-badge"
+                  :class="`health-${healthFor(p.name).toLowerCase()}`"
+                >
                   {{ healthFor(p.name) }}
                 </span>
                 <span v-else class="dash-empty-inline">–</span>
@@ -251,7 +294,14 @@ function statusDotClass(status) {
 </template>
 
 <style scoped>
-.dashboard-view { flex: 1; overflow-y: auto; padding: 22px 24px 40px; display: flex; flex-direction: column; gap: 20px; }
+.dashboard-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
 
 /* Bandeau de statut global (section 6) */
 .global-status-banner {
@@ -260,92 +310,254 @@ function statusDotClass(status) {
   padding: 16px 20px;
   background: var(--panel);
 }
-.global-status-main { display: flex; align-items: center; gap: 14px; }
-.global-status-icon {
-  width: 40px; height: 40px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 18px; font-weight: 700; flex-shrink: 0;
-  background: var(--text-muted); color: var(--bg);
+.global-status-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
-.global-status-label { font-size: 18px; font-weight: 700; font-family: "Space Grotesk", sans-serif; }
-.global-status-sub { font-size: 12px; color: var(--text-muted); }
+.global-status-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  flex-shrink: 0;
+  background: var(--text-muted);
+  color: var(--bg);
+}
+.global-status-label {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: "Space Grotesk", sans-serif;
+}
+.global-status-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
 
-.status-healthy .global-status-icon { background: var(--online); }
-.status-healthy { border-color: var(--online); background: var(--online-dim); }
-.status-warning .global-status-icon { background: var(--warn); }
-.status-warning { border-color: var(--warn); background: var(--warn-dim); }
-.status-critical .global-status-icon { background: var(--down); }
-.status-critical { border-color: var(--down); background: var(--down-dim); }
+.status-healthy .global-status-icon {
+  background: var(--online);
+}
+.status-healthy {
+  border-color: var(--online);
+  background: var(--online-dim);
+}
+.status-warning .global-status-icon {
+  background: var(--warn);
+}
+.status-warning {
+  border-color: var(--warn);
+  background: var(--warn-dim);
+}
+.status-critical .global-status-icon {
+  background: var(--down);
+}
+.status-critical {
+  border-color: var(--down);
+  background: var(--down-dim);
+}
 
-.global-status-reasons { margin: 12px 0 0; padding-left: 18px; font-size: 13px; color: var(--text); }
-.global-status-reasons-empty { list-style: none; padding-left: 0; color: var(--text-muted); margin-top: 8px; }
+.global-status-reasons {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text);
+}
+.global-status-reasons-empty {
+  list-style: none;
+  padding-left: 0;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
 
 .dash-section h2 {
-  font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--text-muted); margin: 0 0 10px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 0 0 10px;
 }
 
-.dash-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.dash-col { min-width: 0; }
-@media (max-width: 860px) { .dash-cols { grid-template-columns: 1fr; } }
+.dash-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.dash-col {
+  min-width: 0;
+}
+@media (max-width: 860px) {
+  .dash-cols {
+    grid-template-columns: 1fr;
+  }
+}
 
 /* .system-grid / .metric-card / .bar / .bar-fill : classes globales déjà
    définies dans style.css et utilisées par SystemView.vue — réutilisées
    telles quelles ici, aucune redéfinition. */
 
-.overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; }
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 10px;
+}
 .overview-item {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px 8px;
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
-.overview-value { font-size: 20px; font-weight: 700; font-family: "JetBrains Mono", monospace; }
-.overview-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.overview-item.ok .overview-value { color: var(--online); }
-.overview-item.warn .overview-value { color: var(--warn); }
-.overview-item.danger .overview-value { color: var(--down); }
+.overview-value {
+  font-size: 20px;
+  font-weight: 700;
+  font-family: "JetBrains Mono", monospace;
+}
+.overview-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.overview-item.ok .overview-value {
+  color: var(--online);
+}
+.overview-item.warn .overview-value {
+  color: var(--warn);
+}
+.overview-item.danger .overview-value {
+  color: var(--down);
+}
 
-.dash-empty, .dash-empty-inline { color: var(--text-muted); font-size: 13px; }
-.dash-empty { padding: 16px 4px; }
+.dash-empty,
+.dash-empty-inline {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.dash-empty {
+  padding: 16px 4px;
+}
 
 /* Tableau des process (section 5) */
-.dash-table-wrap { overflow-x: auto; }
-.dash-table { width: 100%; border-collapse: collapse; font-size: 13px; font-family: "JetBrains Mono", monospace; }
-.dash-table th {
-  text-align: left; font-family: "Space Grotesk", sans-serif; font-weight: 600;
-  color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
-  padding: 8px 10px; border-bottom: 1px solid var(--border);
+.dash-table-wrap {
+  overflow-x: auto;
 }
-.dash-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
-.dash-table-row { cursor: pointer; }
-.dash-table-row:hover { background: var(--accent-dim); }
-.dash-table-name { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text); }
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-family: "JetBrains Mono", monospace;
+}
+.dash-table th {
+  text-align: left;
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.dash-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.dash-table-row {
+  cursor: pointer;
+}
+.dash-table-row:hover {
+  background: var(--accent-dim);
+}
+.dash-table-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--text);
+}
 
 .health-badge {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
-  padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
 }
-.health-up { color: var(--online); border-color: var(--online); }
-.health-down { color: var(--down); border-color: var(--down); }
-.health-degraded, .health-unknown { color: var(--warn); border-color: var(--warn); }
+.health-up {
+  color: var(--online);
+  border-color: var(--online);
+}
+.health-down {
+  color: var(--down);
+  border-color: var(--down);
+}
+.health-degraded,
+.health-unknown {
+  color: var(--warn);
+  border-color: var(--warn);
+}
 
 /* Timeline (section 7) — mêmes classes que EventsView.vue */
-.dash-timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.dash-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
 .dash-timeline-row {
-  display: flex; align-items: center; gap: 10px; padding: 9px 6px;
-  border-bottom: 1px solid var(--border); font-size: 13px; font-family: "JetBrains Mono", monospace;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 6px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-family: "JetBrains Mono", monospace;
 }
-.dash-timeline-row:last-child { border-bottom: none; }
-.event-icon { font-size: 13px; line-height: 1; }
-.event-time { color: var(--text-muted); min-width: 68px; }
-.event-process { color: var(--text); font-weight: 600; min-width: 110px; }
-.event-type { color: var(--text-muted); flex: 1; }
+.dash-timeline-row:last-child {
+  border-bottom: none;
+}
+.event-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+.event-time {
+  color: var(--text-muted);
+  min-width: 68px;
+}
+.event-process {
+  color: var(--text);
+  font-weight: 600;
+  min-width: 110px;
+}
+.event-type {
+  color: var(--text-muted);
+  flex: 1;
+}
 .event-badge {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
-  padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
 }
-.badge-info { color: var(--text-muted); }
-.badge-warning { color: var(--warn); border-color: var(--warn); }
-.badge-critical { color: var(--down); border-color: var(--down); }
+.badge-info {
+  color: var(--text-muted);
+}
+.badge-warning {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.badge-critical {
+  color: var(--down);
+  border-color: var(--down);
+}
 </style>

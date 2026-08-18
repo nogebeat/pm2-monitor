@@ -37,7 +37,11 @@ const LABELS = {
 
 function dateLabel(ts) {
   if (!ts) return "–";
-  return new Date(ts).toLocaleDateString(locale.value === "fr" ? "fr-FR" : "en-US", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return new Date(ts).toLocaleDateString(locale.value === "fr" ? "fr-FR" : "en-US", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 onMounted(() => {
@@ -63,14 +67,21 @@ onMounted(() => {
         </div>
       </div>
 
-      <div v-if="!state.events.loaded && state.events.loading" class="events-empty">{{ t("events.loading") }}</div>
+      <div v-if="!state.events.loaded && state.events.loading" class="events-empty">
+        {{ t("events.loading") }}
+      </div>
 
       <div v-else-if="!state.events.items.length" class="events-empty">
         {{ state.events.filter !== "all" ? t("events.noneWithFilter") : t("events.none") }}
       </div>
 
       <ul v-else class="events-list">
-        <li v-for="ev in state.events.items" :key="ev.id" class="event-row" :class="`severity-${ev.severity}`">
+        <li
+          v-for="ev in state.events.items"
+          :key="ev.id"
+          class="event-row"
+          :class="`severity-${ev.severity}`"
+        >
           <span class="event-icon" aria-hidden="true">{{ ICONS[ev.type] || "•" }}</span>
           <span class="event-time" :title="dateLabel(ev.timestamp)">{{ time(ev.timestamp) }}</span>
           <span class="event-process">{{ ev.process || t("events.unknown") }}</span>
@@ -83,9 +94,16 @@ onMounted(() => {
         </li>
       </ul>
 
-      <div v-if="state.events.items.length && state.events.items.length < state.events.total" class="events-more">
+      <div
+        v-if="state.events.items.length && state.events.items.length < state.events.total"
+        class="events-more"
+      >
         <button class="filter-btn" :disabled="state.events.loading" @click="loadMoreEvents">
-          {{ state.events.loading ? t("events.loadingMore") : t("events.loadMore", { loaded: state.events.items.length, total: state.events.total }) }}
+          {{
+            state.events.loading
+              ? t("events.loadingMore")
+              : t("events.loadMore", { loaded: state.events.items.length, total: state.events.total })
+          }}
         </button>
       </div>
     </div>
@@ -93,8 +111,15 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.events-view { flex: 1; overflow-y: auto; padding: 22px 24px 40px; }
-.events-panel { max-width: 900px; margin: 0 auto; }
+.events-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 24px 40px;
+}
+.events-panel {
+  max-width: 900px;
+  margin: 0 auto;
+}
 
 .events-empty {
   padding: 32px 8px;
@@ -103,7 +128,13 @@ onMounted(() => {
   font-size: 13px;
 }
 
-.events-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.events-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
 
 .event-row {
   display: flex;
@@ -114,13 +145,31 @@ onMounted(() => {
   font-size: 13px;
   font-family: "JetBrains Mono", monospace;
 }
-.event-row:last-child { border-bottom: none; }
+.event-row:last-child {
+  border-bottom: none;
+}
 
-.event-icon { font-size: 13px; line-height: 1; }
-.event-time { color: var(--text-muted); min-width: 68px; }
-.event-process { color: var(--text); font-weight: 600; min-width: 110px; }
-.event-type { color: var(--text-muted); flex: 1; }
-.event-detail { color: var(--text-muted); font-size: 12px; }
+.event-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+.event-time {
+  color: var(--text-muted);
+  min-width: 68px;
+}
+.event-process {
+  color: var(--text);
+  font-weight: 600;
+  min-width: 110px;
+}
+.event-type {
+  color: var(--text-muted);
+  flex: 1;
+}
+.event-detail {
+  color: var(--text-muted);
+  font-size: 12px;
+}
 
 .event-badge {
   font-size: 10px;
@@ -130,11 +179,25 @@ onMounted(() => {
   border-radius: 999px;
   border: 1px solid var(--border);
 }
-.badge-info { color: var(--text-muted); }
-.badge-warning { color: var(--warn); border-color: var(--warn); }
-.badge-critical { color: var(--down); border-color: var(--down); }
+.badge-info {
+  color: var(--text-muted);
+}
+.badge-warning {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.badge-critical {
+  color: var(--down);
+  border-color: var(--down);
+}
 
-.severity-critical .event-process { color: var(--down); }
+.severity-critical .event-process {
+  color: var(--down);
+}
 
-.events-more { display: flex; justify-content: center; padding-top: 14px; }
+.events-more {
+  display: flex;
+  justify-content: center;
+  padding-top: 14px;
+}
 </style>

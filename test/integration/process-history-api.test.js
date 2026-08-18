@@ -25,14 +25,35 @@ test("ProcessHistoryService — record() puis query()", async (t) => {
     const now = 1_000_000;
     const inserted = await svc.record(
       [
-        { name: "api", cpu: 42, memory: 100 * 1024 * 1024, restarts: 2, instances: 1, status: "online", uptime: now - 5000 },
-        { name: "worker", cpu: 5, memory: 50 * 1024 * 1024, restarts: 0, instances: 2, status: "online", uptime: now - 5000 },
+        {
+          name: "api",
+          cpu: 42,
+          memory: 100 * 1024 * 1024,
+          restarts: 2,
+          instances: 1,
+          status: "online",
+          uptime: now - 5000,
+        },
+        {
+          name: "worker",
+          cpu: 5,
+          memory: 50 * 1024 * 1024,
+          restarts: 0,
+          instances: 2,
+          status: "online",
+          uptime: now - 5000,
+        },
       ],
-      now
+      now,
     );
     assert.equal(inserted, 2);
 
-    const result = await svc.query({ processName: "api", start: now - 60_000, end: now + 1, resolution: "raw" });
+    const result = await svc.query({
+      processName: "api",
+      start: now - 60_000,
+      end: now + 1,
+      resolution: "raw",
+    });
     assert.equal(result.points.length, 1);
     assert.equal(result.points[0].cpu, 42);
     assert.equal(result.points[0].memory, 100 * 1024 * 1024);
@@ -49,14 +70,17 @@ test("ProcessHistoryService — record() puis query()", async (t) => {
     await assert.rejects(() => svc.query({ processName: "api", start: 100, end: 50 }), /antérieur/);
     await assert.rejects(
       () => svc.query({ processName: "api", start: 0, end: 100, resolution: "bogus" }),
-      /resolution invalide/
+      /resolution invalide/,
     );
   });
 
   await t.test("query() applique le filtre metrics (ne renvoie que les champs demandés)", async () => {
     const svc = new ProcessHistoryService({ PROCESS_HISTORY_ENABLED: "1" });
     const now = 2_000_000;
-    await svc.record([{ name: "api2", cpu: 10, memory: 1000, restarts: 1, status: "online", uptime: now }], now);
+    await svc.record(
+      [{ name: "api2", cpu: 10, memory: 1000, restarts: 1, status: "online", uptime: now }],
+      now,
+    );
     const result = await svc.query({
       processName: "api2",
       start: now - 1000,

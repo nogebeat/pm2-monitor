@@ -99,13 +99,19 @@ function build({ settings, now } = {}) {
 
 test("Auto-Healing — désactivé par défaut : trigger() ne fait rien", async () => {
   const { service, restarts } = build({ settings: { enabled: false } });
-  const result = await service.trigger({ processName: "api", source: "pm2_event", reason: "process crashed" });
+  const result = await service.trigger({
+    processName: "api",
+    source: "pm2_event",
+    reason: "process crashed",
+  });
   assert.equal(result.skipped, "disabled");
   assert.equal(restarts.length, 0);
 });
 
 test("Auto-Healing — maximum attempts : exactement N tentatives puis BLOCKED", async () => {
-  const { service, stateStore, restarts } = build({ settings: { maxAttempts: 3, backoffSeconds: [0, 0, 0] } });
+  const { service, stateStore, restarts } = build({
+    settings: { maxAttempts: 3, backoffSeconds: [0, 0, 0] },
+  });
 
   const r1 = await service.trigger({ processName: "api", source: "pm2_event", reason: "process crashed" });
   const r2 = await service.trigger({ processName: "api", source: "pm2_event", reason: "process crashed" });
@@ -210,7 +216,11 @@ test("Auto-Healing — un process bloqué reste bloqué même après un nouvel �
   await service.trigger({ processName: "api", source: "pm2_event", reason: "process crashed" }); // -> block
   assert.equal(restarts.length, 1);
 
-  const result = await service.trigger({ processName: "api", source: "pm2_event", reason: "process crashed" });
+  const result = await service.trigger({
+    processName: "api",
+    source: "pm2_event",
+    reason: "process crashed",
+  });
   assert.equal(result.skipped, "blocked");
   assert.equal(restarts.length, 1); // toujours pas de 2e restart
 });

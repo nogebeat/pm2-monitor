@@ -34,16 +34,16 @@ PM2 émet des événements assez bruts (`start`, `online`, `stop`, `restart`,
 timeline lisible. `normalizer.js#normalizeEvent()` est une fonction pure
 (aucun accès DB/réseau) qui les traduit en un modèle stable :
 
-| Type PM2 brut          | Type normalisé | Sévérité   |
-|--------------------------|------------------|--------------|
-| `start`                    | `started`          | `info`         |
-| `online`                   | `online`            | `info`         |
-| `stop`                     | `stopped`          | `info`         |
-| `restart`                  | `restarted`        | `warning`      |
-| `exit` (code 0, signal SIGINT/SIGTERM) | *(absorbé, non retenu)* | — |
-| `exit` (code ≠ 0, ou signal autre) | `crashed`   | `critical`     |
-| `restart overlimit`        | `errored`           | `critical`     |
-| `delete`, tout événement inconnu | *(ignoré)*   | —              |
+| Type PM2 brut                          | Type normalisé          | Sévérité   |
+| -------------------------------------- | ----------------------- | ---------- |
+| `start`                                | `started`               | `info`     |
+| `online`                               | `online`                | `info`     |
+| `stop`                                 | `stopped`               | `info`     |
+| `restart`                              | `restarted`             | `warning`  |
+| `exit` (code 0, signal SIGINT/SIGTERM) | _(absorbé, non retenu)_ | —          |
+| `exit` (code ≠ 0, ou signal autre)     | `crashed`               | `critical` |
+| `restart overlimit`                    | `errored`               | `critical` |
+| `delete`, tout événement inconnu       | _(ignoré)_              | —          |
 
 - **Détection de crash** : PM2 émet `exit` à chaque sortie de process, qu'elle
   soit volontaire ou non. Un `exit` est classé `crashed` seulement si le code
@@ -71,20 +71,20 @@ nouvelle échelle.
 
 ## Modèle d'un événement
 
-| Champ         | Type              | Description                                                        |
-|-----------------|---------------------|------------------------------------------------------------------------|
-| `id`             | number               | Identifiant auto-incrémenté.                                          |
-| `timestamp`      | number (ms epoch)    | Heure de **réception** du packet PM2 (PM2 ne fournit pas d'horodatage exploitable dans le packet lui-même). |
-| `type`           | string                | Voir table ci-dessus.                                               |
-| `severity`       | `info`\|`warning`\|`critical` | Dérivée du type.                                          |
-| `process`        | string \| `null`      | Nom de l'app PM2.                                                    |
-| `processId`      | number \| `null`      | `pm_id` PM2.                                                          |
-| `server`         | string                | Hostname de la machine (préparation multi-hôte future, voir [Limites connues](#limites-connues)). |
-| `status`         | string \| `null`      | Statut PM2 au moment de l'événement.                                |
-| `exitCode`       | number \| `null`      | Uniquement renseigné pour un `exit`.                                 |
-| `signal`         | string \| `null`      | Signal reçu, si applicable.                                          |
-| `metadata`       | object                | `rawEvent` (nom brut PM2), `restartCount`, `lastKnownState`, `execMode` — blob JSON, pas de colonnes dédiées pour ne pas migrer le schéma à chaque nouveau détail. |
-| `createdAt`      | number (ms epoch)     | Heure d'insertion en base.                                          |
+| Champ       | Type                          | Description                                                                                                                                                        |
+| ----------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`        | number                        | Identifiant auto-incrémenté.                                                                                                                                       |
+| `timestamp` | number (ms epoch)             | Heure de **réception** du packet PM2 (PM2 ne fournit pas d'horodatage exploitable dans le packet lui-même).                                                        |
+| `type`      | string                        | Voir table ci-dessus.                                                                                                                                              |
+| `severity`  | `info`\|`warning`\|`critical` | Dérivée du type.                                                                                                                                                   |
+| `process`   | string \| `null`              | Nom de l'app PM2.                                                                                                                                                  |
+| `processId` | number \| `null`              | `pm_id` PM2.                                                                                                                                                       |
+| `server`    | string                        | Hostname de la machine (préparation multi-hôte future, voir [Limites connues](#limites-connues)).                                                                  |
+| `status`    | string \| `null`              | Statut PM2 au moment de l'événement.                                                                                                                               |
+| `exitCode`  | number \| `null`              | Uniquement renseigné pour un `exit`.                                                                                                                               |
+| `signal`    | string \| `null`              | Signal reçu, si applicable.                                                                                                                                        |
+| `metadata`  | object                        | `rawEvent` (nom brut PM2), `restartCount`, `lastKnownState`, `execMode` — blob JSON, pas de colonnes dédiées pour ne pas migrer le schéma à chaque nouveau détail. |
+| `createdAt` | number (ms epoch)             | Heure d'insertion en base.                                                                                                                                         |
 
 Aucun contenu de log n'est dupliqué ici : `lib/log-store.js` reste l'unique
 source des lignes de log, la timeline ne fait que référencer process +

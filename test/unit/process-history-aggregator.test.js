@@ -117,8 +117,22 @@ test("aggregateRollupBuckets()", async (t) => {
 
   await t.test("pondère correctement quand les buckets n'ont pas le même sample_count", () => {
     const buckets = [
-      { cpu: { avg: 0, min: 0, max: 0, p95: 0 }, memory: { avg: 0, min: 0, max: 0, p95: 0 }, instancesAvg: 1, restartCountMax: 0, restartDelta: 0, sampleCount: 90 },
-      { cpu: { avg: 100, min: 100, max: 100, p95: 100 }, memory: { avg: 100, min: 100, max: 100, p95: 100 }, instancesAvg: 1, restartCountMax: 0, restartDelta: 0, sampleCount: 10 },
+      {
+        cpu: { avg: 0, min: 0, max: 0, p95: 0 },
+        memory: { avg: 0, min: 0, max: 0, p95: 0 },
+        instancesAvg: 1,
+        restartCountMax: 0,
+        restartDelta: 0,
+        sampleCount: 90,
+      },
+      {
+        cpu: { avg: 100, min: 100, max: 100, p95: 100 },
+        memory: { avg: 100, min: 100, max: 100, p95: 100 },
+        instancesAvg: 1,
+        restartCountMax: 0,
+        restartDelta: 0,
+        sampleCount: 10,
+      },
     ];
     const agg = aggregateRollupBuckets(buckets);
     assert.equal(agg.cpu.avg, 10, "90% de poids sur le bucket à 0 -> moyenne pondérée proche de 0, pas 50");
