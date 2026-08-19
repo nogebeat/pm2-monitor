@@ -117,25 +117,28 @@ test("API /api/servers", async (t) => {
   let serverKey;
   let agentToken;
 
-  await t.test("admin : enregistre un nouveau serveur agent (201), reçoit un token une seule fois", async () => {
-    const { server, baseUrl } = await startServer(ADMIN, agentHub);
-    try {
-      const res = await fetch(baseUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Prod EU", hostname: "eu.example.com", environment: "production" }),
-      });
-      assert.equal(res.status, 201);
-      const body = await res.json();
-      assert.ok(body.server.serverKey.startsWith("srv_"));
-      assert.equal(body.server.status, "PENDING");
-      assert.ok(body.token);
-      serverKey = body.server.serverKey;
-      agentToken = body.token;
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "admin : enregistre un nouveau serveur agent (201), reçoit un token une seule fois",
+    async () => {
+      const { server, baseUrl } = await startServer(ADMIN, agentHub);
+      try {
+        const res = await fetch(baseUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "Prod EU", hostname: "eu.example.com", environment: "production" }),
+        });
+        assert.equal(res.status, 201);
+        const body = await res.json();
+        assert.ok(body.server.serverKey.startsWith("srv_"));
+        assert.equal(body.server.status, "PENDING");
+        assert.ok(body.token);
+        serverKey = body.server.serverKey;
+        agentToken = body.token;
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await t.test("GET / liste le serveur local (auto-enregistré) et l'agent créé", async () => {
     const { store } = require("../../lib/services/servers");
@@ -154,18 +157,21 @@ test("API /api/servers", async (t) => {
     }
   });
 
-  await t.test("GET /:key/status reflète isOnline() du hub même si le statut persisté est PENDING", async () => {
-    agentHub.setOnline(serverKey, true);
-    const { server, baseUrl } = await startServer(ADMIN, agentHub);
-    try {
-      const res = await fetch(`${baseUrl}/${serverKey}/status`);
-      assert.equal(res.status, 200);
-      const body = await res.json();
-      assert.equal(body.status, "ONLINE");
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "GET /:key/status reflète isOnline() du hub même si le statut persisté est PENDING",
+    async () => {
+      agentHub.setOnline(serverKey, true);
+      const { server, baseUrl } = await startServer(ADMIN, agentHub);
+      try {
+        const res = await fetch(`${baseUrl}/${serverKey}/status`);
+        assert.equal(res.status, 200);
+        const body = await res.json();
+        assert.equal(body.status, "ONLINE");
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await t.test("PUT /:key met à jour le nom", async () => {
     const { server, baseUrl } = await startServer(ADMIN, agentHub);
@@ -221,31 +227,37 @@ test("API /api/servers", async (t) => {
     }
   });
 
-  await t.test("scoping : un utilisateur restreint à d'autres serveurs reçoit 403 sur ce serveur", async () => {
-    const scoped = { ...SERVERS_USER, allowedServerKeys: ["srv_un_autre"] };
-    const { server, baseUrl } = await startServer(scoped, agentHub);
-    try {
-      const res = await fetch(`${baseUrl}/${serverKey}/status`);
-      assert.equal(res.status, 403);
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "scoping : un utilisateur restreint à d'autres serveurs reçoit 403 sur ce serveur",
+    async () => {
+      const scoped = { ...SERVERS_USER, allowedServerKeys: ["srv_un_autre"] };
+      const { server, baseUrl } = await startServer(scoped, agentHub);
+      try {
+        const res = await fetch(`${baseUrl}/${serverKey}/status`);
+        assert.equal(res.status, 403);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
-  await t.test("scoping : GET / ne renvoie que les serveurs autorisés pour un utilisateur restreint", async () => {
-    const scoped = { ...SERVERS_USER, allowedServerKeys: [serverKey] };
-    const { server, baseUrl } = await startServer(scoped, agentHub);
-    try {
-      const res = await fetch(baseUrl);
-      const list = await res.json();
-      assert.deepEqual(
-        list.map((s) => s.serverKey),
-        [serverKey],
-      );
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "scoping : GET / ne renvoie que les serveurs autorisés pour un utilisateur restreint",
+    async () => {
+      const scoped = { ...SERVERS_USER, allowedServerKeys: [serverKey] };
+      const { server, baseUrl } = await startServer(scoped, agentHub);
+      try {
+        const res = await fetch(baseUrl);
+        const list = await res.json();
+        assert.deepEqual(
+          list.map((s) => s.serverKey),
+          [serverKey],
+        );
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await t.test("action distante : agent hors ligne -> 400", async () => {
     agentHub.setOnline(serverKey, false);
@@ -278,38 +290,44 @@ test("API /api/servers", async (t) => {
     }
   });
 
-  await t.test("action distante : refusée si l'utilisateur n'a pas la permission sur l'app ciblée", async () => {
-    agentHub.setOnline(serverKey, true);
-    const noRestart = {
-      ...SERVERS_USER,
-      permissions: [{ appName: "*", action: "servers_read" }],
-    };
-    const { server, baseUrl } = await startServer(noRestart, agentHub);
-    try {
-      const res = await fetch(`${baseUrl}/${serverKey}/action`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "restart", processName: "api" }),
-      });
-      assert.equal(res.status, 403);
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "action distante : refusée si l'utilisateur n'a pas la permission sur l'app ciblée",
+    async () => {
+      agentHub.setOnline(serverKey, true);
+      const noRestart = {
+        ...SERVERS_USER,
+        permissions: [{ appName: "*", action: "servers_read" }],
+      };
+      const { server, baseUrl } = await startServer(noRestart, agentHub);
+      try {
+        const res = await fetch(`${baseUrl}/${serverKey}/action`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "restart", processName: "api" }),
+        });
+        assert.equal(res.status, 403);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
-  await t.test("action distante : refusée sur le serveur local (doit passer par /api/processes)", async () => {
-    const { server, baseUrl } = await startServer(ADMIN, agentHub);
-    try {
-      const res = await fetch(`${baseUrl}/local/action`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "restart", processName: "api" }),
-      });
-      assert.equal(res.status, 400);
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "action distante : refusée sur le serveur local (doit passer par /api/processes)",
+    async () => {
+      const { server, baseUrl } = await startServer(ADMIN, agentHub);
+      try {
+        const res = await fetch(`${baseUrl}/local/action`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "restart", processName: "api" }),
+        });
+        assert.equal(res.status, 400);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await t.test("DELETE /:key supprime le serveur ; il n'apparaît plus dans la liste", async () => {
     const { server, baseUrl } = await startServer(ADMIN, agentHub);

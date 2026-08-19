@@ -138,17 +138,13 @@ socket.on("connect", async () => {
   log(`Connecté au hub (${HUB_URL}).`);
   const processes = await listProcesses();
   const snapshot = await buildSnapshot();
-  socket.emit(
-    "register",
-    { ...identity(), snapshot, processes },
-    (ack) => {
-      if (!ack || !ack.ok) {
-        console.error("Enregistrement refusé par le hub :", ack && ack.error);
-      } else {
-        log("Enregistrement accepté, protocole", ack.protocolVersion);
-      }
-    },
-  );
+  socket.emit("register", { ...identity(), snapshot, processes }, (ack) => {
+    if (!ack || !ack.ok) {
+      console.error("Enregistrement refusé par le hub :", ack && ack.error);
+    } else {
+      log("Enregistrement accepté, protocole", ack.protocolVersion);
+    }
+  });
   startHeartbeat();
 });
 
@@ -195,7 +191,9 @@ socket.on("action", async ({ action, processName } = {}, ack) => {
   }
   try {
     if (action === "start") {
-      await new Promise((resolve, reject) => pm2.start(processName, (err) => (err ? reject(err) : resolve())));
+      await new Promise((resolve, reject) =>
+        pm2.start(processName, (err) => (err ? reject(err) : resolve())),
+      );
     } else if (action === "stop") {
       await new Promise((resolve, reject) => pm2.stop(processName, (err) => (err ? reject(err) : resolve())));
     } else if (action === "restart") {

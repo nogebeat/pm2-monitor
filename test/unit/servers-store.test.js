@@ -24,7 +24,10 @@ test("servers/store — enregistrement d'un agent", async (t) => {
     assert.equal(server.status, "PENDING");
     assert.equal(server.kind, "agent");
     assert.equal(server.hasToken, true);
-    assert.ok(token && token.length > 20, "le token en clair doit être renvoyé une seule fois, à la création");
+    assert.ok(
+      token && token.length > 20,
+      "le token en clair doit être renvoyé une seule fois, à la création",
+    );
   });
 
   await t.test("le token en clair n'est plus jamais exposé par list()/getByKey()", async () => {
@@ -39,7 +42,10 @@ test("servers/store — enregistrement d'un agent", async (t) => {
   });
 
   await t.test("create() avec un environnement invalide échoue", async () => {
-    await assert.rejects(() => store.create({ name: "Agent C", environment: "n'importe quoi" }), /Environnement/i);
+    await assert.rejects(
+      () => store.create({ name: "Agent C", environment: "n'importe quoi" }),
+      /Environnement/i,
+    );
   });
 
   await cleanupDb(dbCtx);
@@ -183,13 +189,16 @@ test("servers/store — serveurs en double / unicité", async (t) => {
   const dbCtx = await freshDb();
   await migrator.up();
 
-  await t.test("deux serveurs peuvent partager le même nom (server_key reste l'identité unique)", async () => {
-    const a = await store.create({ name: "Prod" });
-    const b = await store.create({ name: "Prod" });
-    assert.notEqual(a.server.serverKey, b.server.serverKey);
-    const all = await store.list();
-    assert.equal(all.filter((s) => s.name === "Prod").length, 2);
-  });
+  await t.test(
+    "deux serveurs peuvent partager le même nom (server_key reste l'identité unique)",
+    async () => {
+      const a = await store.create({ name: "Prod" });
+      const b = await store.create({ name: "Prod" });
+      assert.notEqual(a.server.serverKey, b.server.serverKey);
+      const all = await store.list();
+      assert.equal(all.filter((s) => s.name === "Prod").length, 2);
+    },
+  );
 
   await t.test("server_key généré n'entre jamais en collision sur un grand nombre de créations", async () => {
     const keys = new Set();

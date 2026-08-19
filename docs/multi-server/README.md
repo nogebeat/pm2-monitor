@@ -87,13 +87,13 @@ chacune. `/agent` n'hérite pas du middleware de session (`io.use()` dans
 
 Événements échangés (voir `lib/realtime/agent-hub.js` et `bin/agent.js`) :
 
-| Événement       | Sens         | Contenu                                                    |
-|-----------------|--------------|-------------------------------------------------------------|
-| `register`      | agent → hub  | identité (hostname/OS/Node/PM2 version), premier snapshot + process |
-| `heartbeat`     | agent → hub  | snapshot système + liste de process, à intervalle régulier  |
-| `process:event` | agent → hub  | événement PM2 (start/stop/restart/exit/crash…)               |
-| `log`           | agent → hub  | ligne de log stdout/stderr                                   |
-| `action`        | hub → agent  | action distante (`start`/`stop`/`restart`/`reload`) + ack     |
+| Événement       | Sens        | Contenu                                                             |
+| --------------- | ----------- | ------------------------------------------------------------------- |
+| `register`      | agent → hub | identité (hostname/OS/Node/PM2 version), premier snapshot + process |
+| `heartbeat`     | agent → hub | snapshot système + liste de process, à intervalle régulier          |
+| `process:event` | agent → hub | événement PM2 (start/stop/restart/exit/crash…)                      |
+| `log`           | agent → hub | ligne de log stdout/stderr                                          |
+| `action`        | hub → agent | action distante (`start`/`stop`/`restart`/`reload`) + ack           |
 
 Le hub réémet ensuite sur le namespace principal, à destination du
 frontend, avec un `serverId` explicite (`server.snapshot`, `server.status`,
@@ -139,13 +139,13 @@ d'agent. La reconnexion côté agent est automatique (`socket.io-client`,
 
 3. Variables reconnues par l'agent :
 
-   | Variable                     | Requis | Description                                             |
-   |-------------------------------|--------|-----------------------------------------------------------|
-   | `PM2_MONITOR_HUB_URL`          | oui    | URL du serveur central                                    |
-   | `PM2_MONITOR_SERVER_KEY`       | oui    | identifiant du serveur, fourni à l'enregistrement          |
-   | `PM2_MONITOR_AGENT_TOKEN`      | oui    | token d'agent, fourni une fois à l'enregistrement/régénération |
-   | `PM2_MONITOR_AGENT_NAME`       | non    | nom affiché dans les logs de l'agent (défaut : hostname)   |
-   | `AGENT_HEARTBEAT_INTERVAL_MS` / `AGENT_HEARTBEAT_TIMEOUT_MS` / `AGENT_ACTION_ACK_TIMEOUT_MS` | non | doivent être identiques côté hub et côté agent (voir `protocol.js`) |
+   | Variable                                                                                     | Requis | Description                                                         |
+   | -------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------- |
+   | `PM2_MONITOR_HUB_URL`                                                                        | oui    | URL du serveur central                                              |
+   | `PM2_MONITOR_SERVER_KEY`                                                                     | oui    | identifiant du serveur, fourni à l'enregistrement                   |
+   | `PM2_MONITOR_AGENT_TOKEN`                                                                    | oui    | token d'agent, fourni une fois à l'enregistrement/régénération      |
+   | `PM2_MONITOR_AGENT_NAME`                                                                     | non    | nom affiché dans les logs de l'agent (défaut : hostname)            |
+   | `AGENT_HEARTBEAT_INTERVAL_MS` / `AGENT_HEARTBEAT_TIMEOUT_MS` / `AGENT_ACTION_ACK_TIMEOUT_MS` | non    | doivent être identiques côté hub et côté agent (voir `protocol.js`) |
 
 4. Idéalement, faites tourner l'agent lui-même sous PM2 sur la machine
    distante (`pm2 start bin/agent.js --name pm2-monitor-agent`), pour
@@ -250,17 +250,17 @@ deux process de même nom sur deux serveurs différents.
 
 Monté sur `/api/servers` (`lib/routes/servers.js`) :
 
-| Méthode | Route                              | Permission        | Description                                    |
-|---------|-------------------------------------|--------------------|--------------------------------------------------|
-| GET     | `/api/servers`                      | `servers_read`     | liste des serveurs visibles par l'utilisateur     |
-| GET     | `/api/servers/:key/status`          | `servers_read` + scope | statut détaillé d'un serveur                 |
-| POST    | `/api/servers`                      | `servers_manage`   | enregistre un nouveau serveur, retourne `{ server, token }` |
-| PUT     | `/api/servers/:key`                 | `servers_manage`   | modifie nom/hostname/environnement                |
-| POST    | `/api/servers/:key/enable`          | `servers_manage`   | active un serveur                                 |
-| POST    | `/api/servers/:key/disable`         | `servers_manage`   | désactive un serveur (coupe la connexion en cours) |
-| DELETE  | `/api/servers/:key`                 | `servers_manage`   | supprime un serveur (impossible pour `local`)      |
-| POST    | `/api/servers/:key/regenerate-token`| `servers_manage`   | régénère le token (invalide l'ancien)             |
-| POST    | `/api/servers/:key/action`          | scope + permission app/action | relaie une action PM2 vers l'agent |
+| Méthode | Route                                | Permission                    | Description                                                 |
+| ------- | ------------------------------------ | ----------------------------- | ----------------------------------------------------------- |
+| GET     | `/api/servers`                       | `servers_read`                | liste des serveurs visibles par l'utilisateur               |
+| GET     | `/api/servers/:key/status`           | `servers_read` + scope        | statut détaillé d'un serveur                                |
+| POST    | `/api/servers`                       | `servers_manage`              | enregistre un nouveau serveur, retourne `{ server, token }` |
+| PUT     | `/api/servers/:key`                  | `servers_manage`              | modifie nom/hostname/environnement                          |
+| POST    | `/api/servers/:key/enable`           | `servers_manage`              | active un serveur                                           |
+| POST    | `/api/servers/:key/disable`          | `servers_manage`              | désactive un serveur (coupe la connexion en cours)          |
+| DELETE  | `/api/servers/:key`                  | `servers_manage`              | supprime un serveur (impossible pour `local`)               |
+| POST    | `/api/servers/:key/regenerate-token` | `servers_manage`              | régénère le token (invalide l'ancien)                       |
+| POST    | `/api/servers/:key/action`           | scope + permission app/action | relaie une action PM2 vers l'agent                          |
 
 ## Migration
 

@@ -129,18 +129,16 @@ function pct(n) {
 
       <div v-if="showCreate" class="server-form">
         <input v-model="newServer.name" type="text" :placeholder="t('serversView.namePlaceholder')" />
-        <input
-          v-model="newServer.hostname"
-          type="text"
-          :placeholder="t('serversView.hostnamePlaceholder')"
-        />
+        <input v-model="newServer.hostname" type="text" :placeholder="t('serversView.hostnamePlaceholder')" />
         <select v-model="newServer.environment">
           <option value="production">{{ t("serversView.envProduction") }}</option>
           <option value="staging">{{ t("serversView.envStaging") }}</option>
           <option value="development">{{ t("serversView.envDevelopment") }}</option>
           <option value="custom">{{ t("serversView.envCustom") }}</option>
         </select>
-        <button class="icon-btn go" type="button" @click="submitCreate">{{ t("serversView.register") }}</button>
+        <button class="icon-btn go" type="button" @click="submitCreate">
+          {{ t("serversView.register") }}
+        </button>
       </div>
 
       <div v-if="justCreatedToken" class="token-panel">
@@ -178,16 +176,27 @@ function pct(n) {
       <ul v-else class="servers-list">
         <li v-for="s in state.servers.items" :key="s.serverKey" class="server-row">
           <div class="server-row-head" @click="toggleExpand(s)">
-            <span class="status-dot" :class="`status-${s.status === 'ONLINE' ? 'online' : s.status === 'PENDING' ? 'launching' : 'errored'}`"></span>
+            <span
+              class="status-dot"
+              :class="`status-${s.status === 'ONLINE' ? 'online' : s.status === 'PENDING' ? 'launching' : 'errored'}`"
+            ></span>
             <span class="label">{{ s.name }}</span>
             <span v-if="s.kind === 'local'" class="badge-admin">{{ t("serversView.local") }}</span>
             <span class="hint-text">{{ s.hostname || "–" }}</span>
-            <span class="hint-text env-badge">{{ t(`serversView.env${s.environment.charAt(0).toUpperCase()}${s.environment.slice(1)}`) }}</span>
+            <span class="hint-text env-badge">{{
+              t(`serversView.env${s.environment.charAt(0).toUpperCase()}${s.environment.slice(1)}`)
+            }}</span>
             <span class="hint-text">{{ statusLabel(s.status) }}</span>
             <span class="hint-text">
-              {{ t("serversView.processCount", { n: s.kind === "local" ? state.processes.length : (s.processes || []).length }) }}
+              {{
+                t("serversView.processCount", {
+                  n: s.kind === "local" ? state.processes.length : (s.processes || []).length,
+                })
+              }}
             </span>
-            <span class="hint-text">{{ t("serversView.lastSeen", { time: s.lastSeen ? fmtUptime(s.lastSeen) : "–" }) }}</span>
+            <span class="hint-text">{{
+              t("serversView.lastSeen", { time: s.lastSeen ? fmtUptime(s.lastSeen) : "–" })
+            }}</span>
             <span style="flex: 1"></span>
             <template v-if="canManage() && s.kind !== 'local'">
               <button type="button" class="icon-btn" @click.stop="startEdit(s)">✎</button>
@@ -204,28 +213,45 @@ function pct(n) {
           <div v-if="s.snapshot" class="server-stats">
             <div class="server-stat">
               <span class="hint-text">CPU {{ pct(s.snapshot.cpu) }}%</span>
-              <div class="bar"><div class="bar-fill" :style="{ width: pct(s.snapshot.cpu) + '%' }"></div></div>
+              <div class="bar">
+                <div class="bar-fill" :style="{ width: pct(s.snapshot.cpu) + '%' }"></div>
+              </div>
             </div>
             <div class="server-stat">
               <span class="hint-text">RAM {{ s.snapshot.mem ? pct(s.snapshot.mem.percent) : 0 }}%</span>
               <div class="bar">
-                <div class="bar-fill" :style="{ width: (s.snapshot.mem ? pct(s.snapshot.mem.percent) : 0) + '%' }"></div>
+                <div
+                  class="bar-fill"
+                  :style="{ width: (s.snapshot.mem ? pct(s.snapshot.mem.percent) : 0) + '%' }"
+                ></div>
               </div>
-              <span v-if="s.snapshot.mem" class="hint-text">{{ fmtBytes(s.snapshot.mem.used) }} / {{ fmtBytes(s.snapshot.mem.total) }}</span>
+              <span v-if="s.snapshot.mem" class="hint-text"
+                >{{ fmtBytes(s.snapshot.mem.used) }} / {{ fmtBytes(s.snapshot.mem.total) }}</span
+              >
             </div>
             <div v-if="s.snapshot.disk" class="server-stat">
               <span class="hint-text">{{ t("serversView.disk") }} {{ pct(s.snapshot.disk.percent) }}%</span>
-              <div class="bar"><div class="bar-fill" :style="{ width: pct(s.snapshot.disk.percent) + '%' }"></div></div>
-              <span class="hint-text">{{ fmtBytes(s.snapshot.disk.used) }} / {{ fmtBytes(s.snapshot.disk.total) }}</span>
+              <div class="bar">
+                <div class="bar-fill" :style="{ width: pct(s.snapshot.disk.percent) + '%' }"></div>
+              </div>
+              <span class="hint-text"
+                >{{ fmtBytes(s.snapshot.disk.used) }} / {{ fmtBytes(s.snapshot.disk.total) }}</span
+              >
             </div>
             <div v-if="s.snapshot.temp" class="server-stat">
-              <span class="hint-text">{{ t("serversView.temperature") }} {{ s.snapshot.temp.celsius }}°C</span>
+              <span class="hint-text"
+                >{{ t("serversView.temperature") }} {{ s.snapshot.temp.celsius }}°C</span
+              >
             </div>
           </div>
 
           <div v-if="editing === s.serverKey" class="server-form">
             <input v-model="editDraft.name" type="text" :placeholder="t('serversView.namePlaceholder')" />
-            <input v-model="editDraft.hostname" type="text" :placeholder="t('serversView.hostnamePlaceholder')" />
+            <input
+              v-model="editDraft.hostname"
+              type="text"
+              :placeholder="t('serversView.hostnamePlaceholder')"
+            />
             <select v-model="editDraft.environment">
               <option value="production">{{ t("serversView.envProduction") }}</option>
               <option value="staging">{{ t("serversView.envStaging") }}</option>
@@ -239,7 +265,10 @@ function pct(n) {
           <div v-if="expanded === s.serverKey && s.kind !== 'local'" class="server-processes">
             <div v-if="!(s.processes || []).length" class="hint-text">{{ t("serversView.noProcesses") }}</div>
             <div v-for="p in s.processes || []" :key="p.id" class="server-process-row">
-              <span class="status-dot" :class="`status-${p.status === 'online' ? 'online' : 'errored'}`"></span>
+              <span
+                class="status-dot"
+                :class="`status-${p.status === 'online' ? 'online' : 'errored'}`"
+              ></span>
               <span class="label">{{ p.name }}</span>
               <span class="hint-text">{{ p.status }}</span>
               <span class="hint-text">CPU {{ pct(p.cpu) }}%</span>
