@@ -267,6 +267,28 @@ ensure_dependencies() {
     touch node_modules/.deploy-installed
     ok "Dépendances installées."
   fi
+  ensure_native_modules_rebuilt
+}
+
+# `npm install` seul NE recompile PAS les modules natifs (better-sqlite3...)
+# quand seule la version de Node a changé sous le capot (ex: ce script vient
+# de passer de Node 20 à 22 dans ensure_nodejs) : package.json et le
+# lockfile n'ont pas bougé, donc npm considère tout "up to date" alors que le
+# binaire .node reste compilé pour l'ancien NODE_MODULE_VERSION — ce qui fait
+# planter le démarrage (ERR_DLOPEN_FAILED) une fois l'app relancée sur le
+# nouveau Node. On compare la version de Node utilisée à la dernière
+# installation à la version actuelle, et on force `npm rebuild` si elles
+# diffèrent (no-op sinon, donc sans coût sur les runs suivants).
+ensure_native_modules_rebuilt() {
+  local stamp="node_modules/.deploy-node-version" current_version
+  current_version="$(node -v)"
+  if [ -f "$stamp" ] && [ "$(cat "$stamp" 2>/dev/null)" = "$current_version" ]; then
+    return 0
+  fi
+  info "Version de Node différente de la dernière installation (ou première installation) : recompilation des modules natifs (better-sqlite3...)…"
+  npm rebuild --omit=dev
+  echo "$current_version" > "$stamp"
+  ok "Modules natifs à jour pour Node $current_version."
 }
 
 ensure_frontend_build() {
@@ -680,6 +702,7 @@ rollback_update() {
     exit 1
   fi
   npm install --omit=dev || true
+  ensure_native_modules_rebuilt || true
   ensure_frontend_build || true
   if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
     pm2 restart "$APP_NAME" --update-env >/dev/null 2>&1 || true
@@ -732,6 +755,7 @@ cmd_update() {
     info "DB_DRIVER=mysql (.env) : vérification de la dépendance mysql2…"
     npm install mysql2 --omit=dev --no-save || warn "Échec d'installation de mysql2, vérifie ta connexion npm."
   fi
+  ensure_native_modules_rebuilt
   ensure_frontend_build
   run_tests
   run_migrations

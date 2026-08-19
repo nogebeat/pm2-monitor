@@ -59,15 +59,20 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
   `vue-i18n`/`@intlify` ≥11.4, qui exigent réellement Node ≥22
   (`npm warn EBADENGINE` sur un serveur en Node 20). `engines.node`,
   `.nvmrc`, le badge du README et la matrice CI sont alignés sur v22.
+- `deploy.sh` : les modules natifs (`better-sqlite3`...) restaient compilés
+  pour l'ancienne version de Node après un passage à une version plus
+  récente (ex: 20 → 22 via `ensure_nodejs`), provoquant un crash au
+  démarrage (`ERR_DLOPEN_FAILED` / `NODE_MODULE_VERSION` mismatch) —
+  `npm install` seul ne les recompile pas quand ni `package.json` ni le
+  lockfile n'ont changé. Le script détecte désormais un changement de
+  version de Node depuis la dernière installation et force `npm rebuild`
+  dans ce cas (install, update, et rollback).
 - `npm install`/`npm ci` en production (`--omit=dev`, utilisés par
   `deploy.sh`) plantaient systématiquement sur un serveur neuf : le script
   `prepare` (`husky`) s'exécute même sans devDependencies installées, et
   échouait avec `husky: not found` (exit 127), bloquant toute installation.
   `prepare` ignore désormais cet échec (`husky || true`) — sans danger,
   husky sert uniquement aux hooks Git en développement local.
-
-### Corrigé
-
 - `package.json` : le champ `version` n'était pas un semver valide
   (`3.5.f`) — corrigé en `3.5.0`.
 - `npm run test:unit` / `test:integration` utilisaient un pattern de glob
