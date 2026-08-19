@@ -8,6 +8,7 @@ import ProcessSidebar from "./components/ProcessSidebar.vue";
 import LogsPanel from "./components/LogsPanel.vue";
 import SystemView from "./components/SystemView.vue";
 import EventsView from "./components/EventsView.vue";
+import ServersView from "./components/ServersView.vue";
 import DashboardView from "./components/DashboardView.vue";
 import ModalHost from "./components/ModalHost.vue";
 import LoginScreen from "./components/LoginScreen.vue";
@@ -39,6 +40,7 @@ onMounted(() => {
       <DashboardView v-if="state.view === 'dashboard'" />
       <SystemView v-if="state.view === 'system'" />
       <EventsView v-if="state.view === 'events'" />
+      <ServersView v-if="state.view === 'servers'" />
 
       <ModalHost v-if="state.modal" />
 

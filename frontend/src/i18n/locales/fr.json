@@ -48,7 +48,8 @@
     "users": "Utilisateurs",
     "themeToggle": "Changer de thème",
     "logout": "Se déconnecter",
-    "language": "Langue"
+    "language": "Langue",
+    "tabServers": "Serveurs"
   },
   "login": {
     "subtitle": "Connexion requise",
@@ -269,7 +270,9 @@
     "globalActionsHint": "Actions globales (daemon PM2, système…)",
     "adminHint": "Les administrateurs ont tous les droits, sur toutes les apps.",
     "confirmDelete": "Supprimer l'utilisateur \"{name}\" ?",
-    "passwordUpdated": "Mot de passe mis à jour pour {name}."
+    "passwordUpdated": "Mot de passe mis à jour pour {name}.",
+    "serverScopeHint": "Portée serveurs (Phase 10 — aucune case cochée = accès à tous les serveurs autorisés par les permissions ci-dessus)",
+    "serverScopeUnrestricted": "Aucune restriction : cet utilisateur voit tous les serveurs autorisés par ses permissions."
   },
   "healthChecksModal": {
     "title": "Health Checks",
@@ -381,5 +384,44 @@
     "allAlerts": "Toutes les alertes",
     "routingDescription": "Règles de routing — matchent une alerte et la routent vers un ou plusieurs providers.",
     "confirmDeleteRoute": "Supprimer la règle \"{name}\" ?"
+  },
+  "serversView": {
+    "title": "Serveurs",
+    "subtitle": "Surveillance multi-serveurs : l'hôte local et les agents distants enregistrés.",
+    "addServer": "Enregistrer un serveur",
+    "namePlaceholder": "nom du serveur",
+    "hostnamePlaceholder": "hostname (optionnel)",
+    "envProduction": "Production",
+    "envStaging": "Staging",
+    "envDevelopment": "Développement",
+    "envCustom": "Personnalisé",
+    "register": "Enregistrer",
+    "tokenTitle": "Token d'agent pour \"{name}\"",
+    "tokenHint": "Ce token ne sera plus jamais affiché : copiez-le maintenant et configurez l'agent avec.",
+    "tokenEnvHint": "PM2_MONITOR_SERVER_KEY={key}",
+    "tokenDismiss": "J'ai copié le token",
+    "none": "Aucun serveur enregistré.",
+    "local": "Local",
+    "processCount": "{n} process",
+    "lastSeen": "vu il y a {time}",
+    "disk": "Disque",
+    "temperature": "Température",
+    "enable": "Activer",
+    "disable": "Désactiver",
+    "regenerateToken": "Régénérer le token",
+    "confirmDelete": "Supprimer le serveur \"{name}\" ? L'agent associé perdra tout accès.",
+    "confirmRegenerate": "Régénérer le token de \"{name}\" ? L'ancien token sera immédiatement invalide.",
+    "noProcesses": "Aucun process reçu de cet agent pour le moment.",
+    "status": {
+      "online": "En ligne",
+      "offline": "Hors ligne",
+      "pending": "En attente"
+    },
+    "action": {
+      "start": "Démarrer",
+      "stop": "Arrêter",
+      "restart": "Redémarrer",
+      "reload": "Recharger"
+    }
   }
 }

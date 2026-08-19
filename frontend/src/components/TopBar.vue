@@ -84,6 +84,14 @@ function openAuditLog() {
       >
         {{ t("topbar.tabTimeline") }}
       </button>
+      <button
+        v-if="can('servers_read')"
+        class="view-tab"
+        :class="{ active: state.view === 'servers' }"
+        @click="setView('servers')"
+      >
+        {{ t("topbar.tabServers") }}
+      </button>
     </nav>
 
     <div class="topbar-stats">

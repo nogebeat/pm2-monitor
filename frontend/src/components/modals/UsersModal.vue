@@ -13,6 +13,12 @@ function close() {
 
 const users = ref([]);
 const catalog = reactive({ appActions: {}, globalActions: {} });
+// Serveurs disponibles pour le scoping (Phase 10 — Multi-server). Chargement
+// séparé et tolérant à l'échec : cette modale reste utilisable même si un
+// user n'a pas accès à /api/servers (n'arrive pas en pratique ici, cette
+// modale est réservée aux admins, mais évite de casser la gestion des
+// utilisateurs si jamais ce endpoint échoue pour une autre raison).
+const servers = ref([]);
 const loading = ref(true);
 const expanded = ref(null); // id du user dont le panneau de permissions est ouvert
 
@@ -25,11 +31,16 @@ const newUser = reactive({ username: "", password: "", isAdmin: false });
 
 function load() {
   loading.value = true;
-  return Promise.all([apiGet("/api/users"), apiGet("/api/permissions/catalog")])
-    .then(([u, c]) => {
+  return Promise.all([
+    apiGet("/api/users"),
+    apiGet("/api/permissions/catalog"),
+    apiGet("/api/servers").catch(() => []),
+  ])
+    .then(([u, c, srv]) => {
       users.value = u;
       catalog.appActions = c.appActions;
       catalog.globalActions = c.globalActions;
+      servers.value = srv;
     })
     .catch(notifyError)
     .finally(() => {
@@ -92,6 +103,23 @@ function togglePerm(u, appName, action) {
     ? u.permissions.filter((p) => !(p.appName === appName && p.action === action))
     : [...u.permissions, { appName, action }];
   apiPut(u.id, { permissions }).then(load).catch(notifyError);
+}
+
+// ---------- Portée serveurs (Phase 10 — Multi-server / Remote PM2) ----------
+// Liste vide = pas de restriction (voit tous les serveurs que ses
+// permissions habituelles autorisent) — voir lib/permissions.js#hasServerAccess
+// et lib/services/servers/user-scope.js. Filtre orthogonal aux permissions
+// app/action ci-dessus, pas un second système de permissions.
+function hasServerScope(u, serverKey) {
+  return Array.isArray(u.allowedServerKeys) && u.allowedServerKeys.includes(serverKey);
+}
+
+function toggleServerScope(u, serverKey) {
+  const current = Array.isArray(u.allowedServerKeys) ? u.allowedServerKeys : [];
+  const allowedServers = current.includes(serverKey)
+    ? current.filter((k) => k !== serverKey)
+    : [...current, serverKey];
+  apiPut(u.id, { allowedServers }).then(load).catch(notifyError);
 }
 
 const pwdDrafts = reactive({});
@@ -213,6 +241,25 @@ function changePassword(u) {
                   {{ action }}
                 </label>
               </div>
+
+              <template v-if="servers.length">
+                <div class="hint-text" style="margin: 10px 0 4px">
+                  {{ t("usersModal.serverScopeHint") }}
+                </div>
+                <div class="global-perms">
+                  <label v-for="srv in servers" :key="srv.serverKey" class="chk" :title="srv.hostname || ''">
+                    <input
+                      type="checkbox"
+                      :checked="hasServerScope(u, srv.serverKey)"
+                      @change="toggleServerScope(u, srv.serverKey)"
+                    />
+                    {{ srv.name }}
+                  </label>
+                </div>
+                <div v-if="!u.allowedServerKeys || !u.allowedServerKeys.length" class="hint-text">
+                  {{ t("usersModal.serverScopeUnrestricted") }}
+                </div>
+              </template>
             </template>
             <div v-else class="hint-text">{{ t("usersModal.adminHint") }}</div>
           </div>

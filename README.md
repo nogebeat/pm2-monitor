@@ -89,13 +89,14 @@ pm2-monitor/
 │   ├── health-checks/README.md  # détail des health checks HTTP/TCP/Command (Phase 6)
 │   ├── auto-healing/README.md   # détail Auto-Healing : garde-fous, activation, sécurité (Phase 7)
 │   ├── audit/README.md          # détail de l'audit log : événements, sanitization, sécurité, API (Phase 9)
+│   ├── multi-server/README.md   # multi-serveurs / agents distants : architecture, sécurité, install (Phase 10)
 │   └── notifications/
 │       ├── README.md            # architecture, registry, secrets, API, permissions
 │       └── providers/            # un .md par provider (config, sécurité, test, erreurs)
 ├── frontend/                # source du frontend Vue 3 + Vite
 │   ├── src/
 │   │   ├── components/        # TopBar, ProcessSidebar, LogsPanel, SystemView, EventsView,
-│   │   │                       # LoginScreen, modales…
+│   │   │                       # ServersView, LoginScreen, modales…
 │   │   ├── store.js            # état réactif partagé (process, logs, système, auth)
 │   │   ├── socket.js, api.js, format.js
 │   │   └── style.css
@@ -363,6 +364,10 @@ pour le détail de ce qui existe et ce qui est prévu.
   checks, timeline, auto-healing) en un instantané unique, et calcule l'état
   de santé global du serveur — voir [Dashboard global](#dashboard-global-onglet-dashboard)
   et [`docs/dashboard/README.md`](docs/dashboard/README.md).
+- `lib/services/servers/` : registre des serveurs surveillés (hôte local +
+  agents distants), tokens d'agent, scoping optionnel par utilisateur — voir
+  [Multi-server / Remote PM2](#multi-server--remote-pm2-onglet-serveurs) et
+  [`docs/multi-server/README.md`](docs/multi-server/README.md).
 
 ## Fonctionnalités
 
@@ -697,6 +702,35 @@ volontairement **pas** journalisées.
 - Documentation complète (événements, sanitization, rétention, sécurité,
   API) : [`docs/audit/README.md`](docs/audit/README.md).
 
+### Multi-server / Remote PM2 (onglet "Serveurs")
+
+Une instance centrale de PM2 Monitor (le « hub ») peut surveiller
+**plusieurs hôtes** PM2, chacun équipé d'un agent léger
+(`bin/agent.js`), en plus de l'hôte local. **Rétrocompatible sans
+configuration** : le serveur local est enregistré automatiquement au
+démarrage et reste la seule source de vérité pour ses propres process.
+
+- **Enregistrement d'un agent** : depuis l'onglet Serveurs, génère un
+  token d'agent (affiché une seule fois), à utiliser pour configurer
+  `PM2_MONITOR_HUB_URL` / `PM2_MONITOR_SERVER_KEY` / `PM2_MONITOR_AGENT_TOKEN`
+  côté agent (`node bin/agent.js` ou `npm run agent`).
+- **Temps réel** : statut ONLINE/OFFLINE/PENDING, métriques CPU/RAM/disque/
+  température, liste de process, via le namespace Socket.IO dédié
+  `/agent` (authentification par token, jamais par cookie de session).
+- **Actions distantes** : start/stop/restart/reload sur un process d'un
+  serveur distant, relayées à l'agent avec accusé de réception, soumises
+  aux mêmes permissions par app/action que le serveur local.
+- **Permissions** : deux actions globales dédiées (`servers_read`,
+  `servers_manage`) + un **scoping optionnel par serveur** (un
+  utilisateur peut être restreint à un sous-ensemble de serveurs, filtre
+  orthogonal aux permissions existantes — pas un second système RBAC).
+- **Sécurité** : token jamais stocké en clair (bcrypt), liste blanche
+  d'actions distantes appliquée des deux côtés (hub et agent), audit log
+  systématique des actions sensibles.
+- Documentation complète (architecture, communication, installation
+  d'un agent, sécurité, troubleshooting) :
+  [`docs/multi-server/README.md`](docs/multi-server/README.md).
+
 ### Logs
 
 - **Flux en direct** : filtre "Tout / stdout / stderr", filtre par niveau
@@ -741,6 +775,11 @@ volontairement **pas** journalisées.
   serveur (`./deploy.sh restart`, déploiement…), et ne sont pas partagées si
   tu fais tourner plusieurs instances derrière un load-balancer. Suffisant
   pour l'usage visé (un monitor par serveur), pas conçu pour du multi-instance.
+- **Multi-server** : la sidebar de process et le panneau de logs principal
+  restent centrés sur l'hôte local ; les process distants se consultent et
+  se pilotent depuis l'onglet Serveurs (liste dépliable par serveur), pas
+  encore intégrés à la sidebar/au panneau de logs principal — voir
+  [Limites connues de `docs/multi-server/README.md`](docs/multi-server/README.md#limites-connues).
 
 ## Multi-utilisateurs & permissions
 

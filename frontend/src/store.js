@@ -7,7 +7,7 @@ const MAX_CPU_HISTORY = 20;
 
 export const state = reactive({
   connected: false,
-  view: "process", // "process" | "dashboard" | "system" | "events"
+  view: "process", // "process" | "dashboard" | "system" | "events" | "servers"
 
   // ---------- Auth / permissions ----------
   auth: {
@@ -60,6 +60,14 @@ export const state = reactive({
     offset: 0,
     loading: false,
     loaded: false, // au moins un chargement effectué (distingue "vide" de "pas encore chargé")
+  },
+
+  // ---------- Serveurs distants (onglet "Serveurs", Phase 10 — Multi-server / Remote PM2) ----------
+  servers: {
+    items: [], // [{ id, serverKey, name, hostname, environment, kind, enabled, status, agentVersion,
+    //   protocolVersion, lastSeen, snapshot, processes, hasToken, createdAt, updatedAt }]
+    loaded: false,
+    loading: false,
   },
 
   pm2MenuOpen: false,
@@ -386,6 +394,97 @@ function scheduleDashboardRefresh() {
   }, 500);
 }
 
+// ---------- Serveurs distants (GET/POST/PUT /api/servers, Phase 10) ----------
+// Même découpage que les autres sections : le store ne fait qu'appeler
+// lib/routes/servers.js et refléter la réponse ; le statut/les métriques
+// temps réel arrivent séparément via les événements socket "server.snapshot"
+// et "server.status" (voir câblage WebSocket ci-dessous et server.js).
+
+function apiPut(url, body) {
+  return fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  }).then(async (r) => {
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || data.error) throw new Error(data.error || `Erreur HTTP ${r.status}`);
+    return data;
+  });
+}
+
+function apiDelete(url) {
+  return fetch(url, { method: "DELETE" }).then(async (r) => {
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || data.error) throw new Error(data.error || `Erreur HTTP ${r.status}`);
+    return data;
+  });
+}
+
+function mergeServerItem(server) {
+  const existing = state.servers.items.find((s) => s.serverKey === server.serverKey);
+  const merged = existing ? { ...existing, ...server } : { ...server, processes: [] };
+  const idx = state.servers.items.findIndex((s) => s.serverKey === server.serverKey);
+  if (idx === -1) state.servers.items.push(merged);
+  else state.servers.items.splice(idx, 1, merged);
+  return merged;
+}
+
+export function loadServers() {
+  state.servers.loading = true;
+  return apiGet("/api/servers")
+    .then((list) => {
+      list.forEach(mergeServerItem);
+      // Retire du store local les serveurs supprimés côté serveur entretemps.
+      const keys = new Set(list.map((s) => s.serverKey));
+      state.servers.items = state.servers.items.filter((s) => keys.has(s.serverKey));
+    })
+    .catch(notifyError)
+    .finally(() => {
+      state.servers.loading = false;
+      state.servers.loaded = true;
+    });
+}
+
+/** Retourne { server, token } — le token en clair n'est disponible qu'à cet instant. */
+export function createServer({ name, hostname, environment }) {
+  return apiPost("/api/servers", { name, hostname, environment }).then((r) => {
+    mergeServerItem(r.server);
+    return r;
+  });
+}
+
+export function updateServer(serverKey, patch) {
+  return apiPut(`/api/servers/${serverKey}`, patch).then((server) => {
+    mergeServerItem(server);
+    return server;
+  });
+}
+
+export function setServerEnabled(serverKey, enabled) {
+  return apiPost(`/api/servers/${serverKey}/${enabled ? "enable" : "disable"}`).then((server) => {
+    mergeServerItem(server);
+    return server;
+  });
+}
+
+export function deleteServer(serverKey) {
+  return apiDelete(`/api/servers/${serverKey}`).then(() => {
+    state.servers.items = state.servers.items.filter((s) => s.serverKey !== serverKey);
+  });
+}
+
+/** Retourne { server, token } — l'ancien token devient invalide immédiatement. */
+export function regenerateServerToken(serverKey) {
+  return apiPost(`/api/servers/${serverKey}/regenerate-token`).then((r) => {
+    mergeServerItem(r.server);
+    return r;
+  });
+}
+
+export function runRemoteAction(serverKey, action, processName) {
+  return apiPost(`/api/servers/${serverKey}/action`, { action, processName });
+}
+
 // ---------- Câblage WebSocket ----------
 
 socket.on("connect", () => {
@@ -451,6 +550,24 @@ socket.on("timeline_event", (entry) => {
 // Dashboard global (Phase 8) : mêmes événements déjà émis par server.js
 // pour les onglets Système/Process/Timeline (voir le commentaire sur
 // scheduleDashboardRefresh ci-dessus) — pas de nouveau canal temps réel.
+// Serveurs distants (server.snapshot / server.status, voir server.js#agentHub
+// et lib/realtime/agent-hub.js) : identifiés par serverId (= serverKey), pas
+// par pm_id seul, pour ne jamais confondre deux process de même nom sur deux
+// serveurs différents (voir prompt maître Phase 10, section WebSocket).
+socket.on("server.snapshot", ({ serverId, snapshot, processes }) => {
+  const existing = state.servers.items.find((s) => s.serverKey === serverId);
+  if (!existing) return; // pas encore chargé via loadServers() : ignoré, la liste se rafraîchira au prochain GET
+  existing.status = "ONLINE";
+  existing.snapshot = snapshot || existing.snapshot;
+  existing.processes = processes || [];
+});
+
+socket.on("server.status", ({ serverId, status }) => {
+  const existing = state.servers.items.find((s) => s.serverKey === serverId);
+  if (!existing) return;
+  existing.status = status;
+});
+
 socket.on("metrics.updated", scheduleDashboardRefresh);
 socket.on("process.updated", scheduleDashboardRefresh);
 socket.on("alert.triggered", scheduleDashboardRefresh);

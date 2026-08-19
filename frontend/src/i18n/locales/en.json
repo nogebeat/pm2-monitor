@@ -48,7 +48,8 @@
     "users": "Users",
     "themeToggle": "Toggle theme",
     "logout": "Log out",
-    "language": "Language"
+    "language": "Language",
+    "tabServers": "Servers"
   },
   "login": {
     "subtitle": "Login required",
@@ -269,7 +270,9 @@
     "globalActionsHint": "Global actions (PM2 daemon, system…)",
     "adminHint": "Administrators have all rights, on all apps.",
     "confirmDelete": "Delete user \"{name}\"?",
-    "passwordUpdated": "Password updated for {name}."
+    "passwordUpdated": "Password updated for {name}.",
+    "serverScopeHint": "Server scope (Phase 10 — no box checked = access to every server allowed by the permissions above)",
+    "serverScopeUnrestricted": "No restriction: this user sees every server their permissions allow."
   },
   "healthChecksModal": {
     "title": "Health Checks",
@@ -381,5 +384,44 @@
     "allAlerts": "All alerts",
     "routingDescription": "Routing rules — match an alert and route it to one or more providers.",
     "confirmDeleteRoute": "Delete rule \"{name}\"?"
+  },
+  "serversView": {
+    "title": "Servers",
+    "subtitle": "Multi-server monitoring: the local host and registered remote agents.",
+    "addServer": "Register a server",
+    "namePlaceholder": "server name",
+    "hostnamePlaceholder": "hostname (optional)",
+    "envProduction": "Production",
+    "envStaging": "Staging",
+    "envDevelopment": "Development",
+    "envCustom": "Custom",
+    "register": "Register",
+    "tokenTitle": "Agent token for \"{name}\"",
+    "tokenHint": "This token will never be shown again: copy it now and configure the agent with it.",
+    "tokenEnvHint": "PM2_MONITOR_SERVER_KEY={key}",
+    "tokenDismiss": "I copied the token",
+    "none": "No server registered.",
+    "local": "Local",
+    "processCount": "{n} processes",
+    "lastSeen": "seen {time} ago",
+    "disk": "Disk",
+    "temperature": "Temperature",
+    "enable": "Enable",
+    "disable": "Disable",
+    "regenerateToken": "Regenerate token",
+    "confirmDelete": "Delete server \"{name}\"? Its agent will lose all access.",
+    "confirmRegenerate": "Regenerate the token for \"{name}\"? The old token will be invalidated immediately.",
+    "noProcesses": "No process received from this agent yet.",
+    "status": {
+      "online": "Online",
+      "offline": "Offline",
+      "pending": "Pending"
+    },
+    "action": {
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart",
+      "reload": "Reload"
+    }
   }
 }
