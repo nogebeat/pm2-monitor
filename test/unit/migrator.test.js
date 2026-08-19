@@ -41,11 +41,12 @@ test("migrator", async (t) => {
       "009_auto_healing",
       "010_health_checks_process_name",
       "011_audit_log",
+      "012_servers",
     ]);
 
     const status = await migrator.status();
     assert.equal(status.pending.length, 0);
-    assert.equal(status.applied.length, 11);
+    assert.equal(status.applied.length, 12);
   });
 
   await t.test("up() est idempotent : rejouer ne fait rien et ne plante pas", async () => {
@@ -76,6 +77,8 @@ test("migrator", async (t) => {
     assert.ok(tables.includes("auto_healing_state"));
     assert.ok(tables.includes("auto_healing_audit"));
     assert.ok(tables.includes("audit_log"));
+    assert.ok(tables.includes("servers"));
+    assert.ok(tables.includes("user_servers"));
   });
 
   await t.test("down() annule la dernière migration appliquée", async () => {
@@ -84,7 +87,7 @@ test("migrator", async (t) => {
     await migrator.up();
 
     const reverted = await migrator.down();
-    assert.deepEqual(reverted, ["011_audit_log"]);
+    assert.deepEqual(reverted, ["012_servers"]);
 
     const status = await migrator.status();
     assert.deepEqual(
@@ -100,17 +103,23 @@ test("migrator", async (t) => {
         "008_health_checks",
         "009_auto_healing",
         "010_health_checks_process_name",
+        "011_audit_log",
       ],
     );
 
-    // 011 crée une table dédiée (audit_log) : elle doit disparaître après
-    // son rollback, sans toucher aux tables des phases précédentes.
+    // 012 crée deux tables dédiées (servers, user_servers) : elles doivent
+    // disparaître après son rollback, sans toucher aux tables des phases
+    // précédentes (dont audit_log, phase 9/011, qui reste appliquée ici).
     const tables = (await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])).map(
       (r) => r.name,
     );
     assert.ok(
-      !tables.includes("audit_log"),
-      "audit_log (Phase 9/011) doit disparaître après son propre rollback",
+      !tables.includes("servers") && !tables.includes("user_servers"),
+      "servers/user_servers (Phase 10/012) doivent disparaître après leur propre rollback",
+    );
+    assert.ok(
+      tables.includes("audit_log"),
+      "audit_log (Phase 9/011) n'est pas affectée par le rollback de 012",
     );
     assert.ok(
       tables.includes("auto_healing_settings"),
@@ -135,10 +144,10 @@ test("migrator", async (t) => {
     const migrator = require("../../lib/db/migrator");
     await migrator.up();
     const reverted = await migrator.down({ steps: 3 });
-    assert.deepEqual(reverted, ["011_audit_log", "010_health_checks_process_name", "009_auto_healing"]);
+    assert.deepEqual(reverted, ["012_servers", "011_audit_log", "010_health_checks_process_name"]);
 
     const status = await migrator.status();
-    assert.equal(status.applied.length, 8);
+    assert.equal(status.applied.length, 9);
   });
 
   await t.test("down() sur une base vierge (rien d'appliqué) ne fait rien", async () => {

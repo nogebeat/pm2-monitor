@@ -20,12 +20,14 @@ const { dispatchQueue: notificationDispatchQueue } = require("./lib/services/not
 const { engine: healthCheckEngine } = require("./lib/services/health-checks");
 const healthChecksStore = require("./lib/services/health-checks/store");
 const { AutoHealingService, auditStore: autoHealingAuditStore } = require("./lib/services/auto-healing");
+const serversStore = require("./lib/services/servers/store");
 
 const { createDispatchAlertTransition } = require("./lib/alert-dispatch");
 const { fmtProcess, visibleProcesses } = require("./lib/process-helpers");
 const { startPolling } = require("./lib/polling");
 const { attachProcessSocket } = require("./lib/realtime/process-socket");
 const { createPm2Bus } = require("./lib/realtime/pm2-bus");
+const { attachAgentHub } = require("./lib/realtime/agent-hub");
 
 const authRouter = require("./lib/routes/auth");
 const usersRouter = require("./lib/routes/users");
@@ -40,6 +42,7 @@ const processesRouter = require("./lib/routes/processes");
 const pm2DaemonRouter = require("./lib/routes/pm2-daemon");
 const systemRouter = require("./lib/routes/system");
 const logsRouter = require("./lib/routes/logs");
+const serversRouter = require("./lib/routes/servers");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -131,6 +134,30 @@ const dispatchAlertTransition = createDispatchAlertTransition({
   notificationsDispatchEnabled: NOTIFICATIONS_DISPATCH_ENABLED,
 });
 
+// --- Multi-server / Remote PM2 (Phase 10, lib/realtime/agent-hub.js) -----
+// Namespace Socket.IO `/agent` séparé du namespace principal (io.use()
+// ci-dessus, qui exige une session navigateur) : les agents s'authentifient
+// par token, jamais par cookie de session (voir agent-hub.js). Les données
+// temps réel reçues d'un agent (snapshot système + process) sont diffusées
+// aux clients navigateur avec un `serverId` explicite pour éviter toute
+// collision entre deux process de même nom sur deux serveurs différents
+// (voir prompt maître, section WebSocket).
+const agentHub = attachAgentHub(io, {
+  onSnapshot: (serverKey, snapshot, processes) => {
+    io.emit("server.snapshot", { serverId: serverKey, snapshot, processes });
+  },
+  onProcessEvent: (serverKey, payload) => {
+    io.emit("event", { ...payload, serverId: serverKey });
+  },
+  onLog: (serverKey, payload) => {
+    io.emit("log", { ...payload, serverId: serverKey });
+  },
+  onStatusChange: (serverKey, status) => {
+    io.emit("server.status", { serverId: serverKey, status });
+  },
+});
+agentHub.startStaleSweep();
+
 // --- REST API --------------------------------------------------------------
 
 app.use("/api/auth", authRouter());
@@ -168,6 +195,9 @@ app.use(
 
 // Audit log (lib/services/audit/, Phase 9)
 app.use("/api/audit", auditRouter());
+
+// Multi-server / Remote PM2 (lib/services/servers/, lib/routes/servers.js, Phase 10)
+app.use("/api/servers", serversRouter({ agentHub }));
 
 // Process : liste + actions de base/étendues + métriques (lib/routes/processes.js)
 app.use("/api", processesRouter({ processHistory }));
@@ -249,6 +279,10 @@ async function runMigrationsAtBoot() {
 db.init()
   .then(runMigrationsAtBoot)
   .then(bootstrap.ensureBootstrapAdmin)
+  // Phase 10 — Multi-server : enregistre automatiquement l'hôte local (idempotent,
+  // voir lib/services/servers/store.js#ensureLocalServer) — aucune configuration
+  // requise pour qu'une installation existante mono-hôte continue de fonctionner.
+  .then(serversStore.ensureLocalServer)
   .then(startPm2Bus)
   .catch((err) => {
     console.error("Échec d'initialisation de la base de données :", err.message);
@@ -257,6 +291,7 @@ db.init()
 
 process.on("SIGINT", () => {
   notificationDispatchQueue.stop();
+  agentHub.stopStaleSweep();
   pm2.disconnect();
   db.close().finally(() => process.exit(0));
 });

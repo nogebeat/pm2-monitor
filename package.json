@@ -25,6 +25,7 @@
   "scripts": {
     "start": "node server.js",
     "dev:server": "node server.js",
+    "agent": "node bin/agent.js",
     "dev:client": "npm --prefix frontend run dev",
     "dev": "concurrently -k -n SERVER,CLIENT -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
     "build": "npm --prefix frontend install --no-audit --no-fund && npm --prefix frontend run build",
@@ -51,7 +52,8 @@
     "express-session": "^1.18.0",
     "nodemailer": "^9.0.5",
     "pm2": "^7.0.3",
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.7.5"
   },
   "optionalDependencies": {
     "mysql2": "^3.11.3"
