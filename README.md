@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/nogebeat/pm2-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/nogebeat/pm2-monitor/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Node.js >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
+[![Node.js >= 22](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)](package.json)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 Interface graphique complète pour surveiller tes apps PM2 : liste des process,

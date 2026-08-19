@@ -187,7 +187,7 @@ ensure_nodejs() {
   local required_major
   required_major="$(grep -oE '"node"[[:space:]]*:[[:space:]]*"[^"]*"' "$SCRIPT_DIR/package.json" \
     | grep -oE '[0-9]+' | head -1)"
-  [ -z "$required_major" ] && required_major=20 # filet de sécurité si le champ change de format
+  [ -z "$required_major" ] && required_major=22 # filet de sécurité si le champ change de format
 
   if command -v node >/dev/null 2>&1; then
     local ver major

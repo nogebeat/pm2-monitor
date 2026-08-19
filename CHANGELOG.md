@@ -55,6 +55,16 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
   ≥20 (`engines.node` dans `package.json`) — la version minimale requise
   est désormais lue dynamiquement depuis `package.json` au lieu d'être
   dupliquée en dur et désynchronisée.
+- **Node.js >= 22 requis** (au lieu de >= 20) : le frontend dépend de
+  `vue-i18n`/`@intlify` ≥11.4, qui exigent réellement Node ≥22
+  (`npm warn EBADENGINE` sur un serveur en Node 20). `engines.node`,
+  `.nvmrc`, le badge du README et la matrice CI sont alignés sur v22.
+- `npm install`/`npm ci` en production (`--omit=dev`, utilisés par
+  `deploy.sh`) plantaient systématiquement sur un serveur neuf : le script
+  `prepare` (`husky`) s'exécute même sans devDependencies installées, et
+  échouait avec `husky: not found` (exit 127), bloquant toute installation.
+  `prepare` ignore désormais cet échec (`husky || true`) — sans danger,
+  husky sert uniquement aux hooks Git en développement local.
 
 ### Corrigé
 
