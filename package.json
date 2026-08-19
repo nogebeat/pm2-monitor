@@ -1,6 +1,6 @@
 {
   "name": "pm2-monitor",
-  "version": "4.0.0",
+  "version": "3.6.0",
   "description": "Interface graphique de monitoring PM2 (liste des process, logs en direct, dashboard, alertes) — frontend Vue 3 + Vite",
   "keywords": [
     "pm2",
@@ -36,6 +36,7 @@
     "test": "node scripts/run-tests.js test/unit test/integration",
     "test:unit": "node scripts/run-tests.js test/unit",
     "test:integration": "node scripts/run-tests.js test/integration",
+    "test:deploy": "bats test/deploy/deploy_functions.bats",
     "check:i18n": "node scripts/check-i18n.js",
     "lint": "eslint . && npm --prefix frontend run lint",
     "lint:fix": "eslint . --fix && npm --prefix frontend run lint:fix",

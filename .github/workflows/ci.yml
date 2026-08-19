@@ -7,6 +7,31 @@ on:
     branches: [main]
 
 jobs:
+  deploy-script:
+    name: deploy.sh (shellcheck + tests)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Bash syntax check
+        run: bash -n deploy.sh
+
+      - name: Shellcheck
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: "."
+          ignore_paths: >-
+            node_modules
+            frontend/node_modules
+          severity: warning
+
+      - name: Install bats
+        run: sudo apt-get update -qq && sudo apt-get install -y bats
+
+      - name: Run deploy.sh unit tests (bats)
+        run: bats test/deploy/deploy_functions.bats
+
   lint:
     name: Lint & format check
     runs-on: ubuntu-latest

@@ -43,9 +43,16 @@
 #   --yes                  Mode non-interactif (répond "oui" aux confirmations)
 #   -h, --help             Affiche cette aide
 #
-# Variable d'environnement :
-#   DEPLOY_SKIP_TESTS=1    Ignore l'étape de tests avant démarrage (déconseillé) —
-#                           install/update refusent sinon de continuer si un test échoue.
+# Variables d'environnement :
+#   DEPLOY_SKIP_TESTS=1        Ignore l'étape de tests avant démarrage (déconseillé) —
+#                               install/update refusent sinon de continuer si un test échoue.
+#   DEPLOY_SKIP_HEALTHCHECK=1  Ignore la vérification que l'app répond après démarrage
+#                               (déconseillé — c'est ce qui permet le rollback automatique
+#                               en cas d'update cassé).
+#   HEALTH_TIMEOUT=<secondes>  Délai max d'attente de cette vérification (défaut : 30).
+#
+# install/update écrivent aussi un journal complet dans logs/deploy-*.log, et
+# refusent de tourner en parallèle (verrou .deploy.lock).
 #
 # Gestion des comptes / permissions (users/roles multi-utilisateurs, par app
 # et par action) : une fois installé, utilise `./deploy.sh users …`, qui
@@ -141,38 +148,82 @@ pkg_install() {
 }
 
 # ---------------------------------------------------------------------
+# Verrou de concurrence
+# ---------------------------------------------------------------------
+#
+# Empêche deux exécutions simultanées de deploy.sh (ex: install lancé deux
+# fois par erreur, ou update déclenché pendant qu'un install tourne encore)
+# de se marcher dessus sur les mêmes fichiers (.env, node_modules, public/,
+# état PM2…). Utilise flock sur un fichier dédié ; si flock est absent
+# (rare), on continue sans verrou plutôt que de bloquer le script.
+LOCK_FD=""
+acquire_lock() {
+  local lock_file="$SCRIPT_DIR/.deploy.lock"
+  if ! command -v flock >/dev/null 2>&1; then
+    warn "flock indisponible : impossible de garantir qu'une seule exécution de deploy.sh tourne à la fois."
+    return 0
+  fi
+  exec {LOCK_FD}>"$lock_file"
+  if ! flock -n "$LOCK_FD"; then
+    error "Une autre exécution de deploy.sh (install/update/uninstall) semble déjà en cours."
+    error "Si ce n'est pas le cas (crash précédent), supprime $lock_file puis relance."
+    exit 1
+  fi
+}
+
+# ---------------------------------------------------------------------
 # Étapes d'installation
 # ---------------------------------------------------------------------
 
 ensure_nodejs() {
   title "Node.js"
+  # La version minimale requise vient de "engines.node" dans package.json
+  # (actuellement >=20) : on la lit dynamiquement au lieu de la dupliquer en
+  # dur ici, pour ne plus jamais désynchroniser deploy.sh du package.json
+  # (c'est exactement ce qui s'était produit : ce script acceptait encore
+  # Node 16/18 alors que le projet exige >=20 depuis un moment — un
+  # "déploiement réussi" pouvait donc tourner sur une version non supportée,
+  # avec des plantages difficiles à diagnostiquer plus tard).
+  local required_major
+  required_major="$(grep -oE '"node"[[:space:]]*:[[:space:]]*"[^"]*"' "$SCRIPT_DIR/package.json" \
+    | grep -oE '[0-9]+' | head -1)"
+  [ -z "$required_major" ] && required_major=20 # filet de sécurité si le champ change de format
+
   if command -v node >/dev/null 2>&1; then
     local ver major
     ver="$(node -v)"
     major="$(echo "$ver" | sed -E 's/^v([0-9]+).*/\1/')"
-    if [ "$major" -ge 16 ]; then
-      ok "Node.js $ver déjà présent."
+    if [ "$major" -ge "$required_major" ]; then
+      ok "Node.js $ver déjà présent (>= v${required_major} requis)."
       return 0
     fi
-    warn "Node.js $ver trouvé, mais version < 16 : mise à jour recommandée."
+    warn "Node.js $ver trouvé, mais le projet requiert >= v${required_major} : mise à jour en cours."
   else
     info "Node.js absent, installation en cours…"
   fi
 
   case "$PKG_MANAGER" in
     apt)
-      curl -fsSL https://deb.nodesource.com/setup_20.x | $SUDO bash - >/dev/null
+      curl -fsSL "https://deb.nodesource.com/setup_${required_major}.x" | $SUDO bash - >/dev/null
       pkg_install nodejs
       ;;
     dnf|yum)
-      curl -fsSL https://rpm.nodesource.com/setup_20.x | $SUDO bash - >/dev/null
+      curl -fsSL "https://rpm.nodesource.com/setup_${required_major}.x" | $SUDO bash - >/dev/null
       pkg_install nodejs
       ;;
     *)
-      error "Installe Node.js >= 16 manuellement puis relance ce script."
+      error "Installe Node.js >= v${required_major} manuellement puis relance ce script."
       exit 1
       ;;
   esac
+
+  local installed_major
+  installed_major="$(node -v | sed -E 's/^v([0-9]+).*/\1/')"
+  if [ "$installed_major" -lt "$required_major" ]; then
+    error "Node.js $(node -v) installé, mais toujours < v${required_major} requis."
+    error "Le paquet système disponible est trop ancien : mets à jour Node.js manuellement (nvm, nodesource...) puis relance."
+    exit 1
+  fi
   ok "Node.js $(node -v) installé."
 }
 
@@ -371,6 +422,51 @@ write_env() {
   echo -e "   ${c_bold}./deploy.sh users list${c_reset}"
 }
 
+validate_port() {
+  # Valide $PORT une bonne fois avant de générer le .env / nginx / ufw avec.
+  # Auparavant une valeur vide ou non numérique (typo sur --port) n'était
+  # détectée qu'au moment très tardif où node.js refuse de "listen" dessus —
+  # ou pire, passait silencieusement dans le .env, la conf nginx et les
+  # règles ufw sans jamais être vérifiée.
+  if ! [[ "$PORT" =~ ^[0-9]+$ ]] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
+    error "Port invalide : '${PORT}' (attendu : un entier entre 1 et 65535)."
+    exit 1
+  fi
+}
+
+# Vérifie que l'application répond réellement après (re)démarrage, au lieu de
+# se fier au seul code de retour de `pm2 start/restart` (qui réussit même si
+# le process crash-loop juste après — mauvais port déjà utilisé, erreur de
+# config, migration oubliée…). Sans ça, le script pouvait afficher
+# "C'est en ligne 🎉" sur un service en réalité mort.
+# Accepte n'importe quel code HTTP < 500 (y compris 401/302 dus à l'auth) :
+# on vérifie que le serveur répond, pas que la requête est autorisée.
+wait_for_health() {
+  local timeout="${HEALTH_TIMEOUT:-30}" waited=0 code
+  if [ "${DEPLOY_SKIP_HEALTHCHECK:-0}" = "1" ]; then
+    warn "DEPLOY_SKIP_HEALTHCHECK=1 : vérification de démarrage ignorée (déconseillé)."
+    return 0
+  fi
+  if ! command -v curl >/dev/null 2>&1; then
+    warn "curl indisponible : impossible de vérifier que l'application répond réellement."
+    return 0
+  fi
+  info "Vérification que l'application répond sur le port ${PORT}…"
+  while [ "$waited" -lt "$timeout" ]; do
+    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "http://127.0.0.1:${PORT}/" || echo "000")"
+    if [ "$code" != "000" ] && [ "$code" -lt 500 ]; then
+      ok "Application UP (HTTP ${code} sur 127.0.0.1:${PORT})."
+      return 0
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  error "L'application ne répond toujours pas sur 127.0.0.1:${PORT} après ${timeout}s."
+  error "Dernières lignes de logs PM2 :"
+  pm2 logs "$APP_NAME" --lines 30 --nostream 2>&1 | sed 's/^/    /' >&2 || true
+  return 1
+}
+
 start_app() {
   title "Démarrage de l'application"
   cd "$SCRIPT_DIR"
@@ -380,6 +476,14 @@ start_app() {
   else
     pm2 start server.js --name "$APP_NAME" >/dev/null
   fi
+
+  if ! wait_for_health; then
+    error "Déploiement interrompu : l'application ne démarre pas correctement."
+    error "Le process PM2 '${APP_NAME}' reste en l'état pour inspection (./deploy.sh logs)."
+    error "Corrige le problème puis relance ./deploy.sh install (ou update)."
+    exit 1
+  fi
+
   pm2 save >/dev/null
   ok "Application démarrée sous PM2 (nom: $APP_NAME)."
 }
@@ -544,6 +648,8 @@ print_summary() {
 # ---------------------------------------------------------------------
 
 cmd_install() {
+  acquire_lock
+  validate_port
   detect_privileges
   detect_pkg_manager
   ensure_mysql_config
@@ -561,11 +667,40 @@ cmd_install() {
   print_summary
 }
 
+
+# Revient au commit d'avant l'update et redémarre dessus. Best-effort : on
+# prévient toujours clairement l'utilisateur plutôt que de prétendre avoir
+# réparé silencieusement (ex: si les migrations de la nouvelle version ne
+# sont pas réversibles, rollback du code seul ≠ retour à un état 100% sain).
+rollback_update() {
+  local prev_commit="$1"
+  error "La nouvelle version ne démarre pas correctement. Tentative de rollback vers ${prev_commit}…"
+  if ! git reset --hard "$prev_commit"; then
+    error "Rollback git impossible. Le service est peut-être dans un état cassé : ./deploy.sh logs"
+    exit 1
+  fi
+  npm install --omit=dev || true
+  ensure_frontend_build || true
+  if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
+    pm2 restart "$APP_NAME" --update-env >/dev/null 2>&1 || true
+  fi
+  if wait_for_health; then
+    warn "Rollback effectué : le service tourne à nouveau sur l'ancienne version (${prev_commit})."
+    warn "N'applique pas le même update tant que le problème sur la nouvelle version n'est pas corrigé."
+  else
+    error "Le rollback n'a pas rétabli un service qui répond. Intervention manuelle nécessaire (./deploy.sh logs)."
+  fi
+  exit 1
+}
+
 cmd_update() {
+  acquire_lock
   detect_privileges
   cd "$SCRIPT_DIR"
   title "Mise à jour"
+  local prev_commit=""
   if [ -d .git ]; then
+    prev_commit="$(git rev-parse HEAD 2>/dev/null || echo "")"
     info "Dépôt git détecté, git pull…"
 
     # public/ est un dossier de build versionné dans le repo mais régénéré par
@@ -602,7 +737,16 @@ cmd_update() {
   run_migrations
   if command -v pm2 >/dev/null 2>&1 && pm2 describe "$APP_NAME" >/dev/null 2>&1; then
     pm2 restart "$APP_NAME" --update-env
-    ok "Application redémarrée."
+    if wait_for_health; then
+      pm2 save >/dev/null
+      ok "Application redémarrée."
+    elif [ -n "$prev_commit" ]; then
+      rollback_update "$prev_commit"
+    else
+      error "L'application ne répond pas après la mise à jour, et aucun commit git précédent n'est disponible pour un rollback automatique."
+      error "Corrige le problème (./deploy.sh logs) ou restaure les fichiers manuellement."
+      exit 1
+    fi
   else
     warn "Aucun process PM2 '$APP_NAME' trouvé, lance : ./deploy.sh install"
   fi
@@ -632,6 +776,7 @@ cmd_migrate() {
 }
 
 cmd_uninstall() {
+  acquire_lock
   detect_privileges
   title "Désinstallation"
   if command -v pm2 >/dev/null 2>&1 && pm2 describe "$APP_NAME" >/dev/null 2>&1; then
@@ -664,6 +809,14 @@ print_help() {
 # ---------------------------------------------------------------------
 # Parsing des arguments
 # ---------------------------------------------------------------------
+#
+# Tout ce qui suit est dans main(), appelée seulement si le script est
+# exécuté directement (pas si on le "source" — voir tout en bas). Ça permet
+# à la suite de tests (test/deploy/*.bats) de sourcer deploy.sh pour tester
+# unitairement les fonctions pures (validate_port, env_file_get,
+# random_password…) sans déclencher le parsing des arguments ni aucune
+# commande.
+main() {
 
 COMMAND="${1:-}"
 [ $# -gt 0 ] && shift || true
@@ -706,6 +859,12 @@ if [ -n "$ENV_FILE_SRC" ]; then
     exit 1
   fi
   title "Configuration (.env)"
+  if [ -f "$ENV_FILE" ]; then
+    ENV_BACKUP_FILE="${ENV_FILE}.bak.$(date +%Y%m%d-%H%M%S)"
+    cp "$ENV_FILE" "$ENV_BACKUP_FILE"
+    chmod 600 "$ENV_BACKUP_FILE"
+    warn ".env existant sauvegardé avant remplacement : $ENV_BACKUP_FILE"
+  fi
   cp "$ENV_FILE_SRC" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
   ok "Fichier .env chargé depuis : $ENV_FILE_SRC"
@@ -764,6 +923,20 @@ if [ -n "$ENV_FILE_SRC" ]; then
   AUTH_PASS=""
 fi
 
+# Journalisation persistante : pour install/update/uninstall (les commandes
+# qui changent réellement l'état du système), toute la sortie est aussi
+# écrite dans logs/deploy-*.log, pour pouvoir relire après coup ce qui s'est
+# passé lors d'un déploiement (utile en particulier si un cron ou un CI
+# déclenche `deploy.sh update` sans surveillance humaine directe).
+case "$COMMAND" in
+  install|update|uninstall)
+    mkdir -p "$SCRIPT_DIR/logs"
+    DEPLOY_LOG="$SCRIPT_DIR/logs/deploy-$(date +%Y%m%d-%H%M%S)-${COMMAND}.log"
+    exec > >(tee -a "$DEPLOY_LOG") 2>&1
+    info "Journal de ce déploiement : $DEPLOY_LOG"
+    ;;
+esac
+
 case "$COMMAND" in
   install)   cmd_install ;;
   update)    cmd_update ;;
@@ -775,3 +948,12 @@ case "$COMMAND" in
   ""|-h|--help) print_help ;;
   *) error "Commande inconnue : $COMMAND"; print_help; exit 1 ;;
 esac
+
+} # fin de main()
+
+# N'exécute main() que si le script est lancé directement (./deploy.sh …),
+# pas s'il est "sourcé" (ex: par la suite de tests bats, qui a besoin des
+# fonctions sans déclencher de vraie commande).
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+  main "$@"
+fi

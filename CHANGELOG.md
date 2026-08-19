@@ -9,6 +9,27 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ### Ajouté
 
+- `deploy.sh` : vérification post-démarrage que l'application répond
+  réellement (`wait_for_health`) avant de considérer un `install`/`update`
+  réussi — auparavant le script se fiait uniquement au code de retour de
+  `pm2 start`, qui réussit même si le process crash-loop juste après.
+- `deploy.sh update` : **rollback automatique** vers le commit git
+  précédent si la nouvelle version ne passe pas la vérification
+  post-démarrage.
+- `deploy.sh` : verrou de concurrence (`flock`) empêchant deux exécutions
+  simultanées d'`install`/`update`/`uninstall`.
+- `deploy.sh` : journalisation de chaque `install`/`update`/`uninstall`
+  dans `logs/deploy-<date>-<commande>.log`.
+- `deploy.sh` : validation explicite de `--port` (entier entre 1 et 65535)
+  avant de s'en servir dans le `.env`, nginx et ufw.
+- `deploy.sh --env-file` : sauvegarde automatique de l'ancien `.env`
+  (`*.env.bak.<date>`) avant remplacement.
+- Nouvelles variables d'environnement `DEPLOY_SKIP_HEALTHCHECK` et
+  `HEALTH_TIMEOUT` pour `deploy.sh` (voir README).
+- Suite de tests `bats` pour les fonctions pures de `deploy.sh`
+  (`test/deploy/deploy_functions.bats`, `npm run test:deploy`).
+- CI : job `deploy-script` (shellcheck + `bash -n` + tests bats) pour
+  `deploy.sh`.
 - 🌐 Internationalisation (i18n) complète de l'interface avec support
   **français / anglais** via `vue-i18n`, sélecteur de langue dans la barre
   du haut, détection automatique de la langue du navigateur, préférence
@@ -27,6 +48,13 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
   commitlint / Conventional Commits), `.github/CODEOWNERS`.
 - CI étendue avec un job `lint` dédié (ESLint + Prettier + parité i18n) en
   plus des tests et du build.
+
+### Corrigé
+
+- `deploy.sh` : le script acceptait Node.js ≥16 alors que le projet exige
+  ≥20 (`engines.node` dans `package.json`) — la version minimale requise
+  est désormais lue dynamiquement depuis `package.json` au lieu d'être
+  dupliquée en dur et désynchronisée.
 
 ### Corrigé
 

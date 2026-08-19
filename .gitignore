@@ -1,6 +1,9 @@
 # Logs
 logs
 *.log
+
+# deploy.sh concurrency lock
+.deploy.lock
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

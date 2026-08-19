@@ -119,14 +119,16 @@ chmod +x deploy.sh
 
 Ce script gère **toutes les situations** en une commande :
 
-- installe Node.js et PM2 s'ils sont absents (ne touche à rien s'ils sont déjà là)
+- installe Node.js (version alignée sur `engines.node` de `package.json`) et PM2 s'ils sont absents (ne touche à rien s'ils sont déjà là)
 - installe les dépendances du serveur **et** celles du frontend
 - **compile le frontend Vue 3 / Vite** (`frontend/` → `public/`)
 - génère un `.env` avec un mot de passe sécurisé si tu n'en fournis pas
-- démarre l'app sous PM2 et configure le redémarrage automatique au reboot
+- démarre l'app sous PM2, **vérifie qu'elle répond réellement** (pas juste que `pm2 start` a réussi) et configure le redémarrage automatique au reboot
 - (optionnel) configure nginx en reverse proxy + HTTPS via Let's Encrypt si tu donnes un domaine
 - (optionnel) ouvre les bons ports dans le pare-feu (`ufw`) si présent
 - relançable sans risque : il détecte ce qui est déjà en place et **rebuild le frontend à chaque `update`**
+- **`update` fait un rollback automatique** (retour au commit git précédent) si la nouvelle version ne démarre pas correctement
+- **refuse deux exécutions simultanées** (verrou `flock`) et **journalise** chaque `install`/`update`/`uninstall` dans `logs/deploy-*.log`
 
 **Exemples :**
 
@@ -170,6 +172,38 @@ de s'appliquer normalement.
 ```
 
 Voir toutes les options : `./deploy.sh --help`
+
+**Variables d'environnement utiles :**
+
+```bash
+# Ignore la vérification post-démarrage (déconseillé : c'est ce qui permet
+# le rollback automatique de `update` en cas de nouvelle version cassée)
+DEPLOY_SKIP_HEALTHCHECK=1 ./deploy.sh update
+
+# Ajuste le délai d'attente de cette vérification (défaut : 30s)
+HEALTH_TIMEOUT=60 ./deploy.sh install
+
+# Ignore la suite de tests avant de démarrer/redémarrer (déconseillé)
+DEPLOY_SKIP_TESTS=1 ./deploy.sh update
+```
+
+Chaque `install`/`update`/`uninstall` écrit son déroulé complet dans
+`logs/deploy-<date>-<commande>.log`, utile pour rejouer ce qui s'est passé
+après coup (notamment si `update` est déclenché sans surveillance directe,
+ex: via cron).
+
+Le script refuse de tourner deux fois en parallèle (verrou dans
+`.deploy.lock`) : si une exécution précédente a planté sans nettoyer ce
+fichier, supprime-le avant de relancer.
+
+**Tests du script lui-même :** les fonctions pures de `deploy.sh`
+(validation du port, parsing du `.env`, génération de mot de passe...) ont
+leur propre suite `bats`, indépendante des tests Node de l'application :
+
+```bash
+npm run test:deploy
+# équivalent : bats test/deploy/deploy_functions.bats
+```
 
 ### Option manuelle
 
