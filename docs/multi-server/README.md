@@ -255,19 +255,19 @@ deux process de même nom sur deux serveurs différents.
 
 Monté sur `/api/servers` (`lib/routes/servers.js`) :
 
-| Méthode | Route                                | Permission                    | Description                                                 |
-| ------- | ------------------------------------ | ----------------------------- | ----------------------------------------------------------- |
-| GET     | `/api/servers`                       | `servers_read`                | liste des serveurs visibles par l'utilisateur               |
-| GET     | `/api/servers/:key/status`           | `servers_read` + scope        | statut détaillé d'un serveur                                |
-| POST    | `/api/servers`                       | `servers_manage`              | enregistre un nouveau serveur, retourne `{ server, token }` |
-| PUT     | `/api/servers/:key`                  | `servers_manage`              | modifie nom/hostname/environnement                          |
-| POST    | `/api/servers/:key/enable`           | `servers_manage`              | active un serveur                                           |
-| POST    | `/api/servers/:key/disable`          | `servers_manage`              | désactive un serveur (coupe la connexion en cours)          |
-| DELETE  | `/api/servers/:key`                  | `servers_manage`              | supprime un serveur (impossible pour `local`)               |
-| POST    | `/api/servers/:key/regenerate-token` | `servers_manage`              | régénère le token (invalide l'ancien)                       |
-| POST    | `/api/servers/:key/action`           | scope + permission app/action | relaie une action PM2 vers l'agent                          |
-| GET     | `/api/servers/:key/processes/:processName/metrics`   | scope + permission `view` sur l'app | historique du process (voir Historique multi-serveur) |
-| GET     | `/api/servers/:key/processes/:processName/analytics` | scope + permission `view` sur l'app | stats de période + comparaison (idem)                |
+| Méthode | Route                                                | Permission                          | Description                                                 |
+| ------- | ---------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------- |
+| GET     | `/api/servers`                                       | `servers_read`                      | liste des serveurs visibles par l'utilisateur               |
+| GET     | `/api/servers/:key/status`                           | `servers_read` + scope              | statut détaillé d'un serveur                                |
+| POST    | `/api/servers`                                       | `servers_manage`                    | enregistre un nouveau serveur, retourne `{ server, token }` |
+| PUT     | `/api/servers/:key`                                  | `servers_manage`                    | modifie nom/hostname/environnement                          |
+| POST    | `/api/servers/:key/enable`                           | `servers_manage`                    | active un serveur                                           |
+| POST    | `/api/servers/:key/disable`                          | `servers_manage`                    | désactive un serveur (coupe la connexion en cours)          |
+| DELETE  | `/api/servers/:key`                                  | `servers_manage`                    | supprime un serveur (impossible pour `local`)               |
+| POST    | `/api/servers/:key/regenerate-token`                 | `servers_manage`                    | régénère le token (invalide l'ancien)                       |
+| POST    | `/api/servers/:key/action`                           | scope + permission app/action       | relaie une action PM2 vers l'agent                          |
+| GET     | `/api/servers/:key/processes/:processName/metrics`   | scope + permission `view` sur l'app | historique du process (voir Historique multi-serveur)       |
+| GET     | `/api/servers/:key/processes/:processName/analytics` | scope + permission `view` sur l'app | stats de période + comparaison (idem)                       |
 
 ## Historique & Analytics multi-serveur
 

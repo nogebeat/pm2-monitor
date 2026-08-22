@@ -50,7 +50,7 @@ introduits — corrigés par la migration `014_process_metrics_server_key.js` :
    désormais `processHistory.record(processes, now, serverKey)` à chaque
    heartbeat.
 2. **Collision entre serveurs.** Deux serveurs avec un process de même nom
-   (ex. "api" sur le hub *et* sur un agent) auraient fusionné leur
+   (ex. "api" sur le hub _et_ sur un agent) auraient fusionné leur
    historique dans les mêmes lignes/buckets. Corrigé par la colonne
    `server_key` (`"local"` par défaut, rétrocompatible) et, côté rollup, un
    déplacement de la contrainte d'unicité sur
@@ -87,7 +87,7 @@ Best-effort (Phase 11), jamais inventées :
   (`lib/process-helpers.js`) les lit quand elles sont présentes et retourne
   `null` sinon ; rien n'est calculé ou approximé quand la donnée n'existe
   pas. Quand `heap total` n'est pas directement rapporté mais que `heap
-  used` et `% heap usage` le sont, il est dérivé (`heapUsed / (usage/100)`)
+used` et `% heap usage` le sont, il est dérivé (`heapUsed / (usage/100)`)
   à partir de deux valeurs réellement fournies par PM2 — jamais une valeur
   inventée de zéro.
 - Le frontend masque simplement les cartes heap/event-loop-lag du panneau
@@ -110,6 +110,7 @@ Dérivées à la lecture (aucun stockage dédié) :
   de crash déjà faite ailleurs (voir `docs/events/README.md`).
 
 ## Analytics (`GET /api/processes/:id/analytics` — local, ou
+
 `GET /api/servers/:key/processes/:processName/analytics` — serveur distant)
 
 Même permission que `/metrics` (`view`, lecture seule) ; la variante
@@ -138,12 +139,18 @@ Réponse :
     "restartFrequencyPerHour": 1,
     "crashes": 0,
     "availabilityPercent": 99.2,
-    "sampleCount": 240
+    "sampleCount": 240,
   },
-  "previous": { /* même forme, période précédente de même durée */ },
+  "previous": {/* même forme, période précédente de même durée */},
   "previousStart": 1731996400000,
   "previousEnd": 1732000000000,
-  "deltas": { "cpuAvgPct": 8.3, "memoryAvgPct": -2.1, "restartsPct": null, "crashesPct": 0, "availabilityPct": 0.4 }
+  "deltas": {
+    "cpuAvgPct": 8.3,
+    "memoryAvgPct": -2.1,
+    "restartsPct": null,
+    "crashesPct": 0,
+    "availabilityPct": 0.4,
+  },
 }
 ```
 

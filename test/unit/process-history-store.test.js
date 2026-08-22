@@ -57,29 +57,37 @@ test("process-history store", async (t) => {
     );
   });
 
-  await t.test("listRawProcessKeys() et rawTimeRange() — scoping server_key (Phase multi-serveur)", async () => {
-    const store = require("../../lib/services/process-history/store");
-    await store.insertRawBatch([
-      { processName: "api", ts: 1000, cpu: 1 }, // serverKey implicite -> "local"
-      { processName: "api", ts: 3000, cpu: 2 },
-      { processName: "worker", ts: 2000, cpu: 1 },
-      { processName: "api", serverKey: "srv-remote", ts: 1500, cpu: 9 },
-    ]);
+  await t.test(
+    "listRawProcessKeys() et rawTimeRange() — scoping server_key (Phase multi-serveur)",
+    async () => {
+      const store = require("../../lib/services/process-history/store");
+      await store.insertRawBatch([
+        { processName: "api", ts: 1000, cpu: 1 }, // serverKey implicite -> "local"
+        { processName: "api", ts: 3000, cpu: 2 },
+        { processName: "worker", ts: 2000, cpu: 1 },
+        { processName: "api", serverKey: "srv-remote", ts: 1500, cpu: 9 },
+      ]);
 
-    const keys = await store.listRawProcessKeys();
-    assert.deepEqual(
-      keys.map((k) => `${k.serverKey}/${k.processName}`).sort(),
-      ["local/api", "local/worker", "srv-remote/api"],
-    );
+      const keys = await store.listRawProcessKeys();
+      assert.deepEqual(keys.map((k) => `${k.serverKey}/${k.processName}`).sort(), [
+        "local/api",
+        "local/worker",
+        "srv-remote/api",
+      ]);
 
-    const range = await store.rawTimeRange("api");
-    assert.deepEqual(range, { minTs: 1000, maxTs: 3000 }, "défaut serverKey='local', ne voit pas srv-remote");
+      const range = await store.rawTimeRange("api");
+      assert.deepEqual(
+        range,
+        { minTs: 1000, maxTs: 3000 },
+        "défaut serverKey='local', ne voit pas srv-remote",
+      );
 
-    const remoteRange = await store.rawTimeRange("api", "srv-remote");
-    assert.deepEqual(remoteRange, { minTs: 1500, maxTs: 1500 });
+      const remoteRange = await store.rawTimeRange("api", "srv-remote");
+      assert.deepEqual(remoteRange, { minTs: 1500, maxTs: 1500 });
 
-    assert.equal(await store.rawTimeRange("inconnu"), null);
-  });
+      assert.equal(await store.rawTimeRange("inconnu"), null);
+    },
+  );
 
   await t.test("purgeRawOlderThan() supprime uniquement ce qui est avant le cutoff", async () => {
     const store = require("../../lib/services/process-history/store");
@@ -183,26 +191,29 @@ test("process-history store", async (t) => {
 
   // --- Phase 11 : colonnes heap/event-loop-lag/online_count ------------------
 
-  await t.test("insertRaw()/queryRaw() : heap/event-loop-lag null par défaut (process non instrumenté)", async () => {
-    const store = require("../../lib/services/process-history/store");
-    const now = Date.now();
-    await store.insertRaw({
-      processName: "api",
-      ts: now,
-      cpu: 1,
-      memory: 1000,
-      restartCount: 0,
-      instances: 1,
-      status: "online",
-      uptimeMs: 1000,
-      // pas de heapUsed/heapTotal/eventLoopLag fournis
-    });
-    const rows = await store.queryRaw({ processName: "api", start: now - 1000, end: now + 1000 });
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0].heapUsed, null);
-    assert.equal(rows[0].heapTotal, null);
-    assert.equal(rows[0].eventLoopLag, null);
-  });
+  await t.test(
+    "insertRaw()/queryRaw() : heap/event-loop-lag null par défaut (process non instrumenté)",
+    async () => {
+      const store = require("../../lib/services/process-history/store");
+      const now = Date.now();
+      await store.insertRaw({
+        processName: "api",
+        ts: now,
+        cpu: 1,
+        memory: 1000,
+        restartCount: 0,
+        instances: 1,
+        status: "online",
+        uptimeMs: 1000,
+        // pas de heapUsed/heapTotal/eventLoopLag fournis
+      });
+      const rows = await store.queryRaw({ processName: "api", start: now - 1000, end: now + 1000 });
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].heapUsed, null);
+      assert.equal(rows[0].heapTotal, null);
+      assert.equal(rows[0].eventLoopLag, null);
+    },
+  );
 
   await t.test("insertRaw()/queryRaw() : round-trip heap/event-loop-lag quand fournis", async () => {
     const store = require("../../lib/services/process-history/store");
@@ -226,30 +237,33 @@ test("process-history store", async (t) => {
     assert.equal(rows[0].eventLoopLag, 1.25);
   });
 
-  await t.test("upsertRollup() : bucket sans heap/eventLoopLag/onlineCount -> colonnes null, pas d'erreur", async () => {
-    const store = require("../../lib/services/process-history/store");
-    await store.upsertRollup({
-      processName: "api",
-      resolution: "medium",
-      bucketStart: 3_600_000,
-      cpu: { avg: 10, min: 5, max: 15, p95: 14 },
-      memory: { avg: 100, min: 50, max: 150, p95: 140 },
-      instancesAvg: 1,
-      restartCountMax: 0,
-      restartDelta: 0,
-      sampleCount: 5,
-      // pas de heapUsed/heapTotal/eventLoopLag/onlineCount
-    });
-    const rows = await store.queryRollup({
-      processName: "api",
-      resolution: "medium",
-      start: 0,
-      end: 10_000_000,
-    });
-    assert.equal(rows.length, 1);
-    assert.deepEqual(rows[0].heapUsed, { avg: null, min: null, max: null, p95: null });
-    assert.equal(rows[0].onlineCount, null);
-  });
+  await t.test(
+    "upsertRollup() : bucket sans heap/eventLoopLag/onlineCount -> colonnes null, pas d'erreur",
+    async () => {
+      const store = require("../../lib/services/process-history/store");
+      await store.upsertRollup({
+        processName: "api",
+        resolution: "medium",
+        bucketStart: 3_600_000,
+        cpu: { avg: 10, min: 5, max: 15, p95: 14 },
+        memory: { avg: 100, min: 50, max: 150, p95: 140 },
+        instancesAvg: 1,
+        restartCountMax: 0,
+        restartDelta: 0,
+        sampleCount: 5,
+        // pas de heapUsed/heapTotal/eventLoopLag/onlineCount
+      });
+      const rows = await store.queryRollup({
+        processName: "api",
+        resolution: "medium",
+        start: 0,
+        end: 10_000_000,
+      });
+      assert.equal(rows.length, 1);
+      assert.deepEqual(rows[0].heapUsed, { avg: null, min: null, max: null, p95: null });
+      assert.equal(rows[0].onlineCount, null);
+    },
+  );
 
   await t.test("upsertRollup() : round-trip complet heap/eventLoopLag/onlineCount", async () => {
     const store = require("../../lib/services/process-history/store");
@@ -330,23 +344,26 @@ test("process-history store", async (t) => {
     assert.equal(remoteRows[0].cpu.avg, 90);
   });
 
-  await t.test("queryRaw()/queryRollup() : serverKey omis -> ne voit que 'local', pas les autres serveurs", async () => {
-    const store = require("../../lib/services/process-history/store");
-    await store.insertRawBatch([
-      { processName: "isolated", ts: 1000, cpu: 1 }, // "local" implicite
-      { processName: "isolated", serverKey: "srv-a", ts: 1000, cpu: 42 },
-      { processName: "isolated", serverKey: "srv-b", ts: 1000, cpu: 99 },
-    ]);
-    const defaultRows = await store.queryRaw({ processName: "isolated", start: 0, end: 5000 });
-    const srvARows = await store.queryRaw({
-      processName: "isolated",
-      serverKey: "srv-a",
-      start: 0,
-      end: 5000,
-    });
-    assert.equal(defaultRows.length, 1);
-    assert.equal(defaultRows[0].cpu, 1);
-    assert.equal(srvARows.length, 1);
-    assert.equal(srvARows[0].cpu, 42);
-  });
+  await t.test(
+    "queryRaw()/queryRollup() : serverKey omis -> ne voit que 'local', pas les autres serveurs",
+    async () => {
+      const store = require("../../lib/services/process-history/store");
+      await store.insertRawBatch([
+        { processName: "isolated", ts: 1000, cpu: 1 }, // "local" implicite
+        { processName: "isolated", serverKey: "srv-a", ts: 1000, cpu: 42 },
+        { processName: "isolated", serverKey: "srv-b", ts: 1000, cpu: 99 },
+      ]);
+      const defaultRows = await store.queryRaw({ processName: "isolated", start: 0, end: 5000 });
+      const srvARows = await store.queryRaw({
+        processName: "isolated",
+        serverKey: "srv-a",
+        start: 0,
+        end: 5000,
+      });
+      assert.equal(defaultRows.length, 1);
+      assert.equal(defaultRows[0].cpu, 1);
+      assert.equal(srvARows.length, 1);
+      assert.equal(srvARows[0].cpu, 42);
+    },
+  );
 });
