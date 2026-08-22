@@ -440,6 +440,8 @@
       "stop": "Arrêter",
       "restart": "Redémarrer",
       "reload": "Recharger"
-    }
+    },
+    "metrics": "Metrics",
+    "metricsError": "Impossible de charger les statistiques pour ce process."
   }
 }

@@ -43,11 +43,12 @@ test("migrator", async (t) => {
       "011_audit_log",
       "012_servers",
       "013_process_metrics_analytics",
+      "014_process_metrics_server_key",
     ]);
 
     const status = await migrator.status();
     assert.equal(status.pending.length, 0);
-    assert.equal(status.applied.length, 13);
+    assert.equal(status.applied.length, 14);
   });
 
   await t.test("up() est idempotent : rejouer ne fait rien et ne plante pas", async () => {
@@ -82,13 +83,13 @@ test("migrator", async (t) => {
     assert.ok(tables.includes("user_servers"));
   });
 
-  await t.test("down() annule la dernière migration appliquée (013, no-op sqlite : colonnes conservées)", async () => {
+  await t.test("down() annule la dernière migration appliquée (014, reconstruction rollup vers le schéma 004)", async () => {
     const migrator = require("../../lib/db/migrator");
     const db = require("../../lib/db");
     await migrator.up();
 
     const reverted = await migrator.down();
-    assert.deepEqual(reverted, ["013_process_metrics_analytics"]);
+    assert.deepEqual(reverted, ["014_process_metrics_server_key"]);
 
     const status = await migrator.status();
     assert.deepEqual(
@@ -106,39 +107,40 @@ test("migrator", async (t) => {
         "010_health_checks_process_name",
         "011_audit_log",
         "012_servers",
+        "013_process_metrics_analytics",
       ],
     );
 
-    // 012 (toujours appliquée ici) garde ses tables ; le rollback de 013 est
-    // un no-op sous SQLite (voir 013_process_metrics_analytics.js#down —
-    // même pattern que 010) donc servers/user_servers restent présentes.
+    // 012 (toujours appliquée ici) garde ses tables ; le rollback de 014
+    // reconstruit process_metrics_rollup vers le schéma 004 mais ne touche à
+    // aucune autre table.
     const tables = (await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])).map(
       (r) => r.name,
     );
     assert.ok(
       tables.includes("servers") && tables.includes("user_servers"),
-      "servers/user_servers (Phase 10/012) ne sont pas affectées par le rollback de 013",
+      "servers/user_servers (Phase 10/012) ne sont pas affectées par le rollback de 014",
     );
     assert.ok(
       tables.includes("audit_log"),
-      "audit_log (Phase 9/011) n'est pas affectée par le rollback de 013",
+      "audit_log (Phase 9/011) n'est pas affectée par le rollback de 014",
     );
     assert.ok(
       tables.includes("auto_healing_settings"),
-      "auto_healing_settings (Phase 7/009) n'est pas affectée par le rollback de 013",
+      "auto_healing_settings (Phase 7/009) n'est pas affectée par le rollback de 014",
     );
     assert.ok(
       tables.includes("health_checks"),
-      "health_checks (Phase 6/008) n'est pas affectée par le rollback de 013",
+      "health_checks (Phase 6/008) n'est pas affectée par le rollback de 014",
     );
     assert.ok(
       tables.includes("notification_providers"),
-      "notification_providers (Phase 5A/006) n'est pas affectée par le rollback de 013",
+      "notification_providers (Phase 5A/006) n'est pas affectée par le rollback de 014",
     );
     assert.ok(tables.includes("notification_routes"));
     assert.ok(
       tables.includes("process_events"),
-      "process_events ne doit pas être affectée par le rollback de 013",
+      "process_events ne doit pas être affectée par le rollback de 014",
     );
   });
 
@@ -146,10 +148,14 @@ test("migrator", async (t) => {
     const migrator = require("../../lib/db/migrator");
     await migrator.up();
     const reverted = await migrator.down({ steps: 3 });
-    assert.deepEqual(reverted, ["013_process_metrics_analytics", "012_servers", "011_audit_log"]);
+    assert.deepEqual(reverted, [
+      "014_process_metrics_server_key",
+      "013_process_metrics_analytics",
+      "012_servers",
+    ]);
 
     const status = await migrator.status();
-    assert.equal(status.applied.length, 10);
+    assert.equal(status.applied.length, 11);
   });
 
   await t.test("down() sur une base vierge (rien d'appliqué) ne fait rien", async () => {

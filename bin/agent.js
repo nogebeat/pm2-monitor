@@ -56,9 +56,69 @@ if (!HUB_URL || !SERVER_KEY || !TOKEN) {
   process.exit(1);
 }
 
+// --- Métriques "avancées" best-effort (Phase 11 — Advanced Metrics) --------
+// Copie de lib/process-helpers.js#readAxmMetrics : bin/agent.js ne peut pas
+// require() ce module (dépendances DB/audit incompatibles avec un script
+// autonome tournant sur un serveur distant, voir commentaire au-dessus de
+// fmtProcess ci-dessous), donc duplication volontaire — mêmes règles :
+// jamais de valeur inventée, `null` si le process n'expose pas axm_monitor.
+const UNIT_MULTIPLIERS = { b: 1, kb: 1024, kib: 1024, mb: 1024 ** 2, mib: 1024 ** 2, gb: 1024 ** 3, gib: 1024 ** 3 };
+
+function parseAxmValue(raw) {
+  if (raw === null || raw === undefined) return null;
+  const str = typeof raw === "object" && raw.value !== undefined ? raw.value : raw;
+  if (typeof str === "number") return { value: str, unit: "" };
+  if (typeof str !== "string") return null;
+  const m = str.trim().match(/^(-?[\d.]+)\s*([a-zA-Z%]*)$/);
+  if (!m) return null;
+  const value = Number(m[1]);
+  if (!Number.isFinite(value)) return null;
+  return { value, unit: (m[2] || "").toLowerCase() };
+}
+
+function toBytes(parsed) {
+  if (!parsed) return null;
+  const mult = UNIT_MULTIPLIERS[parsed.unit];
+  if (!mult) return parsed.unit === "" || parsed.unit === "b" ? Math.round(parsed.value) : null;
+  return Math.round(parsed.value * mult);
+}
+
+function toMs(parsed) {
+  if (!parsed) return null;
+  if (parsed.unit === "s") return Math.round(parsed.value * 1000 * 100) / 100;
+  return Math.round(parsed.value * 100) / 100;
+}
+
+function findAxmEntry(axm, patterns) {
+  if (!axm || typeof axm !== "object") return null;
+  for (const key of Object.keys(axm)) {
+    if (patterns.some((re) => re.test(key))) return axm[key];
+  }
+  return null;
+}
+
+function readAxmMetrics(env) {
+  const axm = env && env.axm_monitor;
+  if (!axm) return { heapUsedBytes: null, heapTotalBytes: null, eventLoopLagMs: null };
+
+  const heapUsedBytes = toBytes(parseAxmValue(findAxmEntry(axm, [/used heap size/i])));
+  let heapTotalBytes = toBytes(parseAxmValue(findAxmEntry(axm, [/^heap size$/i, /total heap size/i])));
+  if (heapTotalBytes === null && heapUsedBytes !== null) {
+    const usage = parseAxmValue(findAxmEntry(axm, [/heap usage/i]));
+    if (usage && usage.value > 0) {
+      heapTotalBytes = Math.round(heapUsedBytes / (usage.value / 100));
+    }
+  }
+  const eventLoopLagMs = toMs(
+    parseAxmValue(findAxmEntry(axm, [/loop delay/i, /event loop latency$/i, /event loop latency p50/i])),
+  );
+  return { heapUsedBytes, heapTotalBytes, eventLoopLagMs };
+}
+
 /** Équivalent minimal de lib/process-helpers.js#fmtProcess, sans les dépendances DB/auth de ce module. */
 function fmtProcess(p) {
   const env = p.pm2_env || {};
+  const axm = readAxmMetrics(env);
   return {
     id: p.pm_id,
     name: p.name,
@@ -77,6 +137,9 @@ function fmtProcess(p) {
     args: env.args || [],
     cwd: env.pm_cwd || "",
     env: env.env || {},
+    heapUsedBytes: axm.heapUsedBytes,
+    heapTotalBytes: axm.heapTotalBytes,
+    eventLoopLagMs: axm.eventLoopLagMs,
   };
 }
 

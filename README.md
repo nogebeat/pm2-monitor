@@ -311,7 +311,9 @@ REST, permissions, DB réelle) ; `test/integration/process-history-api.test.js`,
 volume réaliste, taille disque et temps de requête bornés) et
 `process-history-analytics.test.js` (Phase 11 — stats de période,
 comparaison à la période précédente, disponibilité, crashes, périodes sans
-données, resolution invalide) ;
+données, resolution invalide) et `test/unit/migration-014-server-key.test.js`
+(reconstruction de `process_metrics_rollup` sans perte de données, unicité
+par serveur — correctif multi-serveur) ;
 `test/integration/events-service.test.js` et `events-api.test.js`
 (normalisation des packets PM2, filtres, pagination, permissions) ;
 `test/unit/health-checks-runner.test.js` et `health-checks-engine.test.js`
@@ -502,6 +504,35 @@ de même durée. Détails complets : [`docs/process-history/README.md`](docs/pro
   les rollups (`online_count`, migration `013_process_metrics_analytics.js`).
 - **Crashes** : réutilise `lib/services/events/` (Phase 4, pas de second
   compteur) plutôt que d'inventer une détection de crash côté historique.
+
+#### Multi-serveur (correctif)
+
+Jusqu'à ce correctif, l'historique/Analytics ne fonctionnait que pour
+l'hôte local du hub : `lib/realtime/agent-hub.js` (Phase 10) ne branchait
+jamais les heartbeats des agents distants sur `ProcessHistoryService`, et
+les tables `process_metrics_raw`/`process_metrics_rollup` (Phase 4, avant le
+multi-serveur) n'avaient de toute façon aucune notion de serveur —
+deux serveurs avec un process du même nom auraient fusionné leur historique.
+
+- Migration `014_process_metrics_server_key.js` : ajoute `server_key` aux
+  deux tables (`"local"` par défaut, rétrocompatible).
+- `onSnapshot` (agent-hub, `server.js`) appelle désormais
+  `processHistory.record(processes, now, serverKey)` à chaque heartbeat —
+  un agent alimente son propre historique dès sa première connexion.
+- **Endpoints dédiés** (les routes `/api/processes/:id/*` résolvent `:id`
+  via `pm2.describe()`, donc strictement locales, incapables de voir un
+  process distant) : `GET /api/servers/:key/processes/:processName/metrics`
+  et `GET /api/servers/:key/processes/:processName/analytics`, mêmes
+  paramètres que leurs équivalents locaux, permission `view` sur l'app +
+  accès au serveur (`auth.requireServerAccess`).
+- **UI** : bouton "Metrics" sur chaque process distant dans l'onglet
+  "Serveurs" (`ServersView.vue`), panneau identique à celui d'une carte de
+  process local.
+- **Limite connue** : les crashes (`lib/services/events/`) n'ont pas
+  (encore) de `server_key` — un crash "api" sur un serveur distant et un
+  crash "api" local se comptent ensemble si les deux process partagent ce
+  nom. Corriger `events/` est hors périmètre de ce correctif (nécessiterait
+  sa propre migration).
 
 ### Timeline d'événements
 

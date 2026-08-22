@@ -31,6 +31,7 @@ comportement pour qui n'utilise pas d'agent.
 - [Sécurité](#sécurité)
 - [Interface](#interface)
 - [API REST](#api-rest)
+- [Historique & Analytics multi-serveur](#historique--analytics-multi-serveur)
 - [Migration](#migration)
 - [Tests](#tests)
 - [Troubleshooting](#troubleshooting)
@@ -232,7 +233,11 @@ visible avec la permission `servers_read` :
 - gestion (permission `servers_manage`) : enregistrement, modification,
   activation/désactivation, régénération de token, suppression ;
 - accès au serveur : liste dépliable des process distants, avec actions
-  start/stop/restart/reload (soumises aux permissions par app/action).
+  start/stop/restart/reload (soumises aux permissions par app/action), et un
+  bouton "Metrics" par process ouvrant un panneau Analytics (moyenne/pic
+  CPU/mémoire, restarts, crashes, disponibilité, comparaison à la période
+  précédente — voir [Historique multi-serveur](#historique--analytics-multi-serveur)
+  ci-dessous et `docs/process-history/README.md`).
 
 Le temps réel réutilise le Socket.IO existant (`frontend/src/socket.js`) —
 pas de second système de polling dédié :
@@ -261,6 +266,31 @@ Monté sur `/api/servers` (`lib/routes/servers.js`) :
 | DELETE  | `/api/servers/:key`                  | `servers_manage`              | supprime un serveur (impossible pour `local`)               |
 | POST    | `/api/servers/:key/regenerate-token` | `servers_manage`              | régénère le token (invalide l'ancien)                       |
 | POST    | `/api/servers/:key/action`           | scope + permission app/action | relaie une action PM2 vers l'agent                          |
+| GET     | `/api/servers/:key/processes/:processName/metrics`   | scope + permission `view` sur l'app | historique du process (voir Historique multi-serveur) |
+| GET     | `/api/servers/:key/processes/:processName/analytics` | scope + permission `view` sur l'app | stats de période + comparaison (idem)                |
+
+## Historique & Analytics multi-serveur
+
+**Correctif** (postérieur à la mise en place initiale de la Phase 10) :
+avant lui, `lib/services/process-history/` (historique par process,
+graphique "Metrics" + panneau "Analytics") ne fonctionnait **que pour
+l'hôte local du hub**. Deux causes cumulées :
+
+1. `attachAgentHub()` (`onSnapshot`) recevait bien les heartbeats des
+   agents (process + snapshot système) mais ne les transmettait jamais à
+   `ProcessHistoryService#record()` — seul `lib/polling.js` (hôte local)
+   le faisait. Aucune donnée n'était donc jamais collectée pour un agent.
+2. `process_metrics_raw`/`process_metrics_rollup` (créées en Phase 4,
+   avant ce Phase 10) n'avaient aucune notion de serveur : même en
+   branchant la collecte, deux serveurs avec un process de même nom
+   (fréquent — "api", "worker"…) auraient fusionné leur historique dans
+   les mêmes lignes.
+
+Résolu par la migration `014_process_metrics_server_key.js` (colonne
+`server_key` sur les deux tables, `"local"` par défaut) et le branchement
+de `onSnapshot` sur `processHistory.record(processes, now, serverKey)`
+dans `server.js`. Détails complets, y compris les limites restantes
+(crashes non scopés par serveur) : `docs/process-history/README.md`.
 
 ## Migration
 
@@ -270,6 +300,14 @@ création idempotente (`IF NOT EXISTS`) :
 - `servers` : registre des serveurs (voir colonnes dans le fichier de
   migration).
 - `user_servers` : scoping utilisateur → serveurs.
+
+`lib/db/migrations/014_process_metrics_server_key.js` — ajoute `server_key`
+à `process_metrics_raw`/`process_metrics_rollup` (voir
+[Historique & Analytics multi-serveur](#historique--analytics-multi-serveur)) ;
+reconstruit `process_metrics_rollup` sous SQLite (contrainte UNIQUE à
+modifier, non supportée en `ALTER TABLE` par les versions embarquées
+courantes) sans perte des lignes existantes (testé, voir
+`test/unit/migration-014-server-key.test.js`).
 
 ```bash
 npm run migrate:status
@@ -285,6 +323,9 @@ npm run migrate:up
 - `test/integration/servers-api.test.js` : enregistrement, authentification,
   mise à jour, activation/désactivation, suppression, régénération de
   token, permissions, isolation entre serveurs.
+- `test/unit/migration-014-server-key.test.js` : préservation des données
+  existantes lors de la reconstruction de `process_metrics_rollup`, non-
+  collision entre deux serveurs partageant un nom de process.
 
 ```bash
 npm test
@@ -323,3 +364,10 @@ npm test
   panneau de logs local) n'est pas encore implémenté côté frontend —
   seuls les métriques/statuts/process sont actuellement affichés par
   serveur.
+- **Crashes non scopés par serveur** : `lib/services/events/`
+  (`process_events`) n'a pas de colonne `server_key`, contrairement à
+  `process_metrics_raw`/`rollup` depuis la migration 014. Le compteur
+  "crashes" du panneau Analytics d'un process distant peut donc inclure
+  des crashes d'un process local (ou d'un autre serveur) portant le même
+  nom. Non corrigé par ce correctif — nécessiterait sa propre migration
+  sur `process_events`.

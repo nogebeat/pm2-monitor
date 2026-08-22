@@ -145,6 +145,18 @@ const dispatchAlertTransition = createDispatchAlertTransition({
 const agentHub = attachAgentHub(io, {
   onSnapshot: (serverKey, snapshot, processes) => {
     io.emit("server.snapshot", { serverId: serverKey, snapshot, processes });
+    // Historique/Analytics (lib/services/process-history/, Phase 11) : avant
+    // la migration 014_process_metrics_server_key.js, ce service n'était
+    // jamais alimenté pour les process d'un serveur distant (seul
+    // lib/polling.js appelait record(), pour l'hôte local uniquement) —
+    // aucune donnée Metrics/Analytics n'existait pour un agent. `processes`
+    // porte déjà la forme fmtProcess() (voir bin/agent.js, copie locale de
+    // lib/process-helpers.js#fmtProcess), donc réutilisable telle quelle.
+    if (processHistory.config.enabled && Array.isArray(processes) && processes.length) {
+      processHistory.record(processes, Date.now(), serverKey).catch((e) => {
+        console.error(`Erreur de collecte de l'historique process (serveur "${serverKey}") :`, e.message);
+      });
+    }
   },
   onProcessEvent: (serverKey, payload) => {
     io.emit("event", { ...payload, serverId: serverKey });
@@ -197,7 +209,7 @@ app.use(
 app.use("/api/audit", auditRouter());
 
 // Multi-server / Remote PM2 (lib/services/servers/, lib/routes/servers.js, Phase 10)
-app.use("/api/servers", serversRouter({ agentHub }));
+app.use("/api/servers", serversRouter({ agentHub, processHistory }));
 
 // Process : liste + actions de base/étendues + métriques (lib/routes/processes.js)
 app.use("/api", processesRouter({ processHistory }));

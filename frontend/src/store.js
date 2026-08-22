@@ -493,6 +493,18 @@ export function runRemoteAction(serverKey, action, processName) {
   return apiPost(`/api/servers/${serverKey}/action`, { action, processName });
 }
 
+// Analytics d'un process d'un serveur distant (Phase 11 + correctif
+// multi-serveur, migration 014_process_metrics_server_key.js) — même forme
+// de réponse que loadProcessAnalytics() (process local), route différente
+// car /api/processes/:id/* résout :id via pm2.describe() (local uniquement).
+export function loadServerProcessAnalytics(serverKey, processName, range) {
+  const end = Date.now();
+  const start = end - (PROCESS_RANGE_MS[range] || PROCESS_RANGE_MS["1h"]);
+  return apiGet(
+    `/api/servers/${serverKey}/processes/${encodeURIComponent(processName)}/analytics?start=${start}&end=${end}`,
+  );
+}
+
 // ---------- Câblage WebSocket ----------
 
 socket.on("connect", () => {

@@ -440,6 +440,8 @@
       "stop": "Stop",
       "restart": "Restart",
       "reload": "Reload"
-    }
+    },
+    "metrics": "Metrics",
+    "metricsError": "Couldn't load stats for this process."
   }
 }

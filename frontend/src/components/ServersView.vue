@@ -12,8 +12,9 @@ import {
   deleteServer,
   regenerateServerToken,
   runRemoteAction,
+  loadServerProcessAnalytics,
 } from "../store";
-import { fmtBytes, fmtUptime } from "../format";
+import { fmtBytes, fmtUptime, fmtMem } from "../format";
 
 const { t } = useI18n();
 
@@ -112,6 +113,69 @@ function statusLabel(status) {
 
 function pct(n) {
   return typeof n === "number" ? Math.round(n) : 0;
+}
+
+// ---------- Analytics par process distant (Phase 11 + correctif multi-serveur) ----------
+//
+// Un seul panneau ouvert à la fois (comme `expanded` ci-dessus pour la liste
+// de process elle-même) : évite d'empiler N requêtes /analytics si on ouvre
+// plusieurs lignes d'affilée. Réutilise .analytics-panel/.analytics-grid
+// (style.css, déjà utilisées par ProcessCard.vue) — même rendu, pas de CSS dupliqué.
+
+const openMetricsKey = ref(null); // `${serverKey}::${processName}` ou null
+const metricsRange = ref("1h");
+const analytics = ref(null);
+const analyticsError = ref(false);
+
+function metricsKey(serverKey, processName) {
+  return `${serverKey}::${processName}`;
+}
+
+async function refreshServerAnalytics(serverKey, processName) {
+  analyticsError.value = false;
+  try {
+    analytics.value = await loadServerProcessAnalytics(serverKey, processName, metricsRange.value);
+  } catch (e) {
+    analytics.value = null;
+    analyticsError.value = true;
+  }
+}
+
+function toggleProcessMetrics(server, processName) {
+  const key = metricsKey(server.serverKey, processName);
+  if (openMetricsKey.value === key) {
+    openMetricsKey.value = null;
+    analytics.value = null;
+    return;
+  }
+  openMetricsKey.value = key;
+  analytics.value = null;
+  refreshServerAnalytics(server.serverKey, processName);
+}
+
+function setServerMetricsRange(server, processName, range) {
+  metricsRange.value = range;
+  refreshServerAnalytics(server.serverKey, processName);
+}
+
+function fmtDelta(pctValue) {
+  if (pctValue === null || pctValue === undefined) return "";
+  const sign = pctValue > 0 ? "+" : "";
+  return `${sign}${pctValue}%`;
+}
+
+function deltaClass(pctValue, invert = false) {
+  if (pctValue === null || pctValue === undefined || pctValue === 0) return "delta-flat";
+  const good = invert ? pctValue < 0 : pctValue > 0;
+  return good ? "delta-up" : "delta-down";
+}
+
+function fmtPct(v) {
+  return v === null || v === undefined ? null : `${v}%`;
+}
+
+function fmtMs(v) {
+  return v === null || v === undefined ? null : `${v} ms`;
 }
 </script>
 
@@ -264,27 +328,118 @@ function pct(n) {
 
           <div v-if="expanded === s.serverKey && s.kind !== 'local'" class="server-processes">
             <div v-if="!(s.processes || []).length" class="hint-text">{{ t("serversView.noProcesses") }}</div>
-            <div v-for="p in s.processes || []" :key="p.id" class="server-process-row">
-              <span
-                class="status-dot"
-                :class="`status-${p.status === 'online' ? 'online' : 'errored'}`"
-              ></span>
-              <span class="label">{{ p.name }}</span>
-              <span class="hint-text">{{ p.status }}</span>
-              <span class="hint-text">CPU {{ pct(p.cpu) }}%</span>
-              <span class="hint-text">{{ fmtBytes(p.memory) }}</span>
-              <span style="flex: 1"></span>
-              <button
-                v-for="a in REMOTE_ACTIONS"
-                v-show="can(a, p.name)"
-                :key="a"
-                type="button"
-                class="icon-btn"
-                @click="remoteAction(s, p.name, a)"
-              >
-                {{ t(`serversView.action.${a}`) }}
-              </button>
-            </div>
+            <template v-for="p in s.processes || []" :key="p.id">
+              <div class="server-process-row">
+                <span
+                  class="status-dot"
+                  :class="`status-${p.status === 'online' ? 'online' : 'errored'}`"
+                ></span>
+                <span class="label">{{ p.name }}</span>
+                <span class="hint-text">{{ p.status }}</span>
+                <span class="hint-text">CPU {{ pct(p.cpu) }}%</span>
+                <span class="hint-text">{{ fmtBytes(p.memory) }}</span>
+                <span style="flex: 1"></span>
+                <button type="button" class="icon-btn" @click="toggleProcessMetrics(s, p.name)">
+                  {{ t("serversView.metrics") }}
+                </button>
+                <button
+                  v-for="a in REMOTE_ACTIONS"
+                  v-show="can(a, p.name)"
+                  :key="a"
+                  type="button"
+                  class="icon-btn"
+                  @click="remoteAction(s, p.name, a)"
+                >
+                  {{ t(`serversView.action.${a}`) }}
+                </button>
+              </div>
+
+              <div v-if="openMetricsKey === metricsKey(s.serverKey, p.name)" class="server-metrics-panel">
+                <div class="filter-group" role="group" :aria-label="t('processCard.rangeLabel')">
+                  <button
+                    v-for="r in ['1h', '6h', '24h', '7d', '30d']"
+                    :key="r"
+                    class="filter-btn"
+                    :class="{ active: metricsRange === r }"
+                    @click="setServerMetricsRange(s, p.name, r)"
+                  >
+                    {{ r }}
+                  </button>
+                </div>
+
+                <div v-if="analyticsError" class="hint-text">{{ t("serversView.metricsError") }}</div>
+
+                <div v-else-if="analytics" class="analytics-panel">
+                  <div v-if="!analytics.current.sampleCount" class="analytics-empty">
+                    {{ t("processCard.analytics.noData") }}
+                  </div>
+                  <template v-else>
+                    <div class="analytics-grid">
+                      <div class="analytics-stat">
+                        <div class="analytics-stat-label">{{ t("processCard.analytics.cpu") }}</div>
+                        <div class="analytics-stat-value">
+                          {{ analytics.current.cpu.avg ?? "–" }}%
+                          <span class="analytics-stat-sub">{{ t("processCard.analytics.peak") }} {{ analytics.current.cpu.max ?? "–" }}%</span>
+                        </div>
+                        <div v-if="analytics.deltas" class="analytics-stat-delta" :class="deltaClass(analytics.deltas.cpuAvgPct, true)">
+                          {{ fmtDelta(analytics.deltas.cpuAvgPct) }}
+                        </div>
+                      </div>
+
+                      <div class="analytics-stat">
+                        <div class="analytics-stat-label">{{ t("processCard.analytics.memory") }}</div>
+                        <div class="analytics-stat-value">
+                          {{ fmtMem(analytics.current.memory.avg) }}
+                          <span class="analytics-stat-sub">{{ t("processCard.analytics.peak") }} {{ fmtMem(analytics.current.memory.max) }}</span>
+                        </div>
+                        <div v-if="analytics.deltas" class="analytics-stat-delta" :class="deltaClass(analytics.deltas.memoryAvgPct, true)">
+                          {{ fmtDelta(analytics.deltas.memoryAvgPct) }}
+                        </div>
+                      </div>
+
+                      <div v-if="analytics.current.heapUsed.avg !== null" class="analytics-stat">
+                        <div class="analytics-stat-label">{{ t("processCard.analytics.heapUsed") }}</div>
+                        <div class="analytics-stat-value">{{ fmtBytes(analytics.current.heapUsed.avg) }}</div>
+                      </div>
+
+                      <div v-if="analytics.current.eventLoopLag.avg !== null" class="analytics-stat">
+                        <div class="analytics-stat-label">{{ t("processCard.analytics.eventLoopLag") }}</div>
+                        <div class="analytics-stat-value">{{ fmtMs(analytics.current.eventLoopLag.avg) }}</div>
+                      </div>
+
+                      <div class="analytics-stat">
+                        <div class="analytics-stat-label">{{ t("processCard.analytics.restarts") }}</div>
+                        <div class="analytics-stat-value">
+                          {{ analytics.current.restarts ?? 0 }}
+                          <span v-if="analytics.current.restartFrequencyPerHour !== null" class="analytics-stat-sub">
+                            {{ t("processCard.analytics.restartsPerHour", { n: analytics.current.restartFrequencyPerHour }) }}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div class="analytics-stat">
+                        <div class="analytics-stat-label">{{ t("processCard.analytics.crashes") }}</div>
+                        <div class="analytics-stat-value">{{ analytics.current.crashes }}</div>
+                      </div>
+
+                      <div class="analytics-stat">
+                        <div class="analytics-stat-label">{{ t("processCard.analytics.availability") }}</div>
+                        <div class="analytics-stat-value">
+                          {{ fmtPct(analytics.current.availabilityPercent) ?? t("processCard.analytics.notAvailable") }}
+                        </div>
+                        <div v-if="analytics.deltas" class="analytics-stat-delta" :class="deltaClass(analytics.deltas.availabilityPct)">
+                          {{ fmtDelta(analytics.deltas.availabilityPct) }}
+                        </div>
+                      </div>
+                    </div>
+                    <div class="analytics-foot">
+                      {{ t("processCard.analytics.samples", { n: analytics.current.sampleCount }) }}
+                      <template v-if="analytics.deltas">· {{ t("processCard.analytics.vsPrevious") }}</template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
           </div>
         </li>
       </ul>
@@ -392,6 +547,18 @@ function pct(n) {
   align-items: center;
   gap: 10px;
   font-size: 13px;
+}
+.server-metrics-panel {
+  margin: 2px 0 8px 24px;
+  padding: 10px 12px;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.server-metrics-panel .analytics-panel {
+  margin-top: 10px;
+  padding-top: 0;
+  border-top: none;
 }
 
 .events-empty {

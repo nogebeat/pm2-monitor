@@ -57,19 +57,26 @@ test("process-history store", async (t) => {
     );
   });
 
-  await t.test("listRawProcessNames() et rawTimeRange()", async () => {
+  await t.test("listRawProcessKeys() et rawTimeRange() — scoping server_key (Phase multi-serveur)", async () => {
     const store = require("../../lib/services/process-history/store");
     await store.insertRawBatch([
-      { processName: "api", ts: 1000, cpu: 1 },
+      { processName: "api", ts: 1000, cpu: 1 }, // serverKey implicite -> "local"
       { processName: "api", ts: 3000, cpu: 2 },
       { processName: "worker", ts: 2000, cpu: 1 },
+      { processName: "api", serverKey: "srv-remote", ts: 1500, cpu: 9 },
     ]);
 
-    const names = await store.listRawProcessNames();
-    assert.deepEqual(names.sort(), ["api", "worker"]);
+    const keys = await store.listRawProcessKeys();
+    assert.deepEqual(
+      keys.map((k) => `${k.serverKey}/${k.processName}`).sort(),
+      ["local/api", "local/worker", "srv-remote/api"],
+    );
 
     const range = await store.rawTimeRange("api");
-    assert.deepEqual(range, { minTs: 1000, maxTs: 3000 });
+    assert.deepEqual(range, { minTs: 1000, maxTs: 3000 }, "défaut serverKey='local', ne voit pas srv-remote");
+
+    const remoteRange = await store.rawTimeRange("api", "srv-remote");
+    assert.deepEqual(remoteRange, { minTs: 1500, maxTs: 1500 });
 
     assert.equal(await store.rawTimeRange("inconnu"), null);
   });
@@ -272,5 +279,74 @@ test("process-history store", async (t) => {
     assert.deepEqual(rows[0].eventLoopLag, { avg: 1.1, min: 0.5, max: 2.0, p95: 1.9 });
     assert.equal(rows[0].onlineCount, 4);
     assert.equal(rows[0].sampleCount, 5);
+  });
+
+  // --- Migration 014 : scoping multi-serveur ---------------------------------
+
+  await t.test("deux serveurs avec un process de même nom n'écrasent pas le même bucket rollup", async () => {
+    const store = require("../../lib/services/process-history/store");
+    await store.upsertRollup({
+      processName: "api",
+      serverKey: "local",
+      resolution: "medium",
+      bucketStart: 7_200_000,
+      cpu: { avg: 10, min: 10, max: 10, p95: 10 },
+      memory: { avg: 100, min: 100, max: 100, p95: 100 },
+      instancesAvg: 1,
+      restartCountMax: 0,
+      restartDelta: 0,
+      sampleCount: 1,
+    });
+    await store.upsertRollup({
+      processName: "api",
+      serverKey: "srv-remote",
+      resolution: "medium",
+      bucketStart: 7_200_000,
+      cpu: { avg: 90, min: 90, max: 90, p95: 90 },
+      memory: { avg: 900, min: 900, max: 900, p95: 900 },
+      instancesAvg: 1,
+      restartCountMax: 0,
+      restartDelta: 0,
+      sampleCount: 1,
+    });
+
+    const localRows = await store.queryRollup({
+      processName: "api",
+      serverKey: "local",
+      resolution: "medium",
+      start: 0,
+      end: 10_000_000,
+    });
+    const remoteRows = await store.queryRollup({
+      processName: "api",
+      serverKey: "srv-remote",
+      resolution: "medium",
+      start: 0,
+      end: 10_000_000,
+    });
+    assert.equal(localRows.length, 1);
+    assert.equal(remoteRows.length, 1);
+    assert.equal(localRows[0].cpu.avg, 10, "le bucket local n'est pas écrasé par le bucket distant");
+    assert.equal(remoteRows[0].cpu.avg, 90);
+  });
+
+  await t.test("queryRaw()/queryRollup() : serverKey omis -> ne voit que 'local', pas les autres serveurs", async () => {
+    const store = require("../../lib/services/process-history/store");
+    await store.insertRawBatch([
+      { processName: "isolated", ts: 1000, cpu: 1 }, // "local" implicite
+      { processName: "isolated", serverKey: "srv-a", ts: 1000, cpu: 42 },
+      { processName: "isolated", serverKey: "srv-b", ts: 1000, cpu: 99 },
+    ]);
+    const defaultRows = await store.queryRaw({ processName: "isolated", start: 0, end: 5000 });
+    const srvARows = await store.queryRaw({
+      processName: "isolated",
+      serverKey: "srv-a",
+      start: 0,
+      end: 5000,
+    });
+    assert.equal(defaultRows.length, 1);
+    assert.equal(defaultRows[0].cpu, 1);
+    assert.equal(srvARows.length, 1);
+    assert.equal(srvARows[0].cpu, 42);
   });
 });
