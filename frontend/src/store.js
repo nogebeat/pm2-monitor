@@ -7,7 +7,7 @@ const MAX_CPU_HISTORY = 20;
 
 export const state = reactive({
   connected: false,
-  view: "process", // "process" | "dashboard" | "system" | "events" | "servers"
+  view: "dashboard", // "process" | "dashboard" | "system" | "events" | "servers"
 
   // ---------- Auth / permissions ----------
   auth: {
@@ -306,6 +306,14 @@ export function loadProcessMetrics(processId, range) {
   return apiGet(`/api/processes/${processId}/metrics?start=${start}&end=${end}`);
 }
 
+// ---------- Analytics par process (Phase 11 — stats + comparaison période précédente) ----------
+
+export function loadProcessAnalytics(processId, range) {
+  const end = Date.now();
+  const start = end - (PROCESS_RANGE_MS[range] || PROCESS_RANGE_MS["1h"]);
+  return apiGet(`/api/processes/${processId}/analytics?start=${start}&end=${end}`);
+}
+
 // ---------- Timeline d'événements/crashs (GET /api/events) ----------
 
 // "All"/"Starts"/"Stops"/"Restarts"/"Crashes"/"Errors" — les filtres demandés par la spec de
@@ -579,6 +587,12 @@ socket.on("event.created", scheduleDashboardRefresh);
 
 export function bootstrap() {
   if (state.auth.authEnabled && !state.auth.user) return; // pas connecté : rien à charger
+
+  // Onglet "Dashboard" par défaut à la connexion (au lieu de "Process") : sauf
+  // si l'utilisateur n'a pas la permission "system" (le tab Dashboard, gated
+  // par can('system') dans TopBar.vue, ne lui serait alors pas accessible) —
+  // dans ce cas on retombe sur "process", toujours visible quel que soit le rôle.
+  state.view = can("system") ? "dashboard" : "process";
 
   fetch("/api/processes")
     .then((r) => r.json())

@@ -83,7 +83,25 @@
     "stop": "Stop",
     "metrics": "Metrics",
     "more": "Plus",
-    "rangeLabel": "Plage d'historique du process"
+    "rangeLabel": "Plage d'historique du process",
+    "analytics": {
+      "title": "Analytics",
+      "avg": "Moy.",
+      "peak": "Pic",
+      "cpu": "CPU",
+      "memory": "Mémoire",
+      "heapUsed": "Heap utilisé",
+      "eventLoopLag": "Latence event loop",
+      "restarts": "Restarts",
+      "restartsPerHour": "{n}/h",
+      "crashes": "Crashes",
+      "availability": "Disponibilité",
+      "samples": "{n} échantillons",
+      "noData": "Pas encore de données sur cette période.",
+      "vsPrevious": "vs période précédente",
+      "notAvailable": "n/d",
+      "notInstrumented": "Nécessite @pm2/io côté app"
+    }
   },
   "processSidebarCard": {},
   "dashboard": {

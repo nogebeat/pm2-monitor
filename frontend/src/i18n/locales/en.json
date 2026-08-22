@@ -83,7 +83,25 @@
     "stop": "Stop",
     "metrics": "Metrics",
     "more": "More",
-    "rangeLabel": "Process history range"
+    "rangeLabel": "Process history range",
+    "analytics": {
+      "title": "Analytics",
+      "avg": "Avg",
+      "peak": "Peak",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "heapUsed": "Heap used",
+      "eventLoopLag": "Event loop lag",
+      "restarts": "Restarts",
+      "restartsPerHour": "{n}/h",
+      "crashes": "Crashes",
+      "availability": "Availability",
+      "samples": "{n} samples",
+      "noData": "No data yet for this period.",
+      "vsPrevious": "vs previous period",
+      "notAvailable": "n/a",
+      "notInstrumented": "Requires @pm2/io in the app"
+    }
   },
   "processSidebarCard": {},
   "dashboard": {

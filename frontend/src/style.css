@@ -521,6 +521,74 @@ textarea {
 .proc-chart-wrap {
   height: 140px;
 }
+
+.analytics-panel {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.analytics-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 8px;
+}
+.analytics-empty {
+  font-size: 12px;
+  color: var(--text-faint);
+  padding: 8px 0;
+}
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+.analytics-stat {
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+.analytics-stat-label {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  margin-bottom: 3px;
+}
+.analytics-stat-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.analytics-stat-sub {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-faint);
+  margin-left: 4px;
+}
+.analytics-stat-delta {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.delta-up {
+  color: var(--online);
+}
+.delta-down {
+  color: var(--down);
+}
+.delta-flat {
+  color: var(--text-faint);
+}
+.analytics-foot {
+  margin-top: 8px;
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
 .proc-actions button.go:hover {
   color: var(--online);
   border-color: var(--online);

@@ -306,9 +306,12 @@ détruit automatiquement), aucun test ne touche à une base de données réelle.
 Couverture notable : `test/unit/alert-engine.test.js` (seuils, durée,
 cooldown, déduplication, machine à états, acquittement — moteur d'alertes
 testé isolément, sans DB) ; `test/integration/alerts-api.test.js` (routes
-REST, permissions, DB réelle) ; `test/integration/process-history-api.test.js`
-et `process-history-volume.test.js` (collecte → requête, purge/rollup sous
-volume réaliste, taille disque et temps de requête bornés) ;
+REST, permissions, DB réelle) ; `test/integration/process-history-api.test.js`,
+`process-history-volume.test.js` (collecte → requête, purge/rollup sous
+volume réaliste, taille disque et temps de requête bornés) et
+`process-history-analytics.test.js` (Phase 11 — stats de période,
+comparaison à la période précédente, disponibilité, crashes, périodes sans
+données, resolution invalide) ;
 `test/integration/events-service.test.js` et `events-api.test.js`
 (normalisation des packets PM2, filtres, pagination, permissions) ;
 `test/unit/health-checks-runner.test.js` et `health-checks-engine.test.js`
@@ -343,7 +346,8 @@ pour le détail de ce qui existe et ce qui est prévu.
   température/restarts/statut) — voir [Alertes](#alertes) et
   [`docs/alerts/README.md`](docs/alerts/README.md).
 - `lib/services/process-history/` : historique CPU/RAM/restarts par process,
-  multi-résolution avec purge automatique — voir
+  multi-résolution avec purge automatique, et analytics (stats de période +
+  comparaison, Phase 11) — voir
   [Historique par process](#historique-par-process).
 - `lib/services/events/` : timeline d'événements/crashs PM2 (start, stop,
   restart, crash, statut) — voir [Timeline d'événements](#timeline-dévénements)
@@ -475,6 +479,29 @@ automatique — pensé pour tourner sur un petit VPS sans exploser le disque.
   sélecteur de période 1h / 6h / 24h / 7d / 30d.
 - Collecte réutilisant le même `pm2.list()` que le moteur d'alertes (aucun
   second poller PM2), rollup + purge sur un intervalle de maintenance séparé.
+
+#### Analytics (Phase 11)
+
+Sous le graphique de l'onglet "Metrics", un panneau "Analytics" affiche des
+statistiques agrégées sur la même période (avg/min/max, restarts + fréquence
+par heure, crashes, disponibilité) avec comparaison à la période précédente
+de même durée. Détails complets : [`docs/process-history/README.md`](docs/process-history/README.md).
+
+- **Endpoint** : `GET /api/processes/:id/analytics?start=&end=&resolution=&compare=`
+  (même permission `view` que `/metrics`). `compare=0`/`false` désactive la
+  comparaison à la période précédente (activée par défaut).
+- **Métriques toujours disponibles** (déjà couvertes ci-dessus) : cpu,
+  memory (RSS), instances, restarts.
+- **Best-effort, jamais inventées** : heap used/total (octets) et event loop
+  lag (ms), lus depuis `pm2_env.axm_monitor` quand le process monitoré est
+  une app Node instrumentée (`@pm2/io`/pmx) — `null` sinon, sans jamais être
+  approximées. Le panneau UI masque ces deux cartes quand elles sont
+  toujours `null` sur la période.
+- **Disponibilité** : % d'échantillons `status === "online"` sur la
+  période — calculable jusqu'à 30j grâce à un compteur dédié conservé dans
+  les rollups (`online_count`, migration `013_process_metrics_analytics.js`).
+- **Crashes** : réutilise `lib/services/events/` (Phase 4, pas de second
+  compteur) plutôt que d'inventer une détection de crash côté historique.
 
 ### Timeline d'événements
 

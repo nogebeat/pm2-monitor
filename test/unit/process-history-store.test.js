@@ -173,4 +173,104 @@ test("process-history store", async (t) => {
     assert.equal(medium.length, 0, "medium purgé");
     assert.equal(long.length, 1, "long non affecté");
   });
+
+  // --- Phase 11 : colonnes heap/event-loop-lag/online_count ------------------
+
+  await t.test("insertRaw()/queryRaw() : heap/event-loop-lag null par défaut (process non instrumenté)", async () => {
+    const store = require("../../lib/services/process-history/store");
+    const now = Date.now();
+    await store.insertRaw({
+      processName: "api",
+      ts: now,
+      cpu: 1,
+      memory: 1000,
+      restartCount: 0,
+      instances: 1,
+      status: "online",
+      uptimeMs: 1000,
+      // pas de heapUsed/heapTotal/eventLoopLag fournis
+    });
+    const rows = await store.queryRaw({ processName: "api", start: now - 1000, end: now + 1000 });
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].heapUsed, null);
+    assert.equal(rows[0].heapTotal, null);
+    assert.equal(rows[0].eventLoopLag, null);
+  });
+
+  await t.test("insertRaw()/queryRaw() : round-trip heap/event-loop-lag quand fournis", async () => {
+    const store = require("../../lib/services/process-history/store");
+    const now = Date.now();
+    await store.insertRaw({
+      processName: "worker",
+      ts: now,
+      cpu: 1,
+      memory: 1000,
+      restartCount: 0,
+      instances: 1,
+      status: "online",
+      uptimeMs: 1000,
+      heapUsed: 20 * 1024 * 1024,
+      heapTotal: 64 * 1024 * 1024,
+      eventLoopLag: 1.25,
+    });
+    const rows = await store.queryRaw({ processName: "worker", start: now - 1000, end: now + 1000 });
+    assert.equal(rows[0].heapUsed, 20 * 1024 * 1024);
+    assert.equal(rows[0].heapTotal, 64 * 1024 * 1024);
+    assert.equal(rows[0].eventLoopLag, 1.25);
+  });
+
+  await t.test("upsertRollup() : bucket sans heap/eventLoopLag/onlineCount -> colonnes null, pas d'erreur", async () => {
+    const store = require("../../lib/services/process-history/store");
+    await store.upsertRollup({
+      processName: "api",
+      resolution: "medium",
+      bucketStart: 3_600_000,
+      cpu: { avg: 10, min: 5, max: 15, p95: 14 },
+      memory: { avg: 100, min: 50, max: 150, p95: 140 },
+      instancesAvg: 1,
+      restartCountMax: 0,
+      restartDelta: 0,
+      sampleCount: 5,
+      // pas de heapUsed/heapTotal/eventLoopLag/onlineCount
+    });
+    const rows = await store.queryRollup({
+      processName: "api",
+      resolution: "medium",
+      start: 0,
+      end: 10_000_000,
+    });
+    assert.equal(rows.length, 1);
+    assert.deepEqual(rows[0].heapUsed, { avg: null, min: null, max: null, p95: null });
+    assert.equal(rows[0].onlineCount, null);
+  });
+
+  await t.test("upsertRollup() : round-trip complet heap/eventLoopLag/onlineCount", async () => {
+    const store = require("../../lib/services/process-history/store");
+    await store.upsertRollup({
+      processName: "worker",
+      resolution: "medium",
+      bucketStart: 3_600_000,
+      cpu: { avg: 10, min: 5, max: 15, p95: 14 },
+      memory: { avg: 100, min: 50, max: 150, p95: 140 },
+      heapUsed: { avg: 20, min: 10, max: 30, p95: 28 },
+      heapTotal: { avg: 64, min: 64, max: 64, p95: 64 },
+      eventLoopLag: { avg: 1.1, min: 0.5, max: 2.0, p95: 1.9 },
+      instancesAvg: 1,
+      restartCountMax: 2,
+      restartDelta: 1,
+      onlineCount: 4,
+      sampleCount: 5,
+    });
+    const rows = await store.queryRollup({
+      processName: "worker",
+      resolution: "medium",
+      start: 0,
+      end: 10_000_000,
+    });
+    assert.equal(rows.length, 1);
+    assert.deepEqual(rows[0].heapUsed, { avg: 20, min: 10, max: 30, p95: 28 });
+    assert.deepEqual(rows[0].eventLoopLag, { avg: 1.1, min: 0.5, max: 2.0, p95: 1.9 });
+    assert.equal(rows[0].onlineCount, 4);
+    assert.equal(rows[0].sampleCount, 5);
+  });
 });

@@ -84,6 +84,10 @@ jamais le statut à lui seul, plutôt que d'être traité comme une anomalie.
 - **Timeline récente** : les événements/alertes/auto-healing qui la
   composent ne sont inclus que si l'utilisateur a respectivement
   `events_read` / `alerts_read` / `authealing_read`.
+- **Onglet par défaut à la connexion** (`frontend/src/store.js#bootstrap()`) :
+  "Dashboard" si l'utilisateur a la permission `system`, sinon "Process"
+  (l'onglet Dashboard, masqué dans `TopBar.vue` sans cette permission, ne
+  lui serait de toute façon pas accessible).
 
 ## Temps réel
 
