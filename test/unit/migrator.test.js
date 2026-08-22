@@ -83,66 +83,69 @@ test("migrator", async (t) => {
     assert.ok(tables.includes("user_servers"));
   });
 
-  await t.test("down() annule la dernière migration appliquée (014, reconstruction rollup vers le schéma 004)", async () => {
-    const migrator = require("../../lib/db/migrator");
-    const db = require("../../lib/db");
-    await migrator.up();
+  await t.test(
+    "down() annule la dernière migration appliquée (014, reconstruction rollup vers le schéma 004)",
+    async () => {
+      const migrator = require("../../lib/db/migrator");
+      const db = require("../../lib/db");
+      await migrator.up();
 
-    const reverted = await migrator.down();
-    assert.deepEqual(reverted, ["014_process_metrics_server_key"]);
+      const reverted = await migrator.down();
+      assert.deepEqual(reverted, ["014_process_metrics_server_key"]);
 
-    const status = await migrator.status();
-    assert.deepEqual(
-      status.applied.map((m) => m.version),
-      [
-        "001_initial_schema",
-        "002_job_queue",
-        "003_alert_engine",
-        "004_process_metrics",
-        "005_process_events",
-        "006_notifications",
-        "007_notification_routing_templates",
-        "008_health_checks",
-        "009_auto_healing",
-        "010_health_checks_process_name",
-        "011_audit_log",
-        "012_servers",
-        "013_process_metrics_analytics",
-      ],
-    );
+      const status = await migrator.status();
+      assert.deepEqual(
+        status.applied.map((m) => m.version),
+        [
+          "001_initial_schema",
+          "002_job_queue",
+          "003_alert_engine",
+          "004_process_metrics",
+          "005_process_events",
+          "006_notifications",
+          "007_notification_routing_templates",
+          "008_health_checks",
+          "009_auto_healing",
+          "010_health_checks_process_name",
+          "011_audit_log",
+          "012_servers",
+          "013_process_metrics_analytics",
+        ],
+      );
 
-    // 012 (toujours appliquée ici) garde ses tables ; le rollback de 014
-    // reconstruit process_metrics_rollup vers le schéma 004 mais ne touche à
-    // aucune autre table.
-    const tables = (await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])).map(
-      (r) => r.name,
-    );
-    assert.ok(
-      tables.includes("servers") && tables.includes("user_servers"),
-      "servers/user_servers (Phase 10/012) ne sont pas affectées par le rollback de 014",
-    );
-    assert.ok(
-      tables.includes("audit_log"),
-      "audit_log (Phase 9/011) n'est pas affectée par le rollback de 014",
-    );
-    assert.ok(
-      tables.includes("auto_healing_settings"),
-      "auto_healing_settings (Phase 7/009) n'est pas affectée par le rollback de 014",
-    );
-    assert.ok(
-      tables.includes("health_checks"),
-      "health_checks (Phase 6/008) n'est pas affectée par le rollback de 014",
-    );
-    assert.ok(
-      tables.includes("notification_providers"),
-      "notification_providers (Phase 5A/006) n'est pas affectée par le rollback de 014",
-    );
-    assert.ok(tables.includes("notification_routes"));
-    assert.ok(
-      tables.includes("process_events"),
-      "process_events ne doit pas être affectée par le rollback de 014",
-    );
-  });
+      // 012 (toujours appliquée ici) garde ses tables ; le rollback de 014
+      // reconstruit process_metrics_rollup vers le schéma 004 mais ne touche à
+      // aucune autre table.
+      const tables = (await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])).map(
+        (r) => r.name,
+      );
+      assert.ok(
+        tables.includes("servers") && tables.includes("user_servers"),
+        "servers/user_servers (Phase 10/012) ne sont pas affectées par le rollback de 014",
+      );
+      assert.ok(
+        tables.includes("audit_log"),
+        "audit_log (Phase 9/011) n'est pas affectée par le rollback de 014",
+      );
+      assert.ok(
+        tables.includes("auto_healing_settings"),
+        "auto_healing_settings (Phase 7/009) n'est pas affectée par le rollback de 014",
+      );
+      assert.ok(
+        tables.includes("health_checks"),
+        "health_checks (Phase 6/008) n'est pas affectée par le rollback de 014",
+      );
+      assert.ok(
+        tables.includes("notification_providers"),
+        "notification_providers (Phase 5A/006) n'est pas affectée par le rollback de 014",
+      );
+      assert.ok(tables.includes("notification_routes"));
+      assert.ok(
+        tables.includes("process_events"),
+        "process_events ne doit pas être affectée par le rollback de 014",
+      );
+    },
+  );
 
   await t.test("down({ steps: 3 }) annule les trois dernières migrations", async () => {
     const migrator = require("../../lib/db/migrator");

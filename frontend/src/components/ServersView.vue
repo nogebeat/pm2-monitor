@@ -379,9 +379,16 @@ function fmtMs(v) {
                         <div class="analytics-stat-label">{{ t("processCard.analytics.cpu") }}</div>
                         <div class="analytics-stat-value">
                           {{ analytics.current.cpu.avg ?? "–" }}%
-                          <span class="analytics-stat-sub">{{ t("processCard.analytics.peak") }} {{ analytics.current.cpu.max ?? "–" }}%</span>
+                          <span class="analytics-stat-sub"
+                            >{{ t("processCard.analytics.peak") }}
+                            {{ analytics.current.cpu.max ?? "–" }}%</span
+                          >
                         </div>
-                        <div v-if="analytics.deltas" class="analytics-stat-delta" :class="deltaClass(analytics.deltas.cpuAvgPct, true)">
+                        <div
+                          v-if="analytics.deltas"
+                          class="analytics-stat-delta"
+                          :class="deltaClass(analytics.deltas.cpuAvgPct, true)"
+                        >
                           {{ fmtDelta(analytics.deltas.cpuAvgPct) }}
                         </div>
                       </div>
@@ -390,9 +397,16 @@ function fmtMs(v) {
                         <div class="analytics-stat-label">{{ t("processCard.analytics.memory") }}</div>
                         <div class="analytics-stat-value">
                           {{ fmtMem(analytics.current.memory.avg) }}
-                          <span class="analytics-stat-sub">{{ t("processCard.analytics.peak") }} {{ fmtMem(analytics.current.memory.max) }}</span>
+                          <span class="analytics-stat-sub"
+                            >{{ t("processCard.analytics.peak") }}
+                            {{ fmtMem(analytics.current.memory.max) }}</span
+                          >
                         </div>
-                        <div v-if="analytics.deltas" class="analytics-stat-delta" :class="deltaClass(analytics.deltas.memoryAvgPct, true)">
+                        <div
+                          v-if="analytics.deltas"
+                          class="analytics-stat-delta"
+                          :class="deltaClass(analytics.deltas.memoryAvgPct, true)"
+                        >
                           {{ fmtDelta(analytics.deltas.memoryAvgPct) }}
                         </div>
                       </div>
@@ -404,15 +418,24 @@ function fmtMs(v) {
 
                       <div v-if="analytics.current.eventLoopLag.avg !== null" class="analytics-stat">
                         <div class="analytics-stat-label">{{ t("processCard.analytics.eventLoopLag") }}</div>
-                        <div class="analytics-stat-value">{{ fmtMs(analytics.current.eventLoopLag.avg) }}</div>
+                        <div class="analytics-stat-value">
+                          {{ fmtMs(analytics.current.eventLoopLag.avg) }}
+                        </div>
                       </div>
 
                       <div class="analytics-stat">
                         <div class="analytics-stat-label">{{ t("processCard.analytics.restarts") }}</div>
                         <div class="analytics-stat-value">
                           {{ analytics.current.restarts ?? 0 }}
-                          <span v-if="analytics.current.restartFrequencyPerHour !== null" class="analytics-stat-sub">
-                            {{ t("processCard.analytics.restartsPerHour", { n: analytics.current.restartFrequencyPerHour }) }}
+                          <span
+                            v-if="analytics.current.restartFrequencyPerHour !== null"
+                            class="analytics-stat-sub"
+                          >
+                            {{
+                              t("processCard.analytics.restartsPerHour", {
+                                n: analytics.current.restartFrequencyPerHour,
+                              })
+                            }}
                           </span>
                         </div>
                       </div>
@@ -425,16 +448,25 @@ function fmtMs(v) {
                       <div class="analytics-stat">
                         <div class="analytics-stat-label">{{ t("processCard.analytics.availability") }}</div>
                         <div class="analytics-stat-value">
-                          {{ fmtPct(analytics.current.availabilityPercent) ?? t("processCard.analytics.notAvailable") }}
+                          {{
+                            fmtPct(analytics.current.availabilityPercent) ??
+                            t("processCard.analytics.notAvailable")
+                          }}
                         </div>
-                        <div v-if="analytics.deltas" class="analytics-stat-delta" :class="deltaClass(analytics.deltas.availabilityPct)">
+                        <div
+                          v-if="analytics.deltas"
+                          class="analytics-stat-delta"
+                          :class="deltaClass(analytics.deltas.availabilityPct)"
+                        >
                           {{ fmtDelta(analytics.deltas.availabilityPct) }}
                         </div>
                       </div>
                     </div>
                     <div class="analytics-foot">
                       {{ t("processCard.analytics.samples", { n: analytics.current.sampleCount }) }}
-                      <template v-if="analytics.deltas">· {{ t("processCard.analytics.vsPrevious") }}</template>
+                      <template v-if="analytics.deltas"
+                        >· {{ t("processCard.analytics.vsPrevious") }}</template
+                      >
                     </div>
                   </template>
                 </div>

@@ -58,51 +58,54 @@ test("014_process_metrics_server_key : la contrainte d'unicité inclut désormai
 
   const store = require("../../lib/services/process-history/store");
 
-  await t.test("upsertRollup() pour deux serveurs différents ne collisionne pas même bucket/process", async () => {
-    await store.upsertRollup({
-      processName: "api",
-      serverKey: "local",
-      resolution: "medium",
-      bucketStart: 1_800_000,
-      cpu: { avg: 5, min: 5, max: 5, p95: 5 },
-      memory: { avg: 10, min: 10, max: 10, p95: 10 },
-      instancesAvg: 1,
-      restartCountMax: 0,
-      restartDelta: 0,
-      sampleCount: 1,
-    });
-    await store.upsertRollup({
-      processName: "api",
-      serverKey: "srv-x",
-      resolution: "medium",
-      bucketStart: 1_800_000,
-      cpu: { avg: 50, min: 50, max: 50, p95: 50 },
-      memory: { avg: 100, min: 100, max: 100, p95: 100 },
-      instancesAvg: 1,
-      restartCountMax: 0,
-      restartDelta: 0,
-      sampleCount: 1,
-    });
+  await t.test(
+    "upsertRollup() pour deux serveurs différents ne collisionne pas même bucket/process",
+    async () => {
+      await store.upsertRollup({
+        processName: "api",
+        serverKey: "local",
+        resolution: "medium",
+        bucketStart: 1_800_000,
+        cpu: { avg: 5, min: 5, max: 5, p95: 5 },
+        memory: { avg: 10, min: 10, max: 10, p95: 10 },
+        instancesAvg: 1,
+        restartCountMax: 0,
+        restartDelta: 0,
+        sampleCount: 1,
+      });
+      await store.upsertRollup({
+        processName: "api",
+        serverKey: "srv-x",
+        resolution: "medium",
+        bucketStart: 1_800_000,
+        cpu: { avg: 50, min: 50, max: 50, p95: 50 },
+        memory: { avg: 100, min: 100, max: 100, p95: 100 },
+        instancesAvg: 1,
+        restartCountMax: 0,
+        restartDelta: 0,
+        sampleCount: 1,
+      });
 
-    const local = await store.queryRollup({
-      processName: "api",
-      serverKey: "local",
-      resolution: "medium",
-      start: 0,
-      end: 5_000_000,
-    });
-    const remote = await store.queryRollup({
-      processName: "api",
-      serverKey: "srv-x",
-      resolution: "medium",
-      start: 0,
-      end: 5_000_000,
-    });
-    assert.equal(local.length, 1);
-    assert.equal(remote.length, 1);
-    assert.equal(local[0].cpu.avg, 5);
-    assert.equal(remote[0].cpu.avg, 50);
-  });
+      const local = await store.queryRollup({
+        processName: "api",
+        serverKey: "local",
+        resolution: "medium",
+        start: 0,
+        end: 5_000_000,
+      });
+      const remote = await store.queryRollup({
+        processName: "api",
+        serverKey: "srv-x",
+        resolution: "medium",
+        start: 0,
+        end: 5_000_000,
+      });
+      assert.equal(local.length, 1);
+      assert.equal(remote.length, 1);
+      assert.equal(local[0].cpu.avg, 5);
+      assert.equal(remote[0].cpu.avg, 50);
+    },
+  );
 
   await cleanupDb(ctx);
 });
