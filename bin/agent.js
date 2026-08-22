@@ -62,15 +62,7 @@ if (!HUB_URL || !SERVER_KEY || !TOKEN) {
 // autonome tournant sur un serveur distant, voir commentaire au-dessus de
 // fmtProcess ci-dessous), donc duplication volontaire — mêmes règles :
 // jamais de valeur inventée, `null` si le process n'expose pas axm_monitor.
-const UNIT_MULTIPLIERS = {
-  b: 1,
-  kb: 1024,
-  kib: 1024,
-  mb: 1024 ** 2,
-  mib: 1024 ** 2,
-  gb: 1024 ** 3,
-  gib: 1024 ** 3,
-};
+const UNIT_MULTIPLIERS = { b: 1, kb: 1024, kib: 1024, mb: 1024 ** 2, mib: 1024 ** 2, gb: 1024 ** 3, gib: 1024 ** 3 };
 
 function parseAxmValue(raw) {
   if (raw === null || raw === undefined) return null;

@@ -83,25 +83,10 @@ test("ProcessHistoryService#analytics() (Phase 11)", async (t) => {
 
     await svc.record([{ name: "flaky", cpu: 1, status: "online", uptime: t0 }], t0);
 
-    await eventStore.create({
-      process: "flaky",
-      type: "crashed",
-      severity: "critical",
-      timestamp: t0 + 1000,
-    });
-    await eventStore.create({
-      process: "flaky",
-      type: "crashed",
-      severity: "critical",
-      timestamp: t0 + 2000,
-    });
+    await eventStore.create({ process: "flaky", type: "crashed", severity: "critical", timestamp: t0 + 1000 });
+    await eventStore.create({ process: "flaky", type: "crashed", severity: "critical", timestamp: t0 + 2000 });
     // Hors période demandée ci-dessous -> ne doit pas être compté.
-    await eventStore.create({
-      process: "flaky",
-      type: "crashed",
-      severity: "critical",
-      timestamp: t0 - 100_000,
-    });
+    await eventStore.create({ process: "flaky", type: "crashed", severity: "critical", timestamp: t0 - 100_000 });
 
     const result = await svc.analytics({
       processName: "flaky",
@@ -144,7 +129,10 @@ test("ProcessHistoryService#analytics() (Phase 11)", async (t) => {
       () => svc.analytics({ processName: "api", start: 0, end: 100, resolution: "bogus" }),
       /resolution invalide/,
     );
-    await assert.rejects(() => svc.analytics({ processName: "api", start: 100, end: 50 }), /antérieur/);
+    await assert.rejects(
+      () => svc.analytics({ processName: "api", start: 100, end: 50 }),
+      /antérieur/,
+    );
     await assert.rejects(() => svc.analytics({ start: 0, end: 100 }), /processName requis/);
   });
 

@@ -70,6 +70,34 @@ export const state = reactive({
     loading: false,
   },
 
+  // ---------- Log Explorer (onglet "Logs", Phase 12) ----------
+  // Recherche GLOBALE (plusieurs process, plusieurs serveurs) — distincte de
+  // `state.logs` ci-dessus (flux en direct d'UN seul process sélectionné,
+  // LogsPanel.vue, inchangé). Voir GET /api/logs/search (lib/routes/log-explorer.js).
+  logExplorer: {
+    selectedProcesses: [], // [] = tous les process visibles (voir logExplorerVisibleProcessNames())
+    selectedServers: [], // [] = tous les serveurs visibles
+    filters: {
+      type: "all", // all | out | err
+      level: "all", // all | info | warn | error | debug
+      query: "",
+      regex: false,
+      sort: "desc", // desc = plus récent d'abord
+      context: 0, // lignes de contexte avant/après (0-20)
+      from: null, // ms epoch | null
+      to: null,
+    },
+    limit: 50,
+    offset: 0,
+    results: [], // [{ t, type, level, text, line, source: {serverKey, name}, before?, after? }]
+    total: 0,
+    truncated: false,
+    loading: false,
+    loaded: false,
+    error: null,
+    live: false, // en plus des résultats paginés : ajoute en tête les nouvelles lignes correspondantes
+  },
+
   pm2MenuOpen: false,
   toast: null, // { kind: "error"|"info", message }
 
@@ -112,6 +140,21 @@ export function can(action, appName) {
     if (appName === undefined || appName === null) return true; // action globale
     return p.appName === "*" || p.appName === appName;
   });
+}
+
+/**
+ * Comme can(), mais sans app précise : "cet utilisateur a-t-il cette action
+ * sur AU MOINS une app ?" — utilisé pour afficher/masquer un onglet qui
+ * agrège plusieurs apps (Log Explorer : la vérité par-app reste appliquée
+ * par le backend à chaque recherche, voir lib/routes/log-explorer.js).
+ */
+export function canAny(action) {
+  const user = state.auth.user;
+  if (!state.auth.authEnabled) return true;
+  if (!user) return false;
+  if (user.isAdmin) return true;
+  if (!Array.isArray(user.permissions)) return false;
+  return user.permissions.some((p) => p.action === "*" || p.action === action);
 }
 
 export function fetchMe() {
@@ -505,6 +548,178 @@ export function loadServerProcessAnalytics(serverKey, processName, range) {
   );
 }
 
+// ---------- Log Explorer (GET /api/logs/search, GET /api/logs/export, Phase 12) ----------
+//
+// Le picker process/serveur de l'Explorer se construit à partir de ce que le
+// client sait déjà en direct (state.processes pour l'hôte local, alimenté par
+// le socket "processes" déjà filtré par permission côté serveur — voir
+// lib/realtime/process-socket.js ; state.servers.items[].processes pour les
+// serveurs distants, alimenté par "server.snapshot") plutôt que d'ajouter un
+// nouvel endpoint de découverte — voir la note en tête de
+// lib/routes/log-explorer.js pour le raisonnement complet (nom de process
+// slugifié sur disque, pas de reconstruction fiable côté serveur).
+
+export function logExplorerVisibleProcessNames() {
+  const names = new Set(state.processes.map((p) => p.name));
+  state.servers.items.forEach((s) => {
+    (s.processes || []).forEach((p) => names.add(p.name));
+  });
+  return [...names].sort();
+}
+
+export function logExplorerVisibleServers() {
+  // state.servers.items contient déjà "local" (enregistré automatiquement,
+  // voir serversStore.ensureLocalServer() côté serveur) une fois loadServers()
+  // appelé — pas de cas particulier à gérer ici.
+  return state.servers.items.map((s) => ({ serverKey: s.serverKey, name: s.name }));
+}
+
+function logExplorerBuildParams(extra = {}) {
+  const ex = state.logExplorer;
+  const processes = ex.selectedProcesses.length ? ex.selectedProcesses : logExplorerVisibleProcessNames();
+  if (!processes.length) return null;
+
+  const params = new URLSearchParams();
+  params.set("process", processes.join(","));
+  if (ex.selectedServers.length) params.set("server", ex.selectedServers.join(","));
+  if (ex.filters.type !== "all") params.set("type", ex.filters.type);
+  if (ex.filters.level !== "all") params.set("level", ex.filters.level);
+  if (ex.filters.query) params.set("q", ex.filters.query);
+  if (ex.filters.regex) params.set("regex", "1");
+  if (ex.filters.from) params.set("from", String(ex.filters.from));
+  if (ex.filters.to) params.set("to", String(ex.filters.to));
+  params.set("sort", ex.filters.sort);
+  if (ex.filters.context) params.set("context", String(ex.filters.context));
+  Object.entries(extra).forEach(([k, v]) => params.set(k, String(v)));
+  return params;
+}
+
+/** Lance (ou relance) la recherche avec les filtres/sélection actuels. */
+export function runLogExplorerSearch({ resetOffset = true } = {}) {
+  const ex = state.logExplorer;
+  if (resetOffset) ex.offset = 0;
+
+  const params = logExplorerBuildParams({ limit: ex.limit, offset: ex.offset });
+  if (!params) {
+    ex.results = [];
+    ex.total = 0;
+    ex.truncated = false;
+    ex.error = "Aucun process accessible à rechercher.";
+    ex.loaded = true;
+    return Promise.resolve();
+  }
+
+  ex.loading = true;
+  ex.error = null;
+  return apiGet(`/api/logs/search?${params.toString()}`)
+    .then((r) => {
+      ex.results = r.results;
+      ex.total = r.total;
+      ex.truncated = r.truncated;
+    })
+    .catch((err) => {
+      ex.error = err.message;
+      ex.results = [];
+      ex.total = 0;
+      ex.truncated = false;
+    })
+    .finally(() => {
+      ex.loading = false;
+      ex.loaded = true;
+    });
+}
+
+/** Ouvre l'onglet Log Explorer : charge les serveurs si besoin, sélectionne "tout" par défaut, cherche. */
+export function openLogExplorer() {
+  state.view = "logExplorer";
+  const ready = state.servers.loaded ? Promise.resolve() : loadServers();
+  return ready.then(() => runLogExplorerSearch());
+}
+
+export function setLogExplorerFilter(patch) {
+  Object.assign(state.logExplorer.filters, patch);
+  runLogExplorerSearch();
+}
+
+export function setLogExplorerSelection({ processes, servers } = {}) {
+  if (processes !== undefined) state.logExplorer.selectedProcesses = processes;
+  if (servers !== undefined) state.logExplorer.selectedServers = servers;
+  runLogExplorerSearch();
+}
+
+export function logExplorerNextPage() {
+  const ex = state.logExplorer;
+  if (ex.loading || ex.offset + ex.limit >= ex.total) return;
+  ex.offset += ex.limit;
+  runLogExplorerSearch({ resetOffset: false });
+}
+
+export function logExplorerPrevPage() {
+  const ex = state.logExplorer;
+  if (ex.loading || ex.offset === 0) return;
+  ex.offset = Math.max(0, ex.offset - ex.limit);
+  runLogExplorerSearch({ resetOffset: false });
+}
+
+export function toggleLogExplorerLive() {
+  state.logExplorer.live = !state.logExplorer.live;
+}
+
+export function exportLogExplorer() {
+  const params = logExplorerBuildParams();
+  if (!params) return;
+  window.open(`/api/logs/export?${params.toString()}`, "_blank");
+}
+
+/** "Ouvrir le process" depuis un résultat de l'Explorer : seulement pour l'hôte local (voir template). */
+export function openLogExplorerResultProcess(entry) {
+  if (entry.source.serverKey !== "local") return;
+  const p = state.processes.find((x) => x.name === entry.source.name);
+  if (!p) return;
+  state.view = "process";
+  selectProcess(p.id);
+}
+
+function passesLogExplorerLiveFilters(entry) {
+  const ex = state.logExplorer;
+  const serverKey = entry.serverId || "local";
+
+  // Même filet de sécurité que le "log" socket.on() historique ci-dessous
+  // (state.processes déjà filtré par permission côté serveur) : une ligne
+  // "en direct" n'est reprise dans l'Explorer que si son process apparaît
+  // dans une liste que le client a déjà reçue, elle-même déjà filtrée par
+  // hasPermission côté serveur — jamais de confiance dans le seul contenu
+  // du paquet socket.
+  if (serverKey === "local") {
+    if (!state.processes.some((p) => p.name === entry.process)) return false;
+  } else {
+    const srv = state.servers.items.find((s) => s.serverKey === serverKey);
+    if (!srv || !(srv.processes || []).some((p) => p.name === entry.process)) return false;
+  }
+
+  if (ex.selectedProcesses.length && !ex.selectedProcesses.includes(entry.process)) return false;
+  if (ex.selectedServers.length && !ex.selectedServers.includes(serverKey)) return false;
+  if (ex.filters.type !== "all" && ex.filters.type !== entry.type) return false;
+
+  const level = detectLevel(entry.data);
+  if (ex.filters.level !== "all" && ex.filters.level !== level) return false;
+
+  if (ex.filters.query) {
+    if (ex.filters.regex) {
+      try {
+        if (!new RegExp(ex.filters.query, "i").test(entry.data)) return false;
+      } catch (e) {
+        /* regex invalide : filtre ignoré, comme passesFilters() ci-dessous */
+      }
+    } else if (!entry.data.toLowerCase().includes(ex.filters.query.toLowerCase())) {
+      return false;
+    }
+  }
+  return true;
+}
+
+const LOG_EXPLORER_LIVE_MAX = 500; // même ordre de grandeur que MAX_LOG_LINES, mémoire client bornée
+
 // ---------- Câblage WebSocket ----------
 
 socket.on("connect", () => {
@@ -542,6 +757,28 @@ socket.on("log", (entry) => {
   }
   if (!passesFilters(full)) return;
   pushLog(full);
+});
+
+// Log Explorer (Phase 12) : listener SÉPARÉ du flux "process sélectionné"
+// ci-dessus (même événement socket "log", diffusé globalement — voir
+// server.js#onLog et lib/realtime/pm2-bus.js) — actif seulement si l'onglet
+// Explorer a activé le direct (state.logExplorer.live).
+socket.on("log", (entry) => {
+  if (!state.logExplorer.live) return;
+  if (!passesLogExplorerLiveFilters(entry)) return;
+  state.logExplorer.results.unshift({
+    t: entry.at || Date.now(),
+    type: entry.type,
+    level: detectLevel(entry.data),
+    text: entry.data,
+    line: null,
+    source: { serverKey: entry.serverId || "local", name: entry.process },
+    live: true,
+  });
+  state.logExplorer.total += 1;
+  if (state.logExplorer.results.length > LOG_EXPLORER_LIVE_MAX) {
+    state.logExplorer.results.pop();
+  }
 });
 
 socket.on("event", (entry) => {

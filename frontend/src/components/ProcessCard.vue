@@ -2,14 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import Chart from "chart.js/auto";
 import { useI18n } from "vue-i18n";
-import {
-  state,
-  selectProcess,
-  runProcessAction,
-  can,
-  loadProcessMetrics,
-  loadProcessAnalytics,
-} from "../store";
+import { state, selectProcess, runProcessAction, can, loadProcessMetrics, loadProcessAnalytics } from "../store";
 import { apiPost } from "../api";
 import { notifyError } from "../store";
 import { fmtMem, fmtUptime, fmtBytes } from "../format";
@@ -158,15 +151,8 @@ const analyticsSamples = computed(() => analytics.value?.current?.sampleCount ||
 const hasAnalyticsData = computed(() => analyticsSamples.value > 0);
 // Heap/event-loop-lag : best-effort côté backend (voir lib/process-helpers.js#readAxmMetrics),
 // non affichés si le process n'expose jamais ces métriques sur toute la période.
-const hasHeapData = computed(
-  () =>
-    analytics.value?.current?.heapUsed?.avg !== null && analytics.value?.current?.heapUsed?.avg !== undefined,
-);
-const hasEventLoopData = computed(
-  () =>
-    analytics.value?.current?.eventLoopLag?.avg !== null &&
-    analytics.value?.current?.eventLoopLag?.avg !== undefined,
-);
+const hasHeapData = computed(() => analytics.value?.current?.heapUsed?.avg !== null && analytics.value?.current?.heapUsed?.avg !== undefined);
+const hasEventLoopData = computed(() => analytics.value?.current?.eventLoopLag?.avg !== null && analytics.value?.current?.eventLoopLag?.avg !== undefined);
 
 async function refreshAnalytics() {
   if (!metricsOpen.value) return;
@@ -192,6 +178,7 @@ function setMetricsRange(range) {
   refreshMetricsChart();
   refreshAnalytics();
 }
+
 
 onBeforeUnmount(() => {
   if (metricsChart) metricsChart.destroy();
@@ -294,15 +281,9 @@ watch(
               <div class="analytics-stat-label">{{ t("processCard.analytics.cpu") }}</div>
               <div class="analytics-stat-value">
                 {{ analytics.current.cpu.avg ?? "–" }}%
-                <span class="analytics-stat-sub"
-                  >{{ t("processCard.analytics.peak") }} {{ analytics.current.cpu.max ?? "–" }}%</span
-                >
+                <span class="analytics-stat-sub">{{ t("processCard.analytics.peak") }} {{ analytics.current.cpu.max ?? "–" }}%</span>
               </div>
-              <div
-                v-if="analytics.deltas"
-                class="analytics-stat-delta"
-                :class="deltaClass(analytics.deltas.cpuAvgPct, true)"
-              >
+              <div v-if="analytics.deltas" class="analytics-stat-delta" :class="deltaClass(analytics.deltas.cpuAvgPct, true)">
                 {{ fmtDelta(analytics.deltas.cpuAvgPct) }}
               </div>
             </div>
@@ -311,15 +292,9 @@ watch(
               <div class="analytics-stat-label">{{ t("processCard.analytics.memory") }}</div>
               <div class="analytics-stat-value">
                 {{ fmtMem(analytics.current.memory.avg) }}
-                <span class="analytics-stat-sub"
-                  >{{ t("processCard.analytics.peak") }} {{ fmtMem(analytics.current.memory.max) }}</span
-                >
+                <span class="analytics-stat-sub">{{ t("processCard.analytics.peak") }} {{ fmtMem(analytics.current.memory.max) }}</span>
               </div>
-              <div
-                v-if="analytics.deltas"
-                class="analytics-stat-delta"
-                :class="deltaClass(analytics.deltas.memoryAvgPct, true)"
-              >
+              <div v-if="analytics.deltas" class="analytics-stat-delta" :class="deltaClass(analytics.deltas.memoryAvgPct, true)">
                 {{ fmtDelta(analytics.deltas.memoryAvgPct) }}
               </div>
             </div>
@@ -328,9 +303,7 @@ watch(
               <div class="analytics-stat-label">{{ t("processCard.analytics.heapUsed") }}</div>
               <div class="analytics-stat-value">
                 {{ fmtBytes(analytics.current.heapUsed.avg) }}
-                <span class="analytics-stat-sub"
-                  >{{ t("processCard.analytics.peak") }} {{ fmtBytes(analytics.current.heapUsed.max) }}</span
-                >
+                <span class="analytics-stat-sub">{{ t("processCard.analytics.peak") }} {{ fmtBytes(analytics.current.heapUsed.max) }}</span>
               </div>
             </div>
 
@@ -344,18 +317,10 @@ watch(
               <div class="analytics-stat-value">
                 {{ analytics.current.restarts ?? 0 }}
                 <span v-if="analytics.current.restartFrequencyPerHour !== null" class="analytics-stat-sub">
-                  {{
-                    t("processCard.analytics.restartsPerHour", {
-                      n: analytics.current.restartFrequencyPerHour,
-                    })
-                  }}
+                  {{ t("processCard.analytics.restartsPerHour", { n: analytics.current.restartFrequencyPerHour }) }}
                 </span>
               </div>
-              <div
-                v-if="analytics.deltas"
-                class="analytics-stat-delta"
-                :class="deltaClass(analytics.deltas.restartsPct, true)"
-              >
+              <div v-if="analytics.deltas" class="analytics-stat-delta" :class="deltaClass(analytics.deltas.restartsPct, true)">
                 {{ fmtDelta(analytics.deltas.restartsPct) }}
               </div>
             </div>
@@ -363,11 +328,7 @@ watch(
             <div class="analytics-stat">
               <div class="analytics-stat-label">{{ t("processCard.analytics.crashes") }}</div>
               <div class="analytics-stat-value">{{ analytics.current.crashes }}</div>
-              <div
-                v-if="analytics.deltas"
-                class="analytics-stat-delta"
-                :class="deltaClass(analytics.deltas.crashesPct, true)"
-              >
+              <div v-if="analytics.deltas" class="analytics-stat-delta" :class="deltaClass(analytics.deltas.crashesPct, true)">
                 {{ fmtDelta(analytics.deltas.crashesPct) }}
               </div>
             </div>
@@ -377,11 +338,7 @@ watch(
               <div class="analytics-stat-value">
                 {{ fmtPct(analytics.current.availabilityPercent) ?? t("processCard.analytics.notAvailable") }}
               </div>
-              <div
-                v-if="analytics.deltas"
-                class="analytics-stat-delta"
-                :class="deltaClass(analytics.deltas.availabilityPct)"
-              >
+              <div v-if="analytics.deltas" class="analytics-stat-delta" :class="deltaClass(analytics.deltas.availabilityPct)">
                 {{ fmtDelta(analytics.deltas.availabilityPct) }}
               </div>
             </div>

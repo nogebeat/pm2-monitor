@@ -49,7 +49,8 @@
     "themeToggle": "Toggle theme",
     "logout": "Log out",
     "language": "Language",
-    "tabServers": "Servers"
+    "tabServers": "Servers",
+    "tabLogExplorer": "Logs"
   },
   "login": {
     "subtitle": "Login required",
@@ -443,5 +444,31 @@
     },
     "metrics": "Metrics",
     "metricsError": "Couldn't load stats for this process."
+  },
+  "logExplorer": {
+    "title": "Log Explorer",
+    "liveTitle": "Follow new matching lines live",
+    "live": "Live",
+    "exportTitle": "Export results (current filters)",
+    "export": "Export",
+    "processes": "Processes",
+    "servers": "Servers",
+    "allOption": "all",
+    "noProcesses": "No process accessible.",
+    "searchPlaceholder": "Search (text or regex)…",
+    "sortDesc": "Newest first",
+    "sortAsc": "Oldest first",
+    "from": "From",
+    "to": "To",
+    "contextTitle": "Number of context lines before/after each match",
+    "context": "Context",
+    "search": "Search",
+    "searching": "Searching…",
+    "noResults": "No results.",
+    "rangeLabel": "{from}–{to} of {total}",
+    "truncatedWarning": "Truncated result: too many matching lines, narrow your filters for a more precise search.",
+    "openProcessTitle": "Open this process (live stream)",
+    "prevPage": "◀ Previous",
+    "nextPage": "Next ▶"
   }
 }

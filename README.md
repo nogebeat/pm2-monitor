@@ -64,7 +64,8 @@ pm2-monitor/
 │   │   └── audit/             # journal d'audit append-only des actions sensibles (Phase 9)
 │   ├── routes/                # routes REST par domaine : alerts.js, events.js, notifications.js,
 │   │   │                       # health-checks.js, auto-healing.js, dashboard.js, audit.js,
-│   │   │                       # auth.js, users.js, processes.js, pm2-daemon.js, system.js, logs.js
+│   │   │                       # auth.js, users.js, processes.js, pm2-daemon.js, system.js, logs.js,
+│   │   │                       # log-explorer.js (recherche globale, Phase 12)
 │   ├── realtime/               # branchement Socket.IO/PM2 hors REST :
 │   │   │                       # process-socket.js (liste process par client), pm2-bus.js (bus
 │   │   │                       # logs/événements PM2 + démarrage du serveur HTTP)
@@ -90,13 +91,14 @@ pm2-monitor/
 │   ├── auto-healing/README.md   # détail Auto-Healing : garde-fous, activation, sécurité (Phase 7)
 │   ├── audit/README.md          # détail de l'audit log : événements, sanitization, sécurité, API (Phase 9)
 │   ├── multi-server/README.md   # multi-serveurs / agents distants : architecture, sécurité, install (Phase 10)
+│   ├── log-explorer/README.md   # recherche globale multi-process/multi-serveur, garde-fous (Phase 12)
 │   └── notifications/
 │       ├── README.md            # architecture, registry, secrets, API, permissions
 │       └── providers/            # un .md par provider (config, sécurité, test, erreurs)
 ├── frontend/                # source du frontend Vue 3 + Vite
 │   ├── src/
 │   │   ├── components/        # TopBar, ProcessSidebar, LogsPanel, SystemView, EventsView,
-│   │   │                       # ServersView, LoginScreen, modales…
+│   │   │                       # ServersView, LogExplorerView, LoginScreen, modales…
 │   │   ├── store.js            # état réactif partagé (process, logs, système, auth)
 │   │   ├── socket.js, api.js, format.js
 │   │   └── style.css
@@ -806,6 +808,33 @@ démarrage et reste la seule source de vérité pour ses propres process.
   sont **rotés automatiquement au-delà de 5 Mo** puis **compressés en gzip**
   (réglable via `LOG_ROTATE_SIZE_MB` dans `.env`).
 
+### Log Explorer (onglet "Logs", Phase 12)
+
+Recherche **globale**, à travers plusieurs process et plusieurs serveurs
+(Multi-server, Phase 10) à la fois — distincte du flux en direct/de la
+recherche plein texte ci-dessus, qui restent limités à UN process sélectionné.
+
+- **Sélection multi-process / multi-serveur** : filtre par process, par
+  serveur, par flux (stdout/stderr), par niveau, par période, texte ou
+  **regex**, tri chronologique croissant/décroissant.
+- **Contexte** : affiche jusqu'à 20 lignes avant/après chaque ligne trouvée,
+  sans requête supplémentaire.
+- **Pagination**, **copier** une ligne, **exporter** les résultats (fichier
+  texte téléchargeable, filtres actuels), **ouvrir le process** (hôte local
+  uniquement) et **suivre en direct** (les nouvelles lignes correspondantes
+  s'ajoutent en tête pendant que le direct est actif).
+- **Sécurité intégrée** : regex trop longue ou "catastrophique" (groupes
+  quantifiés imbriqués, motif classique de ReDoS) refusée avant toute
+  évaluation ; toute recherche est bornée (nombre de lignes scannées, de
+  résultats conservés, de lignes exportées) — jamais de requête non bornée,
+  même sur un très gros volume de logs.
+- **Permissions** : chaque process/serveur demandé est revalidé
+  individuellement (`logs` par app + accès serveur), exactement comme les
+  autres routes multi-serveur — un utilisateur ne voit jamais que ce à quoi
+  il a déjà droit, même dans une recherche agrégée.
+- Documentation complète (API, garde-fous, limites connues) :
+  [`docs/log-explorer/README.md`](docs/log-explorer/README.md).
+
 ### Général
 
 - **Interface Vue 3** entièrement componentisée (réactive, sans manipulation
@@ -838,6 +867,11 @@ démarrage et reste la seule source de vérité pour ses propres process.
   se pilotent depuis l'onglet Serveurs (liste dépliable par serveur), pas
   encore intégrés à la sidebar/au panneau de logs principal — voir
   [Limites connues de `docs/multi-server/README.md`](docs/multi-server/README.md#limites-connues).
+- **Log Explorer** : les logs d'un serveur distant ne sont persistés (donc
+  cherchables) qu'à partir du moment où cette phase a été déployée — un log
+  émis par un agent avant la mise à jour n'a jamais existé sur disque, il n'y
+  a rien à retrouver. Détails et raisonnement complets :
+  [Limites connues de `docs/log-explorer/README.md`](docs/log-explorer/README.md#limites-connues).
 
 ## Multi-utilisateurs & permissions
 

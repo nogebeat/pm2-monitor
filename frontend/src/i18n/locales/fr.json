@@ -49,7 +49,8 @@
     "themeToggle": "Changer de thème",
     "logout": "Se déconnecter",
     "language": "Langue",
-    "tabServers": "Serveurs"
+    "tabServers": "Serveurs",
+    "tabLogExplorer": "Logs"
   },
   "login": {
     "subtitle": "Connexion requise",
@@ -443,5 +444,31 @@
     },
     "metrics": "Metrics",
     "metricsError": "Impossible de charger les statistiques pour ce process."
+  },
+  "logExplorer": {
+    "title": "Log Explorer",
+    "liveTitle": "Suivre les nouvelles lignes correspondantes en direct",
+    "live": "Direct",
+    "exportTitle": "Exporter les résultats (filtres actuels)",
+    "export": "Exporter",
+    "processes": "Process",
+    "servers": "Serveurs",
+    "allOption": "tout",
+    "noProcesses": "Aucun process accessible.",
+    "searchPlaceholder": "Rechercher (texte ou regex)…",
+    "sortDesc": "Plus récent d'abord",
+    "sortAsc": "Plus ancien d'abord",
+    "from": "De",
+    "to": "À",
+    "contextTitle": "Nombre de lignes de contexte avant/après chaque résultat",
+    "context": "Contexte",
+    "search": "Rechercher",
+    "searching": "Recherche…",
+    "noResults": "Aucun résultat.",
+    "rangeLabel": "{from}–{to} sur {total}",
+    "truncatedWarning": "Résultat tronqué : trop de lignes correspondent, affine tes filtres pour une recherche plus précise.",
+    "openProcessTitle": "Ouvrir ce process (flux en direct)",
+    "prevPage": "◀ Précédent",
+    "nextPage": "Suivant ▶"
   }
 }

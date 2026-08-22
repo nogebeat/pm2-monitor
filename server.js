@@ -42,6 +42,7 @@ const processesRouter = require("./lib/routes/processes");
 const pm2DaemonRouter = require("./lib/routes/pm2-daemon");
 const systemRouter = require("./lib/routes/system");
 const logsRouter = require("./lib/routes/logs");
+const logExplorerRouter = require("./lib/routes/log-explorer");
 const serversRouter = require("./lib/routes/servers");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
@@ -163,6 +164,25 @@ const agentHub = attachAgentHub(io, {
   },
   onLog: (serverKey, payload) => {
     io.emit("log", { ...payload, serverId: serverKey });
+    // Persistance (Phase 12, Log Explorer) : avant cette phase, un log
+    // reçu d'un agent distant n'était que diffusé en direct (io.emit
+    // ci-dessus), jamais écrit sur disque — donc jamais consultable a
+    // posteriori ni cherchable, contrairement aux logs de l'hôte local
+    // (voir lib/realtime/pm2-bus.js, alimenté depuis toujours). `payload`
+    // a la forme { type, process, pm_id, data, at } (voir bin/agent.js) —
+    // mêmes champs que ceux passés à logStore.appendPacket() pour l'hôte
+    // local, à la nomenclature près (process/pm_id ici vs name/pmId
+    // localement).
+    if (payload && payload.data) {
+      logStore.appendPacket(
+        payload.pm_id,
+        payload.process,
+        payload.type,
+        payload.data,
+        payload.at || Date.now(),
+        serverKey,
+      );
+    }
   },
   onStatusChange: (serverKey, status) => {
     io.emit("server.status", { serverId: serverKey, status });
@@ -222,6 +242,11 @@ app.use("/api/system", systemRouter({ historyStore }));
 
 // Logs : export brut, recherche, export par période, tail, stats (lib/routes/logs.js)
 app.use("/api", logsRouter({ logStore }));
+
+// Log Explorer (lib/routes/log-explorer.js, Phase 12) : recherche globale
+// multi-process / multi-serveur, distincte de la recherche par process de
+// logsRouter ci-dessus (voir en-tête de lib/routes/log-explorer.js).
+app.use("/api/logs", logExplorerRouter({ logStore }));
 
 // --- Temps réel : liste des process (polling léger par client) -----------
 attachProcessSocket(io);

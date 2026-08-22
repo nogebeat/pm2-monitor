@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { state, logout, can } from "../store";
+import { state, logout, can, canAny, openLogExplorer } from "../store";
 import LanguageSwitch from "./LanguageSwitch.vue";
 
 const { t } = useI18n();
@@ -11,6 +11,11 @@ const down = computed(() => state.processes.filter((p) => p.status !== "online")
 
 function setView(v) {
   state.view = v;
+}
+
+function goLogExplorer() {
+  if (state.view === "logExplorer") return;
+  openLogExplorer();
 }
 
 function toggleTheme() {
@@ -91,6 +96,14 @@ function openAuditLog() {
         @click="setView('servers')"
       >
         {{ t("topbar.tabServers") }}
+      </button>
+      <button
+        v-if="canAny('logs')"
+        class="view-tab"
+        :class="{ active: state.view === 'logExplorer' }"
+        @click="goLogExplorer"
+      >
+        {{ t("topbar.tabLogExplorer") }}
       </button>
     </nav>
 
