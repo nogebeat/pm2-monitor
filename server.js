@@ -46,6 +46,7 @@ const logsRouter = require("./lib/routes/logs");
 const logExplorerRouter = require("./lib/routes/log-explorer");
 const serversRouter = require("./lib/routes/servers");
 const processOrganizationRouter = require("./lib/routes/process-organization");
+const incidentsRouter = require("./lib/routes/incidents");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -236,6 +237,12 @@ app.use("/api/servers", serversRouter({ agentHub, processHistory }));
 // Organisation des process : tags/environnements/groupes (lib/services/
 // process-organization/, lib/routes/process-organization.js, Phase 13)
 app.use("/api/process-organization", processOrganizationRouter());
+
+// Incident Management & Alert Silencing (lib/services/incidents/,
+// lib/routes/incidents.js, Phase 14) : corrélation branchée sur
+// dispatchAlertTransition ci-dessus (lib/alert-dispatch.js), pas ici — ce
+// routeur n'expose que la lecture/les transitions manuelles/les silences.
+app.use("/api/incidents", incidentsRouter());
 
 // Process : liste + actions de base/étendues + métriques (lib/routes/processes.js)
 app.use("/api", processesRouter({ processHistory }));

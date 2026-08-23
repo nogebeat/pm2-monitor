@@ -43,7 +43,8 @@ test("bin/migrate.js CLI (process réel, pas juste la lib)", async (t) => {
     assert.match(stdout, /013_process_metrics_analytics/);
     assert.match(stdout, /014_process_metrics_server_key/);
     assert.match(stdout, /015_process_organization/);
-    assert.match(stdout, /en attente \(15\)/);
+    assert.match(stdout, /016_incidents/);
+    assert.match(stdout, /en attente \(16\)/);
   });
 
   await t.test("up puis status reflète la base à jour, ré-exécuter up est un no-op", async () => {
@@ -64,9 +65,10 @@ test("bin/migrate.js CLI (process réel, pas juste la lib)", async (t) => {
     assert.match(upOut, /013_process_metrics_analytics/);
     assert.match(upOut, /014_process_metrics_server_key/);
     assert.match(upOut, /015_process_organization/);
+    assert.match(upOut, /016_incidents/);
 
     const { stdout: statusOut } = await runMigrate(["status"], dbPath);
-    assert.match(statusOut, /appliquées \(15\)/);
+    assert.match(statusOut, /appliquées \(16\)/);
     assert.match(statusOut, /en attente \(0\)/);
 
     const { stdout: secondUpOut } = await runMigrate(["up"], dbPath);
@@ -129,10 +131,10 @@ test("bin/migrate.js CLI (process réel, pas juste la lib)", async (t) => {
     const dbPath = tmpDbPath();
     await runMigrate(["up"], dbPath);
     const { stdout: downOut } = await runMigrate(["down"], dbPath);
-    assert.match(downOut, /015_process_organization/);
+    assert.match(downOut, /016_incidents/);
 
     const { stdout: statusOut } = await runMigrate(["status"], dbPath);
-    assert.match(statusOut, /appliquées \(14\)/);
+    assert.match(statusOut, /appliquées \(15\)/);
     assert.match(statusOut, /en attente \(1\)/);
   });
 });

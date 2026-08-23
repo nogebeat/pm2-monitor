@@ -102,6 +102,14 @@ function openOrganization() {
         {{ t("topbar.tabServers") }}
       </button>
       <button
+        v-if="can('incidents_read')"
+        class="view-tab"
+        :class="{ active: state.view === 'incidents' }"
+        @click="setView('incidents')"
+      >
+        {{ t("topbar.tabIncidents") }}
+      </button>
+      <button
         v-if="canAny('logs')"
         class="view-tab"
         :class="{ active: state.view === 'logExplorer' }"

@@ -45,11 +45,12 @@ test("migrator", async (t) => {
       "013_process_metrics_analytics",
       "014_process_metrics_server_key",
       "015_process_organization",
+      "016_incidents",
     ]);
 
     const status = await migrator.status();
     assert.equal(status.pending.length, 0);
-    assert.equal(status.applied.length, 15);
+    assert.equal(status.applied.length, 16);
   });
 
   await t.test("up() est idempotent : rejouer ne fait rien et ne plante pas", async () => {
@@ -88,17 +89,25 @@ test("migrator", async (t) => {
     assert.ok(tables.includes("process_tags"));
     assert.ok(tables.includes("process_environment"));
     assert.ok(tables.includes("process_group_members"));
+    assert.ok(tables.includes("incidents"));
+    assert.ok(tables.includes("incident_alerts"));
+    assert.ok(tables.includes("incident_timeline"));
+    assert.ok(tables.includes("alert_silences"));
   });
 
   await t.test(
-    "down({ steps: 2 }) annule 015 puis 014 (reconstruction rollup vers le schéma 004)",
+    "down({ steps: 3 }) annule 016 puis 015 puis 014 (reconstruction rollup vers le schéma 004)",
     async () => {
       const migrator = require("../../lib/db/migrator");
       const db = require("../../lib/db");
       await migrator.up();
 
-      const reverted = await migrator.down({ steps: 2 });
-      assert.deepEqual(reverted, ["015_process_organization", "014_process_metrics_server_key"]);
+      const reverted = await migrator.down({ steps: 3 });
+      assert.deepEqual(reverted, [
+        "016_incidents",
+        "015_process_organization",
+        "014_process_metrics_server_key",
+      ]);
 
       const status = await migrator.status();
       assert.deepEqual(
@@ -155,22 +164,26 @@ test("migrator", async (t) => {
         !tables.includes("tags") && !tables.includes("process_group_members"),
         "les tables de 015 doivent avoir été supprimées par son rollback",
       );
+      assert.ok(
+        !tables.includes("incidents") && !tables.includes("alert_silences"),
+        "les tables de 016 doivent avoir été supprimées par son rollback",
+      );
     },
   );
 
-  await t.test("down({ steps: 4 }) annule les quatre dernières migrations (015 à 012)", async () => {
+  await t.test("down({ steps: 4 }) annule les quatre dernières migrations (016 à 013)", async () => {
     const migrator = require("../../lib/db/migrator");
     await migrator.up();
     const reverted = await migrator.down({ steps: 4 });
     assert.deepEqual(reverted, [
+      "016_incidents",
       "015_process_organization",
       "014_process_metrics_server_key",
       "013_process_metrics_analytics",
-      "012_servers",
     ]);
 
     const status = await migrator.status();
-    assert.equal(status.applied.length, 11);
+    assert.equal(status.applied.length, 12);
   });
 
   await t.test("down() sur une base vierge (rien d'appliqué) ne fait rien", async () => {

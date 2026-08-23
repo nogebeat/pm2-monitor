@@ -42,6 +42,11 @@ découpage, décidé en Phase 1).
   calcul de statut composant les services ci-dessus, aucune nouvelle source
   de données ni nouveau canal temps réel. Voir
   [`docs/dashboard/README.md`](../dashboard/README.md).
+- **`incidents/`** — corrélation déterministe des alertes en incidents
+  suivis (cycle de vie, timeline fusionnée sans duplication) et silences de
+  notification (règle/process/tag/environnement/groupe), branché sur
+  l'Alert Engine et le routing des notifications sans les modifier. Voir
+  [`docs/incidents/README.md`](../incidents/README.md).
 
 ## Comment un service se branche au reste de l'app
 

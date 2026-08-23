@@ -381,6 +381,11 @@ pour le détail de ce qui existe et ce qui est prévu.
   notifications — voir
   [Organisation des process](#organisation-des-process--tags-environnements-groupes-phase-13)
   et [`docs/process-organization/README.md`](docs/process-organization/README.md).
+- `lib/services/incidents/` : corrélation déterministe des alertes en
+  incidents (timeline fusionnée, sans duplication) et silences de
+  notification, au-dessus du moteur d'alertes existant — voir
+  [Incidents & Silences](#incidents--silences-phase-14) et
+  [`docs/incidents/README.md`](docs/incidents/README.md).
 
 ## Fonctionnalités
 
@@ -862,6 +867,38 @@ Monitor**, sans jamais modifier la configuration PM2 elle-même :
   Engine, limites connues) :
   [`docs/process-organization/README.md`](docs/process-organization/README.md).
 
+### Incidents & Silences (Phase 14)
+
+Un système d'incidents **au-dessus** du moteur d'alertes existant (ne le
+remplace pas) : regroupe des alertes liées en un seul incident suivi, avec
+sa propre timeline et la possibilité de mettre certaines notifications en
+silence sans jamais supprimer l'alerte ni l'événement qui l'a déclenchée.
+
+- **Corrélation déterministe** (aucune IA) : une nouvelle alerte rejoint un
+  incident déjà ouvert si elle porte sur le même process et le même type de
+  problème (dans une fenêtre de temps configurable), ou sur un process du
+  même groupe ([Organisation des process](#organisation-des-process--tags-environnements-groupes-phase-13))
+  — sinon un nouvel incident est ouvert.
+- **États** : `OPEN → ACKNOWLEDGED → INVESTIGATING → MITIGATED → RESOLVED`
+  (machine à états validée côté serveur, `RESOLVED` est terminal).
+- **Timeline fusionnée, sans duplication** : alerte déclenchée/résolue,
+  événement PM2, notification envoyée, tentative d'Auto-Healing et actions
+  propres à l'incident (acquittement, silence) apparaissent dans un seul
+  flux chronologique, résolu à la lecture depuis les données déjà
+  existantes plutôt que recopié.
+- **Silences** : temporaire (durée) ou jusqu'à une date, par règle,
+  process, tag, environnement ou groupe — empêche l'envoi des
+  notifications correspondantes (visible dans l'historique de
+  notification avec le statut `silenced`) sans jamais toucher à l'alerte
+  ou à l'événement sous-jacent.
+- **UI** : onglet `Incidents` — liste filtrable par état, détail avec
+  timeline et actions (acquitter/enquêter/atténuer/résoudre/silence),
+  gestion des silences actifs.
+- Toutes les actions sensibles (transition d'incident, création/annulation
+  d'un silence) sont auditées ([Audit Log](#audit-log)).
+- Documentation complète (modèle de données, algorithme de corrélation,
+  API, permissions) : [`docs/incidents/README.md`](docs/incidents/README.md).
+
 ### Général
 
 - **Interface Vue 3** entièrement componentisée (réactive, sans manipulation
@@ -930,9 +967,11 @@ droits, plutôt qu'un unique identifiant/mot de passe partagé (Basic Auth).
   `system` (vue Système), `pm2_save`, `pm2_resurrect`, `pm2_flush_all`,
   `pm2_update`, `pm2_kill`, `manage_users` (gestion des comptes, admin
   uniquement), ainsi que `alerts_read` / `alerts_create` / `alerts_update` /
-  `alerts_delete` / `alerts_acknowledge` (moteur d'alertes) et `events_read`
-  (timeline d'événements) — ces dernières ne sont pas décomposées par app
-  dans cette phase.
+  `alerts_delete` / `alerts_acknowledge` (moteur d'alertes), `events_read`
+  (timeline d'événements) et `incidents_read` / `incidents_manage`
+  (incidents corrélés + silences, voir
+  [Incidents & Silences](#incidents--silences-phase-14)) — ces dernières ne
+  sont pas décomposées par app dans cette phase.
 
 - L'API et le WebSocket **revalident chaque requête** côté serveur : les
   boutons masqués côté interface ne sont qu'un confort visuel, la sécurité

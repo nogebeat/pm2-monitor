@@ -7,7 +7,7 @@ const MAX_CPU_HISTORY = 20;
 
 export const state = reactive({
   connected: false,
-  view: "dashboard", // "process" | "dashboard" | "system" | "events" | "servers"
+  view: "dashboard", // "process" | "dashboard" | "system" | "events" | "servers" | "incidents"
 
   // ---------- Auth / permissions ----------
   auth: {
@@ -60,6 +60,26 @@ export const state = reactive({
     offset: 0,
     loading: false,
     loaded: false, // au moins un chargement effectué (distingue "vide" de "pas encore chargé")
+  },
+
+  // ---------- Incidents & Silences (onglet "Incidents", Phase 14 — Incident
+  // Management & Alert Silencing) ----------
+  incidents: {
+    items: [], // [{ id, title, status, severity, targetType, targetValue, metric, openedAt, ... }]
+    total: 0,
+    limit: 100,
+    offset: 0,
+    statusFilter: "all", // all | OPEN | ACKNOWLEDGED | INVESTIGATING | MITIGATED | RESOLVED
+    loading: false,
+    loaded: false,
+    selectedId: null,
+    detail: null, // incident sélectionné, enrichi de alertIds
+    timeline: [], // entrées triées de l'incident sélectionné
+    timelineLoading: false,
+    catalog: null, // { states, allowedTransitions, silenceScopeTypes, silenceTypes }
+    silences: [],
+    silencesLoading: false,
+    silencesLoaded: false,
   },
 
   // ---------- Serveurs distants (onglet "Serveurs", Phase 10 — Multi-server / Remote PM2) ----------
@@ -405,6 +425,139 @@ export function loadMoreEvents() {
   if (state.events.loading || state.events.items.length >= state.events.total) return;
   state.events.offset += state.events.limit;
   loadEvents({ reset: false });
+}
+
+// ---------- Incidents & Silences (GET/POST /api/incidents/*, Phase 14) ----------
+
+export function loadIncidents() {
+  state.incidents.loading = true;
+  const params = new URLSearchParams({
+    limit: state.incidents.limit,
+    offset: state.incidents.offset,
+  });
+  if (state.incidents.statusFilter !== "all") params.set("status", state.incidents.statusFilter);
+
+  return apiGet(`/api/incidents?${params.toString()}`)
+    .then((r) => {
+      state.incidents.items = r.items;
+      state.incidents.total = r.total;
+    })
+    .catch((err) => {
+      state.incidents.items = [];
+      notifyError(err);
+    })
+    .finally(() => {
+      state.incidents.loading = false;
+      state.incidents.loaded = true;
+    });
+}
+
+export function setIncidentsStatusFilter(filter) {
+  if (state.incidents.statusFilter === filter) return;
+  state.incidents.statusFilter = filter;
+  state.incidents.offset = 0;
+  loadIncidents();
+}
+
+export function loadIncidentsCatalog() {
+  if (state.incidents.catalog) return Promise.resolve(state.incidents.catalog);
+  return apiGet("/api/incidents/catalog")
+    .then((catalog) => {
+      state.incidents.catalog = catalog;
+      return catalog;
+    })
+    .catch((err) => {
+      notifyError(err);
+      return null;
+    });
+}
+
+/** Sélectionne un incident et charge son détail + sa timeline (fusion alertes/événements/notifications/auto-healing). */
+export function selectIncident(id) {
+  state.incidents.selectedId = id;
+  state.incidents.detail = null;
+  state.incidents.timeline = [];
+  if (!id) return;
+  apiGet(`/api/incidents/${id}`)
+    .then((detail) => {
+      state.incidents.detail = detail;
+    })
+    .catch((err) => notifyError(err));
+  loadIncidentTimeline(id);
+}
+
+export function loadIncidentTimeline(id) {
+  const incidentId = id || state.incidents.selectedId;
+  if (!incidentId) return Promise.resolve();
+  state.incidents.timelineLoading = true;
+  return apiGet(`/api/incidents/${incidentId}/timeline`)
+    .then((timeline) => {
+      if (state.incidents.selectedId === incidentId) state.incidents.timeline = timeline;
+    })
+    .catch((err) => notifyError(err))
+    .finally(() => {
+      state.incidents.timelineLoading = false;
+    });
+}
+
+function mergeIncidentItem(updated) {
+  const idx = state.incidents.items.findIndex((i) => i.id === updated.id);
+  if (idx !== -1) state.incidents.items.splice(idx, 1, { ...state.incidents.items[idx], ...updated });
+  if (state.incidents.detail && state.incidents.detail.id === updated.id) {
+    state.incidents.detail = { ...state.incidents.detail, ...updated };
+  }
+}
+
+/** action: "acknowledge" | "investigate" | "mitigate" | "resolve" */
+export function transitionIncident(id, action) {
+  return apiPost(`/api/incidents/${id}/${action}`)
+    .then((updated) => {
+      mergeIncidentItem(updated);
+      loadIncidentTimeline(id);
+      return updated;
+    })
+    .catch((err) => {
+      notifyError(err);
+      throw err;
+    });
+}
+
+export function loadSilences({ activeOnly = false } = {}) {
+  state.incidents.silencesLoading = true;
+  const params = activeOnly ? "?active=1" : "";
+  return apiGet(`/api/incidents/silences${params}`)
+    .then((items) => {
+      state.incidents.silences = items;
+    })
+    .catch((err) => notifyError(err))
+    .finally(() => {
+      state.incidents.silencesLoading = false;
+      state.incidents.silencesLoaded = true;
+    });
+}
+
+/**
+ * @param {object} fields
+ * @param {"rule"|"process"|"tag"|"environment"|"group"} fields.scopeType
+ * @param {string} fields.scopeValue
+ * @param {"duration"|"until"} fields.silenceType
+ * @param {number} [fields.durationMinutes] - requis si silenceType === "duration"
+ * @param {string} [fields.until] - date ISO, requis si silenceType === "until"
+ * @param {string} [fields.reason]
+ */
+export function createSilence(fields) {
+  return apiPost("/api/incidents/silences", fields).then((silence) => {
+    state.incidents.silences = [silence, ...state.incidents.silences];
+    return silence;
+  });
+}
+
+export function cancelSilence(id) {
+  return apiDelete(`/api/incidents/silences/${id}`).then((cancelled) => {
+    const idx = state.incidents.silences.findIndex((s) => s.id === id);
+    if (idx !== -1) state.incidents.silences.splice(idx, 1, cancelled);
+    return cancelled;
+  });
 }
 
 // ---------- Dashboard global (GET /api/dashboard, Phase 8) ----------
