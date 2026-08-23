@@ -219,16 +219,19 @@ test("incidents/incident-store — CRUD, corrélation, transitions", async (t) =
     await assert.rejects(() => incidentStore.transition(incident.id, "BOGUS"), /État invalide/);
   });
 
-  await t.test("list() filtre par statut/sévérité et trie (critiques d'abord, RESOLVED en dernier)", async () => {
-    const list = await incidentStore.list({ status: "RESOLVED" });
-    assert.ok(list.items.every((i) => i.status === "RESOLVED"));
-    const all = await incidentStore.list({ limit: 500 });
-    const resolvedIdx = all.items.findIndex((i) => i.status === "RESOLVED");
-    const openIdx = all.items.findIndex((i) => i.status === "OPEN");
-    if (resolvedIdx !== -1 && openIdx !== -1) {
-      assert.ok(openIdx < resolvedIdx, "les incidents non résolus doivent apparaître avant les résolus");
-    }
-  });
+  await t.test(
+    "list() filtre par statut/sévérité et trie (critiques d'abord, RESOLVED en dernier)",
+    async () => {
+      const list = await incidentStore.list({ status: "RESOLVED" });
+      assert.ok(list.items.every((i) => i.status === "RESOLVED"));
+      const all = await incidentStore.list({ limit: 500 });
+      const resolvedIdx = all.items.findIndex((i) => i.status === "RESOLVED");
+      const openIdx = all.items.findIndex((i) => i.status === "OPEN");
+      if (resolvedIdx !== -1 && openIdx !== -1) {
+        assert.ok(openIdx < resolvedIdx, "les incidents non résolus doivent apparaître avant les résolus");
+      }
+    },
+  );
 
   await cleanupDb(dbCtx);
 });
@@ -277,45 +280,57 @@ test("incidents/correlation — IncidentCorrelator (déterministe, sans IA)", as
     assert.notEqual(incidentB.id, incidentA.id);
   });
 
-  await t.test("processOrgStore injecté : deux process du même groupe + même métrique -> même incident", async () => {
-    const fakeProcessOrgStore = {
-      getOrganizationForProcess: async (name) => {
-        const groupsByProcess = {
-          "worker-1": ["ecommerce"],
-          "worker-2": ["ecommerce"],
-          "worker-3": ["other"],
-        };
-        return { tags: [], environment: null, groups: groupsByProcess[name] || [] };
-      },
-    };
-    const correlator = new IncidentCorrelator({ processOrgStore: fakeProcessOrgStore });
+  await t.test(
+    "processOrgStore injecté : deux process du même groupe + même métrique -> même incident",
+    async () => {
+      const fakeProcessOrgStore = {
+        getOrganizationForProcess: async (name) => {
+          const groupsByProcess = {
+            "worker-1": ["ecommerce"],
+            "worker-2": ["ecommerce"],
+            "worker-3": ["other"],
+          };
+          return { tags: [], environment: null, groups: groupsByProcess[name] || [] };
+        },
+      };
+      const correlator = new IncidentCorrelator({ processOrgStore: fakeProcessOrgStore });
 
-    const alertA = await alertStore.create(makeAlertFields({ targetValue: "worker-1", metric: "restart_count" }));
-    const { incident: incidentA } = await correlator.attach(alertA);
+      const alertA = await alertStore.create(
+        makeAlertFields({ targetValue: "worker-1", metric: "restart_count" }),
+      );
+      const { incident: incidentA } = await correlator.attach(alertA);
 
-    const alertB = await alertStore.create(makeAlertFields({ targetValue: "worker-2", metric: "restart_count" }));
-    const { incident: incidentB, created: createdB } = await correlator.attach(alertB);
-    assert.equal(createdB, false);
-    assert.equal(incidentB.id, incidentA.id);
+      const alertB = await alertStore.create(
+        makeAlertFields({ targetValue: "worker-2", metric: "restart_count" }),
+      );
+      const { incident: incidentB, created: createdB } = await correlator.attach(alertB);
+      assert.equal(createdB, false);
+      assert.equal(incidentB.id, incidentA.id);
 
-    const alertC = await alertStore.create(makeAlertFields({ targetValue: "worker-3", metric: "restart_count" }));
-    const { incident: incidentC, created: createdC } = await correlator.attach(alertC);
-    assert.equal(createdC, true);
-    assert.notEqual(incidentC.id, incidentA.id);
-  });
+      const alertC = await alertStore.create(
+        makeAlertFields({ targetValue: "worker-3", metric: "restart_count" }),
+      );
+      const { incident: incidentC, created: createdC } = await correlator.attach(alertC);
+      assert.equal(createdC, true);
+      assert.notEqual(incidentC.id, incidentA.id);
+    },
+  );
 
-  await t.test("hors fenêtre de corrélation -> nouvel incident même pour le même process/métrique", async () => {
-    const correlator = new IncidentCorrelator({ env: { INCIDENTS_CORRELATION_WINDOW_MS: "50" } });
-    const alertA = await alertStore.create(makeAlertFields({ targetValue: "svc-window", metric: "cpu" }));
-    const { incident: incidentA } = await correlator.attach(alertA);
+  await t.test(
+    "hors fenêtre de corrélation -> nouvel incident même pour le même process/métrique",
+    async () => {
+      const correlator = new IncidentCorrelator({ env: { INCIDENTS_CORRELATION_WINDOW_MS: "50" } });
+      const alertA = await alertStore.create(makeAlertFields({ targetValue: "svc-window", metric: "cpu" }));
+      const { incident: incidentA } = await correlator.attach(alertA);
 
-    await new Promise((resolve) => setTimeout(resolve, 120));
+      await new Promise((resolve) => setTimeout(resolve, 120));
 
-    const alertB = await alertStore.create(makeAlertFields({ targetValue: "svc-window", metric: "cpu" }));
-    const { incident: incidentB, created } = await correlator.attach(alertB);
-    assert.equal(created, true);
-    assert.notEqual(incidentB.id, incidentA.id);
-  });
+      const alertB = await alertStore.create(makeAlertFields({ targetValue: "svc-window", metric: "cpu" }));
+      const { incident: incidentB, created } = await correlator.attach(alertB);
+      assert.equal(created, true);
+      assert.notEqual(incidentB.id, incidentA.id);
+    },
+  );
 
   await cleanupDb(dbCtx);
 });
@@ -354,13 +369,27 @@ test("incidents/silence-store — CRUD, matching, expiration", async (t) => {
 
   await t.test("isSilenced() — scope 'rule'", async () => {
     await silenceStore.create({ scopeType: "rule", scopeValue: "42", expiresAt: Date.now() + 60000 });
-    assert.equal(await silenceStore.isSilenced({ ruleId: 42, targetType: "process", targetValue: "x" }, null), true);
-    assert.equal(await silenceStore.isSilenced({ ruleId: 43, targetType: "process", targetValue: "x" }, null), false);
+    assert.equal(
+      await silenceStore.isSilenced({ ruleId: 42, targetType: "process", targetValue: "x" }, null),
+      true,
+    );
+    assert.equal(
+      await silenceStore.isSilenced({ ruleId: 43, targetType: "process", targetValue: "x" }, null),
+      false,
+    );
   });
 
   await t.test("isSilenced() — scope 'tag'/'environment'/'group' via processOrg", async () => {
-    await silenceStore.create({ scopeType: "tag", scopeValue: "critical-path", expiresAt: Date.now() + 60000 });
-    await silenceStore.create({ scopeType: "environment", scopeValue: "staging", expiresAt: Date.now() + 60000 });
+    await silenceStore.create({
+      scopeType: "tag",
+      scopeValue: "critical-path",
+      expiresAt: Date.now() + 60000,
+    });
+    await silenceStore.create({
+      scopeType: "environment",
+      scopeValue: "staging",
+      expiresAt: Date.now() + 60000,
+    });
     await silenceStore.create({ scopeType: "group", scopeValue: "billing", expiresAt: Date.now() + 60000 });
 
     const alert = { targetType: "process", targetValue: "svc", ruleId: 1 };

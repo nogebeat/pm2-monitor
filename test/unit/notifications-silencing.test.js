@@ -130,30 +130,36 @@ test("routing/engine.js — Silencing (Phase 14)", async (t) => {
     assert.equal(stores.getSendCalled(), 0);
   });
 
-  await t.test("silenceStore qui lance une exception : repli sûr (pas silencé), pas d'exception remontée", async () => {
-    const stores = makeStores({
-      routes: [{ id: 1, enabled: true, conditions: {}, providerIds: [1] }],
-      providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
-    });
-    stores.silenceStore.isSilenced = async () => {
-      throw new Error("DB indisponible");
-    };
-    const engine = new RoutingEngine(stores);
-    const results = await engine.dispatch(makeAlert(), "triggered");
-    assert.equal(results.length, 1);
-    assert.equal(stores.historyEntries[0].status, "success"); // repli : notification envoyée quand même
-    assert.equal(stores.getSendCalled(), 1);
-  });
+  await t.test(
+    "silenceStore qui lance une exception : repli sûr (pas silencé), pas d'exception remontée",
+    async () => {
+      const stores = makeStores({
+        routes: [{ id: 1, enabled: true, conditions: {}, providerIds: [1] }],
+        providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
+      });
+      stores.silenceStore.isSilenced = async () => {
+        throw new Error("DB indisponible");
+      };
+      const engine = new RoutingEngine(stores);
+      const results = await engine.dispatch(makeAlert(), "triggered");
+      assert.equal(results.length, 1);
+      assert.equal(stores.historyEntries[0].status, "success"); // repli : notification envoyée quand même
+      assert.equal(stores.getSendCalled(), 1);
+    },
+  );
 
-  await t.test("route non matchée : le silence n'entre même pas en jeu (toujours 0 envoi/historique)", async () => {
-    const stores = makeStores({
-      routes: [{ id: 1, enabled: true, conditions: { severity: ["critical"] }, providerIds: [1] }],
-      providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
-      silenced: true,
-    });
-    const engine = new RoutingEngine(stores);
-    const results = await engine.dispatch(makeAlert({ severity: "warning" }), "triggered");
-    assert.deepEqual(results, []);
-    assert.equal(stores.historyEntries.length, 0);
-  });
+  await t.test(
+    "route non matchée : le silence n'entre même pas en jeu (toujours 0 envoi/historique)",
+    async () => {
+      const stores = makeStores({
+        routes: [{ id: 1, enabled: true, conditions: { severity: ["critical"] }, providerIds: [1] }],
+        providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
+        silenced: true,
+      });
+      const engine = new RoutingEngine(stores);
+      const results = await engine.dispatch(makeAlert({ severity: "warning" }), "triggered");
+      assert.deepEqual(results, []);
+      assert.equal(stores.historyEntries.length, 0);
+    },
+  );
 });

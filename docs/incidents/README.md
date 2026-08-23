@@ -28,7 +28,7 @@ dupliquer.
 - **Incident** : regroupement d'une ou plusieurs alertes considérées comme
   la même situation en cours (voir [Corrélation](#corrélation)). Traverse un
   cycle de vie explicite : `OPEN → ACKNOWLEDGED → INVESTIGATING → MITIGATED
-  → RESOLVED`.
+→ RESOLVED`.
 - **Timeline** : vue chronologique unifiée d'un incident — alerte
   déclenchée, événement PM2, notification envoyée, tentative
   d'Auto-Healing, acquittement, résolution — sans copier ces données dans
@@ -72,17 +72,17 @@ avant tout envoi — voir [Silencing](#silencing).
 
 Quatre tables (migration `016_incidents`) :
 
-| Table               | Rôle                                                                                                                                                        |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `incidents`          | L'incident : titre, statut, sévérité agrégée, cible corrélée (`target_type`/`target_value`/`metric`), clé de corrélation, horodatages de cycle de vie.    |
-| `incident_alerts`    | Association alerte → incident (`UNIQUE(alert_id)` : une alerte n'appartient qu'à un seul incident à la fois).                                             |
-| `incident_timeline`  | Entrées **natives**, propres à l'incident (changement d'état, acquittement, silence créé) — jamais les événements déjà stockés ailleurs.                  |
-| `alert_silences`     | Règles de silence : `scope_type` (`rule`/`process`/`tag`/`environment`/`group`), `scope_value`, `expires_at`, `reason`, `cancelled_at` (annulation anticipée). |
+| Table               | Rôle                                                                                                                                                           |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `incidents`         | L'incident : titre, statut, sévérité agrégée, cible corrélée (`target_type`/`target_value`/`metric`), clé de corrélation, horodatages de cycle de vie.         |
+| `incident_alerts`   | Association alerte → incident (`UNIQUE(alert_id)` : une alerte n'appartient qu'à un seul incident à la fois).                                                  |
+| `incident_timeline` | Entrées **natives**, propres à l'incident (changement d'état, acquittement, silence créé) — jamais les événements déjà stockés ailleurs.                       |
+| `alert_silences`    | Règles de silence : `scope_type` (`rule`/`process`/`tag`/`environment`/`group`), `scope_value`, `expires_at`, `reason`, `cancelled_at` (annulation anticipée). |
 
 La sévérité d'un incident est la plus haute sévérité parmi ses alertes
 liées (`critical` > `warning` > `info`) — elle ne redescend jamais
 automatiquement, même si l'alerte la plus sévère se résout (reflète
-qu'un incident a *été* critique, y compris après mitigation).
+qu'un incident a _été_ critique, y compris après mitigation).
 
 ## Corrélation
 
@@ -137,13 +137,13 @@ horodatage à chaque appel.
 `silence-store.js#isSilenced(alert, processOrg)` évalue chaque silence actif
 (non annulé, non expiré) contre l'alerte :
 
-| `scope_type`  | Matche si...                                                             |
-| ------------- | ------------------------------------------------------------------------- |
-| `rule`        | `scope_value` == l'id de la règle d'alerte (`alert.ruleId`).             |
-| `process`     | l'alerte cible un process et `scope_value` == son nom.                    |
-| `tag`         | le process porte un tag == `scope_value` (organisation des process).     |
-| `environment` | l'environnement du process == `scope_value`.                             |
-| `group`       | le process appartient à un groupe == `scope_value`.                      |
+| `scope_type`  | Matche si...                                                         |
+| ------------- | -------------------------------------------------------------------- |
+| `rule`        | `scope_value` == l'id de la règle d'alerte (`alert.ruleId`).         |
+| `process`     | l'alerte cible un process et `scope_value` == son nom.               |
+| `tag`         | le process porte un tag == `scope_value` (organisation des process). |
+| `environment` | l'environnement du process == `scope_value`.                         |
+| `group`       | le process appartient à un groupe == `scope_value`.                  |
 
 `RoutingEngine#dispatch` (notifications) appelle `isSilenced()` juste après
 le matching des routes et **avant tout envoi**. Si l'alerte est silencée :
@@ -163,19 +163,19 @@ silence n'est faite.
 
 Montée sous `/api/incidents` (`lib/routes/incidents.js`) :
 
-| Méthode  | Route                        | Permission          | Description                                                  |
-| -------- | ----------------------------- | -------------------- | ------------------------------------------------------------ |
-| `GET`    | `/`                            | `incidents_read`      | Liste paginée, filtrable (`status`, `severity`, `targetType`, `targetValue`). |
-| `GET`    | `/catalog`                     | `incidents_read`      | États valides, transitions autorisées, types de scope/silence. |
-| `GET`    | `/silences`                    | `incidents_read`      | Liste des silences (`?active=1` pour les actifs seulement).   |
-| `POST`   | `/silences`                    | `incidents_manage`    | Crée un silence (`scopeType`, `scopeValue`, `silenceType`, `durationMinutes` ou `until`, `reason`). |
-| `DELETE` | `/silences/:id`                | `incidents_manage`    | Annule un silence avant son expiration naturelle.             |
-| `GET`    | `/:id`                         | `incidents_read`      | Détail d'un incident (+ `alertIds`).                          |
-| `GET`    | `/:id/timeline`                | `incidents_read`      | Timeline fusionnée (voir [Timeline](#timeline)).              |
-| `POST`   | `/:id/acknowledge`             | `incidents_manage`    | `OPEN`/`INVESTIGATING` → `ACKNOWLEDGED`.                      |
-| `POST`   | `/:id/investigate`             | `incidents_manage`    | → `INVESTIGATING`.                                            |
-| `POST`   | `/:id/mitigate`                | `incidents_manage`    | → `MITIGATED`.                                                |
-| `POST`   | `/:id/resolve`                 | `incidents_manage`    | → `RESOLVED` (terminal).                                      |
+| Méthode  | Route              | Permission         | Description                                                                                         |
+| -------- | ------------------ | ------------------ | --------------------------------------------------------------------------------------------------- |
+| `GET`    | `/`                | `incidents_read`   | Liste paginée, filtrable (`status`, `severity`, `targetType`, `targetValue`).                       |
+| `GET`    | `/catalog`         | `incidents_read`   | États valides, transitions autorisées, types de scope/silence.                                      |
+| `GET`    | `/silences`        | `incidents_read`   | Liste des silences (`?active=1` pour les actifs seulement).                                         |
+| `POST`   | `/silences`        | `incidents_manage` | Crée un silence (`scopeType`, `scopeValue`, `silenceType`, `durationMinutes` ou `until`, `reason`). |
+| `DELETE` | `/silences/:id`    | `incidents_manage` | Annule un silence avant son expiration naturelle.                                                   |
+| `GET`    | `/:id`             | `incidents_read`   | Détail d'un incident (+ `alertIds`).                                                                |
+| `GET`    | `/:id/timeline`    | `incidents_read`   | Timeline fusionnée (voir [Timeline](#timeline)).                                                    |
+| `POST`   | `/:id/acknowledge` | `incidents_manage` | `OPEN`/`INVESTIGATING` → `ACKNOWLEDGED`.                                                            |
+| `POST`   | `/:id/investigate` | `incidents_manage` | → `INVESTIGATING`.                                                                                  |
+| `POST`   | `/:id/mitigate`    | `incidents_manage` | → `MITIGATED`.                                                                                      |
+| `POST`   | `/:id/resolve`     | `incidents_manage` | → `RESOLVED` (terminal).                                                                            |
 
 Toute transition invalide (ex: tenter de rouvrir un incident `RESOLVED`)
 renvoie `400` avec le détail des transitions autorisées depuis l'état

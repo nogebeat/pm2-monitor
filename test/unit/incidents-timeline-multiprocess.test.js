@@ -126,12 +126,15 @@ test("incidents/timeline-store — dérivation multi-process (corrélation par g
     assert.ok(found, "la tentative Auto-Healing sur worker-2 doit apparaître dans la timeline de l'incident");
   });
 
-  await t.test("la timeline inclut toujours les deux alertes déclenchées (worker-1 et worker-2)", async () => {
-    const alertIds = await incidentStore.listAlertIds(incident.id);
-    const timeline = await timelineStore.list(incident, alertIds);
-    assert.ok(timeline.some((e) => e.type === "alert_triggered" && e.refId === alertOnWorker1.id));
-    assert.ok(timeline.some((e) => e.type === "alert_triggered" && e.refId === alertOnWorker2.id));
-  });
+  await t.test(
+    "la timeline inclut toujours les deux alertes déclenchées (worker-1 et worker-2)",
+    async () => {
+      const alertIds = await incidentStore.listAlertIds(incident.id);
+      const timeline = await timelineStore.list(incident, alertIds);
+      assert.ok(timeline.some((e) => e.type === "alert_triggered" && e.refId === alertOnWorker1.id));
+      assert.ok(timeline.some((e) => e.type === "alert_triggered" && e.refId === alertOnWorker2.id));
+    },
+  );
 
   await t.test("aucune entrée dupliquée même si un process apparaît deux fois (dédoublonnage)", async () => {
     const alertIds = await incidentStore.listAlertIds(incident.id);
