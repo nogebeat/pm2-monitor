@@ -21,6 +21,7 @@ const { engine: healthCheckEngine } = require("./lib/services/health-checks");
 const healthChecksStore = require("./lib/services/health-checks/store");
 const { AutoHealingService, auditStore: autoHealingAuditStore } = require("./lib/services/auto-healing");
 const serversStore = require("./lib/services/servers/store");
+const processOrgStore = require("./lib/services/process-organization/store");
 
 const { createDispatchAlertTransition } = require("./lib/alert-dispatch");
 const { fmtProcess, visibleProcesses } = require("./lib/process-helpers");
@@ -44,6 +45,7 @@ const systemRouter = require("./lib/routes/system");
 const logsRouter = require("./lib/routes/logs");
 const logExplorerRouter = require("./lib/routes/log-explorer");
 const serversRouter = require("./lib/routes/servers");
+const processOrganizationRouter = require("./lib/routes/process-organization");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -231,6 +233,10 @@ app.use("/api/audit", auditRouter());
 // Multi-server / Remote PM2 (lib/services/servers/, lib/routes/servers.js, Phase 10)
 app.use("/api/servers", serversRouter({ agentHub, processHistory }));
 
+// Organisation des process : tags/environnements/groupes (lib/services/
+// process-organization/, lib/routes/process-organization.js, Phase 13)
+app.use("/api/process-organization", processOrganizationRouter());
+
 // Process : liste + actions de base/étendues + métriques (lib/routes/processes.js)
 app.use("/api", processesRouter({ processHistory }));
 
@@ -320,6 +326,10 @@ db.init()
   // voir lib/services/servers/store.js#ensureLocalServer) — aucune configuration
   // requise pour qu'une installation existante mono-hôte continue de fonctionner.
   .then(serversStore.ensureLocalServer)
+  // Phase 13 — Tags/Environments/Groups : seed les environnements par défaut
+  // (production/staging/development) si absents, idempotent comme ci-dessus
+  // (voir lib/services/process-organization/store.js#ensureDefaults).
+  .then(processOrgStore.ensureDefaults)
   .then(startPm2Bus)
   .catch((err) => {
     console.error("Échec d'initialisation de la base de données :", err.message);

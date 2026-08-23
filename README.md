@@ -376,6 +376,11 @@ pour le détail de ce qui existe et ce qui est prévu.
   agents distants), tokens d'agent, scoping optionnel par utilisateur — voir
   [Multi-server / Remote PM2](#multi-server--remote-pm2-onglet-serveurs) et
   [`docs/multi-server/README.md`](docs/multi-server/README.md).
+- `lib/services/process-organization/` : catalogues tags/environnements/
+  groupes et leurs associations aux process, consommés par le routing des
+  notifications — voir
+  [Organisation des process](#organisation-des-process--tags-environnements-groupes-phase-13)
+  et [`docs/process-organization/README.md`](docs/process-organization/README.md).
 
 ## Fonctionnalités
 
@@ -834,6 +839,28 @@ recherche plein texte ci-dessus, qui restent limités à UN process sélectionn�
   il a déjà droit, même dans une recherche agrégée.
 - Documentation complète (API, garde-fous, limites connues) :
   [`docs/log-explorer/README.md`](docs/log-explorer/README.md).
+
+### Organisation des process : tags, environnements, groupes (Phase 13)
+
+Une organisation logique des process **gérée entièrement par PM2
+Monitor**, sans jamais modifier la configuration PM2 elle-même :
+
+- **Tags** : étiquettes libres (`production`, `backend`, `payments`,
+  `critical`, `worker`…), plusieurs par process.
+- **Environnements** : `production` / `staging` / `development` (créés par
+  défaut) ou personnalisés — un seul par process.
+- **Groupes** : regroupements logiques (`E-commerce` → `frontend`, `api`,
+  `worker`, `cron`…) — un process peut appartenir à plusieurs groupes.
+- **UI** : `Settings → 🏷 Organisation` (CRUD des trois catalogues +
+  assignation à un process), filtres par tag/environnement et **vue
+  groupe** dans la liste des process.
+- **Alertes & notifications** : le routing des notifications
+  (`conditions.tag`/`environment`/`group`) matche désormais correctement
+  contre l'organisation du process ciblé par l'alerte — un filtre `tag`
+  qui ne matchait jamais rien avant cette phase.
+- Documentation complète (modèle de données, API, intégration Alert
+  Engine, limites connues) :
+  [`docs/process-organization/README.md`](docs/process-organization/README.md).
 
 ### Général
 

@@ -49,6 +49,10 @@ function openHealthChecks() {
 function openAuditLog() {
   state.modal = { type: "auditLog" };
 }
+
+function openOrganization() {
+  state.modal = { type: "organization" };
+}
 </script>
 
 <template>
@@ -150,6 +154,14 @@ function openAuditLog() {
         @click="openAuditLog"
       >
         🧾 {{ t("topbar.auditLog") }}
+      </button>
+      <button
+        v-if="can('process_org_read')"
+        class="icon-btn"
+        :title="t('topbar.organizationTitle')"
+        @click="openOrganization"
+      >
+        🏷 {{ t("topbar.organization") }}
       </button>
       <button
         v-if="state.auth.user && state.auth.user.isAdmin"

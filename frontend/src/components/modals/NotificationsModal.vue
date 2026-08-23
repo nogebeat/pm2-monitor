@@ -271,12 +271,16 @@ function test(p) {
     });
 }
 
-// ---------- Routing (Phase 5D) ----------
-// conditions : { severity?, alertType?, process?, server?, tag? }, chacun
-// un tableau de valeurs — voir lib/services/notifications/routing/engine.js#routeMatches.
+// ---------- Routing (Phase 5D + Phase 13 : tag/environment/group) ----------
+// conditions : { severity?, alertType?, process?, server?, tag?, environment?, group? },
+// chacun un tableau de valeurs — voir lib/services/notifications/routing/engine.js#routeMatches.
 // Saisie utilisateur en champs texte "valeur1, valeur2" ; converti en
 // tableau au save() (parseListInput), reconverti en chaîne à l'édition
 // (joinListInput) — même approche que "Recipients" côté provider email.
+// tag/environment/group (Phase 13) sont résolus dynamiquement pour une
+// alerte "process" via lib/services/process-organization/ : voir
+// OrganizationModal.vue pour gérer le catalogue de tags/environnements/
+// groupes et les assigner à un process.
 const SEVERITY_OPTIONS = ["info", "warning", "critical"];
 
 const routes = ref([]);
@@ -319,6 +323,9 @@ function startCreateRoute() {
     alertType: "",
     process: "",
     server: "",
+    tag: "",
+    environment: "",
+    group: "",
     providerIds: [],
     titleTemplate: "",
     messageTemplate: "",
@@ -337,6 +344,9 @@ function startEditRoute(r) {
     alertType: joinListInput(c.alertType),
     process: joinListInput(c.process),
     server: joinListInput(c.server),
+    tag: joinListInput(c.tag),
+    environment: joinListInput(c.environment),
+    group: joinListInput(c.group),
     providerIds: Array.isArray(r.providerIds) ? [...r.providerIds] : [],
     titleTemplate: r.titleTemplate || "",
     messageTemplate: r.messageTemplate || "",
@@ -374,6 +384,9 @@ function saveRoute() {
       alertType: parseListInput(e.alertType),
       process: parseListInput(e.process),
       server: parseListInput(e.server),
+      tag: parseListInput(e.tag),
+      environment: parseListInput(e.environment),
+      group: parseListInput(e.group),
     },
     providerIds: e.providerIds,
     titleTemplate: e.titleTemplate.trim() || null,
@@ -422,6 +435,8 @@ function conditionsSummary(r) {
   if (c.process && c.process.length) parts.push(`process: ${c.process.join(", ")}`);
   if (c.server && c.server.length) parts.push(`server: ${c.server.join(", ")}`);
   if (c.tag && c.tag.length) parts.push(`tag: ${c.tag.join(", ")}`);
+  if (c.environment && c.environment.length) parts.push(`environment: ${c.environment.join(", ")}`);
+  if (c.group && c.group.length) parts.push(`group: ${c.group.join(", ")}`);
   return parts.length ? parts.join(" · ") : t("notificationsModal.allAlerts");
 }
 
@@ -641,6 +656,21 @@ watch(tab, (t2) => {
           <label class="notif-field">
             <span>{{ t("notificationsModal.serverHint") }}</span>
             <input v-model="routeEditing.server" type="text" placeholder="local" />
+          </label>
+
+          <label class="notif-field">
+            <span>{{ t("notificationsModal.tagHint") }}</span>
+            <input v-model="routeEditing.tag" type="text" placeholder="production, critical" />
+          </label>
+
+          <label class="notif-field">
+            <span>{{ t("notificationsModal.environmentHint") }}</span>
+            <input v-model="routeEditing.environment" type="text" placeholder="production, staging" />
+          </label>
+
+          <label class="notif-field">
+            <span>{{ t("notificationsModal.groupHint") }}</span>
+            <input v-model="routeEditing.group" type="text" placeholder="E-commerce" />
           </label>
 
           <div class="notif-field">

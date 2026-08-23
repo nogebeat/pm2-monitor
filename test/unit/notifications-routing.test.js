@@ -8,7 +8,7 @@ const {
   renderString,
   buildVariables,
 } = require("../../lib/services/notifications/routing/templates");
-const { RoutingEngine, matchesList } = require("../../lib/services/notifications/routing/engine");
+const { RoutingEngine, matchesList, matchesAny } = require("../../lib/services/notifications/routing/engine");
 
 function makeAlert(overrides) {
   return {
@@ -115,6 +115,23 @@ test("routing/engine.js — matchesList", async (t) => {
   });
 });
 
+test("routing/engine.js — matchesAny", async (t) => {
+  await t.test("liste absente/vide = tout passe", () => {
+    assert.equal(matchesAny(undefined, ["prod"]), true);
+    assert.equal(matchesAny([], ["prod"]), true);
+  });
+
+  await t.test("ensemble de valeurs absent/vide ne matche jamais un filtre non vide", () => {
+    assert.equal(matchesAny(["prod"], undefined), false);
+    assert.equal(matchesAny(["prod"], []), false);
+  });
+
+  await t.test("matche dès qu'une valeur est commune (intersection non vide)", () => {
+    assert.equal(matchesAny(["prod", "critical"], ["backend", "critical"]), true);
+    assert.equal(matchesAny(["prod", "critical"], ["backend", "frontend"]), false);
+  });
+});
+
 test("routing/engine.js — RoutingEngine#routeMatches", async (t) => {
   function makeEngine() {
     return new RoutingEngine({
@@ -165,10 +182,74 @@ test("routing/engine.js — RoutingEngine#routeMatches", async (t) => {
     assert.equal(engine.routeMatches(route, makeAlert({ targetType: "process" })), false);
   });
 
-  await t.test("filtre tag : jamais de match tant qu'aucune alerte ne porte de tag", () => {
+  await t.test("filtre tag : sans processOrg (aucun processOrgStore injecté), ne matche jamais", () => {
     const engine = makeEngine();
     const route = { conditions: { tag: ["prod"] } };
     assert.equal(engine.routeMatches(route, makeAlert()), false);
+  });
+
+  await t.test(
+    "filtre tag : matche si l'un des tags de la route est porté par le process (processOrg)",
+    () => {
+      const engine = makeEngine();
+      const route = { conditions: { tag: ["prod", "critical"] } };
+      assert.equal(
+        engine.routeMatches(route, makeAlert(), { tags: ["backend"], environment: null, groups: [] }),
+        false,
+      );
+      assert.equal(
+        engine.routeMatches(route, makeAlert(), {
+          tags: ["backend", "critical"],
+          environment: null,
+          groups: [],
+        }),
+        true,
+      );
+    },
+  );
+
+  await t.test("filtre tag : une alerte 'system' n'a pas de process, donc pas de tag", () => {
+    const engine = makeEngine();
+    const route = { conditions: { tag: ["prod"] } };
+    assert.equal(engine.routeMatches(route, makeAlert({ targetType: "system", targetValue: null })), false);
+  });
+
+  await t.test("filtre environment : matche l'environnement du process (processOrg)", () => {
+    const engine = makeEngine();
+    const route = { conditions: { environment: ["production"] } };
+    assert.equal(
+      engine.routeMatches(route, makeAlert(), { tags: [], environment: "staging", groups: [] }),
+      false,
+    );
+    assert.equal(
+      engine.routeMatches(route, makeAlert(), { tags: [], environment: "production", groups: [] }),
+      true,
+    );
+    assert.equal(engine.routeMatches(route, makeAlert(), null), false);
+  });
+
+  await t.test(
+    "filtre group : matche si l'un des groupes de la route est porté par le process (processOrg)",
+    () => {
+      const engine = makeEngine();
+      const route = { conditions: { group: ["ecommerce"] } };
+      assert.equal(
+        engine.routeMatches(route, makeAlert(), { tags: [], environment: null, groups: ["other"] }),
+        false,
+      );
+      assert.equal(
+        engine.routeMatches(route, makeAlert(), { tags: [], environment: null, groups: ["ecommerce"] }),
+        true,
+      );
+    },
+  );
+
+  await t.test("tag/environment/group combinés à severity (ET logique)", () => {
+    const engine = makeEngine();
+    const route = { conditions: { severity: ["critical"], tag: ["prod"], environment: ["production"] } };
+    const processOrg = { tags: ["prod"], environment: "production", groups: [] };
+    assert.equal(engine.routeMatches(route, makeAlert({ severity: "warning" }), processOrg), false);
+    assert.equal(engine.routeMatches(route, makeAlert({ severity: "critical" }), processOrg), true);
   });
 
   await t.test("plusieurs conditions combinées (ET logique)", () => {
@@ -192,7 +273,7 @@ test("routing/engine.js — RoutingEngine#routeMatches", async (t) => {
 });
 
 test("routing/engine.js — RoutingEngine#dispatch", async (t) => {
-  function makeStores({ routes = [], providers = {}, secrets = {}, sendImpl } = {}) {
+  function makeStores({ routes = [], providers = {}, secrets = {}, sendImpl, processOrgStore } = {}) {
     const historyEntries = [];
     const routeStore = { list: async () => routes };
     const providerStore = {
@@ -208,7 +289,7 @@ test("routing/engine.js — RoutingEngine#dispatch", async (t) => {
         return { id: historyEntries.length, ...entry };
       },
     };
-    return { routeStore, providerStore, registry, historyStore, historyEntries };
+    return { routeStore, providerStore, registry, historyStore, historyEntries, processOrgStore };
   }
 
   await t.test("aucune route ne matche : aucun envoi, tableau vide", async () => {
@@ -398,6 +479,70 @@ test("routing/engine.js — RoutingEngine#dispatch", async (t) => {
     const results = await engine.dispatch(makeAlert(), "triggered");
     assert.deepEqual(results, []);
   });
+
+  await t.test(
+    "processOrgStore injecté : une route conditions.tag matche via l'organisation du process",
+    async () => {
+      const stores = makeStores({
+        routes: [{ id: 5, enabled: true, conditions: { tag: ["prod"] }, providerIds: [1] }],
+        providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
+        sendImpl: async () => ({ success: true }),
+        processOrgStore: {
+          getOrganizationForProcess: async (name) =>
+            name === "api-prod" ? { tags: ["prod", "backend"], environment: "production", groups: [] } : null,
+        },
+      });
+      const engine = new RoutingEngine({ ...stores, processOrgStore: stores.processOrgStore });
+      const results = await engine.dispatch(
+        makeAlert({ targetType: "process", targetValue: "api-prod" }),
+        "triggered",
+      );
+      assert.equal(results.length, 1);
+      assert.equal(stores.historyEntries[0].status, "success");
+    },
+  );
+
+  await t.test(
+    "processOrgStore injecté : une route conditions.tag ne matche pas si le process n'a pas le tag",
+    async () => {
+      const stores = makeStores({
+        routes: [{ id: 5, enabled: true, conditions: { tag: ["prod"] }, providerIds: [1] }],
+        providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
+        sendImpl: async () => ({ success: true }),
+        processOrgStore: {
+          getOrganizationForProcess: async () => ({ tags: ["staging"], environment: "staging", groups: [] }),
+        },
+      });
+      const engine = new RoutingEngine({ ...stores, processOrgStore: stores.processOrgStore });
+      const results = await engine.dispatch(
+        makeAlert({ targetType: "process", targetValue: "api-prod" }),
+        "triggered",
+      );
+      assert.deepEqual(results, []);
+    },
+  );
+
+  await t.test(
+    "processOrgStore qui lance : n'empêche pas le dispatch (repli sur processOrg=null)",
+    async () => {
+      const stores = makeStores({
+        routes: [{ id: 5, enabled: true, conditions: {}, providerIds: [1] }],
+        providers: { 1: { id: 1, type: "fake", enabled: true, configuration: {} } },
+        sendImpl: async () => ({ success: true }),
+        processOrgStore: {
+          getOrganizationForProcess: async () => {
+            throw new Error("db down");
+          },
+        },
+      });
+      const engine = new RoutingEngine({ ...stores, processOrgStore: stores.processOrgStore });
+      const results = await engine.dispatch(
+        makeAlert({ targetType: "process", targetValue: "api-prod" }),
+        "triggered",
+      );
+      assert.equal(results.length, 1); // route sans conditions.tag/environment/group : matche quand même
+    },
+  );
 
   await t.test("dispatch(null) : renvoie [] sans appeler les stores", async () => {
     let called = false;
