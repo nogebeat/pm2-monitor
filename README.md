@@ -386,6 +386,11 @@ pour le détail de ce qui existe et ce qui est prévu.
   notification, au-dessus du moteur d'alertes existant — voir
   [Incidents & Silences](#incidents--silences-phase-14) et
   [`docs/incidents/README.md`](docs/incidents/README.md).
+- `lib/services/metrics/` : export Prometheus (`GET /metrics`) qui met en
+  forme les métriques déjà collectées ailleurs (process, système, alertes,
+  health checks, registre de serveurs) — aucune nouvelle collecte, Prometheus
+  reste optionnel — voir [Export Prometheus](#export-prometheus-metrics-phase-15)
+  et [`docs/metrics/README.md`](docs/metrics/README.md).
 
 ## Fonctionnalités
 
@@ -898,6 +903,34 @@ silence sans jamais supprimer l'alerte ni l'événement qui l'a déclenchée.
   d'un silence) sont auditées ([Audit Log](#audit-log)).
 - Documentation complète (modèle de données, algorithme de corrélation,
   API, permissions) : [`docs/incidents/README.md`](docs/incidents/README.md).
+
+### Export Prometheus / metrics (Phase 15)
+
+Un endpoint `GET /metrics` au format d'exposition Prometheus, pour qui
+préfère brancher son propre Prometheus/Grafana plutôt que d'utiliser
+uniquement le dashboard intégré. **Prometheus n'est jamais obligatoire** :
+l'endpoint peut être désactivé (`METRICS_ENABLED=0`), et rien d'autre dans
+l'application n'en dépend.
+
+- **Aucune nouvelle collecte** : les métriques exposées sont mises en forme
+  à partir de ce qui est déjà calculé ailleurs (process PM2, système,
+  moteur d'alertes, health checks, registre de serveurs) — pas de second
+  système de monitoring en parallèle.
+- **Métriques** : CPU/mémoire/uptime/redémarrages/statut par process, CPU/
+  mémoire/disque système, statut des health checks, nombre d'alertes
+  actives par sévérité, statut des serveurs suivis ([Multi-server](#multi-server--remote-pm2-onglet-serveurs)) —
+  liste complète dans [`docs/metrics/README.md`](docs/metrics/README.md#métriques-disponibles).
+- **Labels raisonnables** : `process`, `server`, `environment` — jamais de
+  PID ou d'identifiant volatil, cardinalité proportionnelle au nombre réel
+  de process/serveurs/checks.
+- **Sécurité** : endpoint distinct du système d'auth par session (un
+  scraper Prometheus n'a pas de cookie) — protégé par jeton
+  (`METRICS_TOKEN`) et/ou restriction IP (`METRICS_ALLOWED_IPS`) ;
+  accès à l'hôte local uniquement par défaut si aucun des deux n'est
+  configuré. Aucun secret (variables d'environnement de process, tokens
+  d'agent…) n'est jamais exposé.
+- Documentation complète (scrape configuration, sécurité, liste des
+  métriques) : [`docs/metrics/README.md`](docs/metrics/README.md).
 
 ### Général
 

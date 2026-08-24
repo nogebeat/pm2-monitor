@@ -46,11 +46,12 @@ test("migrator", async (t) => {
       "014_process_metrics_server_key",
       "015_process_organization",
       "016_incidents",
+      "017_servers_last_processes",
     ]);
 
     const status = await migrator.status();
     assert.equal(status.pending.length, 0);
-    assert.equal(status.applied.length, 16);
+    assert.equal(status.applied.length, 17);
   });
 
   await t.test("up() est idempotent : rejouer ne fait rien et ne plante pas", async () => {
@@ -96,18 +97,14 @@ test("migrator", async (t) => {
   });
 
   await t.test(
-    "down({ steps: 3 }) annule 016 puis 015 puis 014 (reconstruction rollup vers le schéma 004)",
+    "down({ steps: 3 }) annule 017 puis 016 puis 015 (reconstruction rollup vers le schéma 004)",
     async () => {
       const migrator = require("../../lib/db/migrator");
       const db = require("../../lib/db");
       await migrator.up();
 
       const reverted = await migrator.down({ steps: 3 });
-      assert.deepEqual(reverted, [
-        "016_incidents",
-        "015_process_organization",
-        "014_process_metrics_server_key",
-      ]);
+      assert.deepEqual(reverted, ["017_servers_last_processes", "016_incidents", "015_process_organization"]);
 
       const status = await migrator.status();
       assert.deepEqual(
@@ -126,39 +123,40 @@ test("migrator", async (t) => {
           "011_audit_log",
           "012_servers",
           "013_process_metrics_analytics",
+          "014_process_metrics_server_key",
         ],
       );
 
-      // 012 (toujours appliquée ici) garde ses tables ; le rollback de 014
-      // reconstruit process_metrics_rollup vers le schéma 004 mais ne touche à
-      // aucune autre table. Le rollback de 015 retire ses propres tables.
+      // 012 (toujours appliquée ici) garde ses tables ; le rollback de 015
+      // retire ses propres tables. Le rollback de 017 ne supprime aucune
+      // table (colonne additive sur `servers`, voir la migration elle-même).
       const tables = (await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])).map(
         (r) => r.name,
       );
       assert.ok(
         tables.includes("servers") && tables.includes("user_servers"),
-        "servers/user_servers (Phase 10/012) ne sont pas affectées par le rollback de 014/015",
+        "servers/user_servers (Phase 10/012) ne sont pas affectées par le rollback de 015/016/017",
       );
       assert.ok(
         tables.includes("audit_log"),
-        "audit_log (Phase 9/011) n'est pas affectée par le rollback de 014/015",
+        "audit_log (Phase 9/011) n'est pas affectée par le rollback de 015/016/017",
       );
       assert.ok(
         tables.includes("auto_healing_settings"),
-        "auto_healing_settings (Phase 7/009) n'est pas affectée par le rollback de 014/015",
+        "auto_healing_settings (Phase 7/009) n'est pas affectée par le rollback de 015/016/017",
       );
       assert.ok(
         tables.includes("health_checks"),
-        "health_checks (Phase 6/008) n'est pas affectée par le rollback de 014/015",
+        "health_checks (Phase 6/008) n'est pas affectée par le rollback de 015/016/017",
       );
       assert.ok(
         tables.includes("notification_providers"),
-        "notification_providers (Phase 5A/006) n'est pas affectée par le rollback de 014/015",
+        "notification_providers (Phase 5A/006) n'est pas affectée par le rollback de 015/016/017",
       );
       assert.ok(tables.includes("notification_routes"));
       assert.ok(
         tables.includes("process_events"),
-        "process_events ne doit pas être affectée par le rollback de 014/015",
+        "process_events ne doit pas être affectée par le rollback de 015/016/017",
       );
       assert.ok(
         !tables.includes("tags") && !tables.includes("process_group_members"),
@@ -171,19 +169,19 @@ test("migrator", async (t) => {
     },
   );
 
-  await t.test("down({ steps: 4 }) annule les quatre dernières migrations (016 à 013)", async () => {
+  await t.test("down({ steps: 4 }) annule les quatre dernières migrations (017 à 014)", async () => {
     const migrator = require("../../lib/db/migrator");
     await migrator.up();
     const reverted = await migrator.down({ steps: 4 });
     assert.deepEqual(reverted, [
+      "017_servers_last_processes",
       "016_incidents",
       "015_process_organization",
       "014_process_metrics_server_key",
-      "013_process_metrics_analytics",
     ]);
 
     const status = await migrator.status();
-    assert.equal(status.applied.length, 12);
+    assert.equal(status.applied.length, 13);
   });
 
   await t.test("down() sur une base vierge (rien d'appliqué) ne fait rien", async () => {

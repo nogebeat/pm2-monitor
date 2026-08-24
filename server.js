@@ -47,6 +47,7 @@ const logExplorerRouter = require("./lib/routes/log-explorer");
 const serversRouter = require("./lib/routes/servers");
 const processOrganizationRouter = require("./lib/routes/process-organization");
 const incidentsRouter = require("./lib/routes/incidents");
+const metricsRouter = require("./lib/routes/metrics");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -192,6 +193,25 @@ const agentHub = attachAgentHub(io, {
   },
 });
 agentHub.startStaleSweep();
+
+// --- Prometheus Metrics Export (Phase 15, lib/routes/metrics.js) ---------
+// Monté hors de /api volontairement : un scraper Prometheus ne porte jamais
+// le cookie de session du navigateur (voir lib/auth.js#requireAuth, qui ne
+// bloque que /api/*). Ce routeur applique sa propre politique d'accès
+// (token bearer et/ou restriction IP, voir lib/services/metrics/config.js)
+// indépendante du système d'auth par session/permissions existant.
+app.use(
+  "/metrics",
+  metricsRouter({
+    pm2,
+    fmtProcess,
+    getSystemSnapshot: () => systemStats.snapshot(),
+    alertStore,
+    healthChecksStore,
+    serversStore,
+    agentHub,
+  }),
+);
 
 // --- REST API --------------------------------------------------------------
 

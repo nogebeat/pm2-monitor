@@ -110,6 +110,35 @@ test("servers/store — heartbeat / statut / détection offline", async (t) => {
     assert.deepEqual(updated.snapshot, { cpu: 12 });
   });
 
+  await t.test(
+    "touchStatus() persiste le dernier snapshot process (Phase 15 — Prometheus, migration 017), lisible après un redémarrage simulé",
+    async () => {
+      const { server } = await store.create({ name: "Agent Metrics" });
+      await store.touchStatus(server.serverKey, {
+        status: "ONLINE",
+        processes: [{ name: "api", status: "online", cpu: 5, memory: 1024, restarts: 0 }],
+      });
+
+      // "Redémarrage simulé" : on relit depuis la DB (getByKey ne dépend
+      // d'aucun état en mémoire, contrairement à un simple cache).
+      const reloaded = await store.getByKey(server.serverKey);
+      assert.deepEqual(reloaded.processes, [
+        { name: "api", status: "online", cpu: 5, memory: 1024, restarts: 0 },
+      ]);
+    },
+  );
+
+  await t.test("touchStatus() sans processes ne touche pas la colonne last_processes", async () => {
+    const { server } = await store.create({ name: "Agent Metrics 2" });
+    await store.touchStatus(server.serverKey, {
+      status: "ONLINE",
+      processes: [{ name: "api", status: "online" }],
+    });
+    await store.touchStatus(server.serverKey, { status: "ONLINE" });
+    const reloaded = await store.getByKey(server.serverKey);
+    assert.deepEqual(reloaded.processes, [{ name: "api", status: "online" }]);
+  });
+
   await t.test("markStaleOffline() bascule OFFLINE un agent dont le heartbeat a expiré", async () => {
     const { server } = await store.create({ name: "Agent I" });
     await store.touchStatus(server.serverKey, { status: "ONLINE" });
