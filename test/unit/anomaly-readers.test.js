@@ -3,7 +3,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { freshDb, cleanupDb } = require("../helpers/tmp-db");
-const { readSystemSeries, readProcessNumericSeries, readCountSeries } = require("../../lib/services/anomaly-detection/readers");
+const {
+  readSystemSeries,
+  readProcessNumericSeries,
+  readCountSeries,
+} = require("../../lib/services/anomaly-detection/readers");
 
 function makeRule(overrides = {}) {
   return {
@@ -29,11 +33,20 @@ test("readSystemSeries() — extrait value + history depuis lib/history-store.js
   const reading = readSystemSeries({ rule: makeRule(), snapshot, historyStore, now });
   assert.ok(reading);
   assert.equal(reading.value, 99);
-  assert.deepEqual(reading.history, [10, 12, 11], "l'échantillon au même t que le snapshot est exclu de la baseline");
+  assert.deepEqual(
+    reading.history,
+    [10, 12, 11],
+    "l'échantillon au même t que le snapshot est exclu de la baseline",
+  );
 });
 
 test("readSystemSeries() — pas de historyStore -> null", () => {
-  const reading = readSystemSeries({ rule: makeRule(), snapshot: { t: 1, cpu: 5 }, historyStore: null, now: 1 });
+  const reading = readSystemSeries({
+    rule: makeRule(),
+    snapshot: { t: 1, cpu: 5 },
+    historyStore: null,
+    now: 1,
+  });
   assert.equal(reading, null);
 });
 
@@ -63,7 +76,6 @@ test("readProcessNumericSeries() + readCountSeries() — avec DB réelle (SQLite
     const store = require("../../lib/services/process-history/store");
     const now = 1_000_000_000;
     for (let i = 0; i < 5; i++) {
-       
       await store.insertRaw({ processName: "api", ts: now - (5 - i) * 1000, cpu: 40 + i, memory: 100 });
     }
     const proc = { name: "api", cpu: 90 };
@@ -78,22 +90,25 @@ test("readProcessNumericSeries() + readCountSeries() — avec DB réelle (SQLite
     assert.equal(reading.history.length, 5);
   });
 
-  await t.test("readProcessNumericSeries() — memory : conversion octets -> Mo cohérente avec collector.js", async () => {
-    const store = require("../../lib/services/process-history/store");
-    const now = 1_000_000_000;
-    const bytesPerSample = 50 * 1024 * 1024; // 50 Mo
-    await store.insertRaw({ processName: "api", ts: now - 1000, cpu: 1, memory: bytesPerSample });
-    const proc = { name: "api", cpu: 1, memory: bytesPerSample };
-    const reading = await readProcessNumericSeries({
-      rule: makeRule({ metric: "memory", windowMs: 60000, minSamples: 1 }),
-      proc,
-      processHistoryStore: store,
-      now,
-    });
-    assert.ok(reading);
-    assert.equal(reading.value, 50, "collector.js#readProcessMetric convertit déjà proc.memory en Mo");
-    assert.equal(reading.history[0], 50, "l'historique doit être converti dans la même unité (Mo)");
-  });
+  await t.test(
+    "readProcessNumericSeries() — memory : conversion octets -> Mo cohérente avec collector.js",
+    async () => {
+      const store = require("../../lib/services/process-history/store");
+      const now = 1_000_000_000;
+      const bytesPerSample = 50 * 1024 * 1024; // 50 Mo
+      await store.insertRaw({ processName: "api", ts: now - 1000, cpu: 1, memory: bytesPerSample });
+      const proc = { name: "api", cpu: 1, memory: bytesPerSample };
+      const reading = await readProcessNumericSeries({
+        rule: makeRule({ metric: "memory", windowMs: 60000, minSamples: 1 }),
+        proc,
+        processHistoryStore: store,
+        now,
+      });
+      assert.ok(reading);
+      assert.equal(reading.value, 50, "collector.js#readProcessMetric convertit déjà proc.memory en Mo");
+      assert.equal(reading.history[0], 50, "l'historique doit être converti dans la même unité (Mo)");
+    },
+  );
 
   await t.test("readProcessNumericSeries() — pas de store -> null", async () => {
     const reading = await readProcessNumericSeries({
@@ -110,8 +125,12 @@ test("readProcessNumericSeries() + readCountSeries() — avec DB réelle (SQLite
     const now = 2_000_000_000_000; // grand nombre : buckets d'1h dans le passé restent >= 0
     // 3 restarts dans le bucket courant (dernière heure)
     for (let i = 0; i < 3; i++) {
-       
-      await eventStore.create({ timestamp: now - i * 1000, type: "restarted", severity: "warning", process: "api" });
+      await eventStore.create({
+        timestamp: now - i * 1000,
+        type: "restarted",
+        severity: "warning",
+        process: "api",
+      });
     }
     // 1 restart il y a 2h (dans une baseline)
     await eventStore.create({
@@ -122,7 +141,13 @@ test("readProcessNumericSeries() + readCountSeries() — avec DB réelle (SQLite
     });
 
     const rule = makeRule({ metric: "restart_rate", windowMs: 24 * 60 * 60 * 1000, minSamples: 1 });
-    const reading = await readCountSeries({ rule, targetType: "process", targetValue: "api", eventStore, now });
+    const reading = await readCountSeries({
+      rule,
+      targetType: "process",
+      targetValue: "api",
+      eventStore,
+      now,
+    });
     assert.ok(reading);
     assert.equal(reading.value, 3, "3 restarts comptés dans le bucket courant (dernière heure)");
     assert.ok(reading.history.length >= 2, "au moins les 2 buckets précédents dans la fenêtre de 24h");

@@ -247,7 +247,12 @@ const canDelete = computed(() => can("anomaly_delete"));
                 <span class="an-severity" :class="`sev-${r.severity}`">{{ r.severity }}</span>
               </div>
               <div class="an-card-meta">
-                <span>{{ t("anomalyModal.target") }} : {{ r.targetType === "system" ? t("anomalyModal.targetSystem") : (r.targetValue || "*") }}</span>
+                <span
+                  >{{ t("anomalyModal.target") }} :
+                  {{
+                    r.targetType === "system" ? t("anomalyModal.targetSystem") : r.targetValue || "*"
+                  }}</span
+                >
                 <span>{{ t("anomalyModal.sensitivity") }} : {{ r.sensitivity }}σ</span>
                 <span>{{ t("anomalyModal.window") }} : {{ fmtWindow(r.windowMs) }}</span>
                 <span>{{ t("anomalyModal.cooldown") }} : {{ r.cooldownSeconds }}s</span>
@@ -275,7 +280,11 @@ const canDelete = computed(() => can("anomaly_delete"));
 
           <label>
             {{ t("anomalyModal.targetType") }}
-            <select v-model="editing.targetType" :disabled="editing.mode === 'edit'" @change="onTargetTypeChange">
+            <select
+              v-model="editing.targetType"
+              :disabled="editing.mode === 'edit'"
+              @change="onTargetTypeChange"
+            >
               <option v-for="tt in catalog.targetTypes" :key="tt" :value="tt">
                 {{ tt === "system" ? t("anomalyModal.targetSystem") : t("anomalyModal.targetProcess") }}
               </option>
@@ -284,7 +293,11 @@ const canDelete = computed(() => can("anomaly_delete"));
 
           <label v-if="editing.targetType === 'process'">
             {{ t("anomalyModal.targetValue") }}
-            <input v-model="editing.targetValue" type="text" placeholder="* (toutes les apps) ou nom-de-l-app" />
+            <input
+              v-model="editing.targetValue"
+              type="text"
+              placeholder="* (toutes les apps) ou nom-de-l-app"
+            />
           </label>
 
           <label>

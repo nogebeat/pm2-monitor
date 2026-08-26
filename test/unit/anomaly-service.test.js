@@ -115,7 +115,11 @@ test("AnomalyDetectionService — donnée anormale -> alimente le moteur d'alert
   const result = await service._evaluateReading(makeRule(), "api", reading);
   assert.ok(result, "une occurrence d'alerte doit être créée");
   assert.equal(result.state, "trigger");
-  assert.equal(alertStore._all().length, 1, "aucun second moteur : l'occurrence vit dans la même table alerts");
+  assert.equal(
+    alertStore._all().length,
+    1,
+    "aucun second moteur : l'occurrence vit dans la même table alerts",
+  );
   assert.equal(detectionStore._all().length, 1, "l'explication statistique est persistée");
   const detection = detectionStore._all()[0];
   assert.equal(detection.metric, "cpu");
@@ -181,7 +185,11 @@ test("AnomalyDetectionService — deux règles distinctes sur la même cible/mé
   await service._evaluateReading(ruleA, "api", { value: 150, history: NORMAL_HISTORY });
   await service._evaluateReading(ruleB, "api", { value: 150, history: NORMAL_HISTORY });
 
-  assert.equal(alertStore._all().length, 2, "deux occurrences distinctes, une par règle (dedup key par rule.id)");
+  assert.equal(
+    alertStore._all().length,
+    2,
+    "deux occurrences distinctes, une par règle (dedup key par rule.id)",
+  );
 });
 
 test("AnomalyDetectionService — evaluateProcessReadings respecte targetValue (process ciblé vs '*')", async () => {
@@ -208,7 +216,11 @@ test("AnomalyDetectionService — escalade la sévérité (jamais ne rétrograde
   const { service, alertStore } = makeService({ rules: [rule], now: () => now });
 
   const trigger = await service._evaluateReading(rule, "api", { value: 150, history: NORMAL_HISTORY }); // z ~ 40+
-  assert.equal(trigger.severity, "critical", "z-score très supérieur à 2x la sensibilité -> critical dès le trigger");
+  assert.equal(
+    trigger.severity,
+    "critical",
+    "z-score très supérieur à 2x la sensibilité -> critical dès le trigger",
+  );
 
   now = 1000;
   const active = await service._evaluateReading(rule, "api", { value: 150, history: NORMAL_HISTORY });
@@ -239,7 +251,7 @@ test("AnomalyDetectionService — filet de sécurité en mémoire quand process-
   // Les premiers ticks alimentent le filet de sécurité, pas assez d'historique pour décider encore.
   for (let i = 0; i < 5; i++) {
     t += 1000;
-     
+
     await service.evaluateProcessReadings([{ name: "api", cpu: 50 + i }]);
   }
   assert.equal(alertStore._all().length, 0, "toujours pas assez d'échantillons dans le filet de sécurité");

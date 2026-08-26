@@ -56,7 +56,11 @@ test("detectAnomaly() — bruit (valeurs qui varient mais restent sous le seuil 
   assert.ok(d);
   // 60 reste dans l'ordre de grandeur d'un historique très dispersé : ne
   // doit pas franchir un seuil de sensibilité élevé (3 écarts-types).
-  assert.equal(d.anomalous, false, "une valeur dans la plage du bruit historique ne doit pas être une fausse alerte");
+  assert.equal(
+    d.anomalous,
+    false,
+    "une valeur dans la plage du bruit historique ne doit pas être une fausse alerte",
+  );
 });
 
 test("detectAnomaly() — sensibilité plus basse détecte des écarts plus fins (moins conservateur)", () => {
@@ -68,7 +72,11 @@ test("detectAnomaly() — sensibilité plus basse détecte des écarts plus fins
 test("detectAnomaly() — écart-type nul dans l'historique (baseline constante)", () => {
   const flat = new Array(12).fill(50);
   const same = detectAnomaly({ value: 50, history: flat, sensitivity: 3, minSamples: 10 });
-  assert.equal(same.anomalous, false, "valeur identique à une baseline totalement constante -> pas d'anomalie");
+  assert.equal(
+    same.anomalous,
+    false,
+    "valeur identique à une baseline totalement constante -> pas d'anomalie",
+  );
 
   const spike = detectAnomaly({ value: 80, history: flat, sensitivity: 3, minSamples: 10 });
   assert.equal(spike.anomalous, true, "tout écart par rapport à une baseline constante est anormal");

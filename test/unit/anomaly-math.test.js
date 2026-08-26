@@ -2,7 +2,13 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { mean, stddev, zScore, confidenceFromZScore, percentChange } = require("../../lib/services/anomaly-detection/math");
+const {
+  mean,
+  stddev,
+  zScore,
+  confidenceFromZScore,
+  percentChange,
+} = require("../../lib/services/anomaly-detection/math");
 
 test("mean() — moyenne arithmétique, [] -> null", () => {
   assert.equal(mean([1, 2, 3]), 2);
@@ -24,7 +30,10 @@ test("zScore() — cas normal", () => {
 
 test("zScore() — écart-type nul (baseline parfaitement constante)", () => {
   assert.equal(zScore(5, 5, 0), 0, "valeur identique à une baseline constante -> pas d'anomalie");
-  assert.ok(zScore(10, 5, 0) > 0, "au-dessus d'une baseline constante -> z positif plafonné, jamais Infinity");
+  assert.ok(
+    zScore(10, 5, 0) > 0,
+    "au-dessus d'une baseline constante -> z positif plafonné, jamais Infinity",
+  );
   assert.ok(Number.isFinite(zScore(10, 5, 0)));
   assert.ok(zScore(0, 5, 0) < 0, "en-dessous d'une baseline constante -> z négatif plafonné");
 });

@@ -944,7 +944,7 @@ Une détection **statistique locale** (moyenne mobile, écart-type, z-score)
 basée sur l'historique déjà collecté par le monitor — **aucune API IA
 externe, pas de modèle ML**. Repère un comportement inhabituel (CPU/mémoire
 anormale, restart inhabituel, crash inhabituel, taux d'événements
-inhabituel) *avant* qu'un seuil fixe classique ne soit franchi, en se
+inhabituel) _avant_ qu'un seuil fixe classique ne soit franchi, en se
 basant sur ce qui est normal pour **cette** app plutôt que sur une valeur
 absolue choisie a priori.
 

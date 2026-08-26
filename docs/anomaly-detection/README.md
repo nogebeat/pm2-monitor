@@ -3,7 +3,7 @@
 Phase 16 du projet : une détection **statistique locale**, basée sur
 l'historique déjà collecté par le monitor — **aucune API IA externe**.
 L'objectif est de repérer un comportement inhabituel (CPU/mémoire anormale,
-restart inhabituel, crash inhabituel, taux d'événements inhabituel) *avant*
+restart inhabituel, crash inhabituel, taux d'événements inhabituel) _avant_
 qu'un seuil fixe classique (`alert_rules`) ne soit franchi, en s'appuyant
 sur ce qui est "normal" pour **cette** app/cette machine plutôt que sur une
 valeur absolue choisie a priori.
@@ -79,9 +79,9 @@ anomalie réellement active faute de données momentanée.
 
 ## Métriques surveillées
 
-| Cible     | Métriques                                             |
-| --------- | ------------------------------------------------------ |
-| `system`  | `cpu`, `memory`, `disk`                                 |
+| Cible     | Métriques                                                   |
+| --------- | ----------------------------------------------------------- |
+| `system`  | `cpu`, `memory`, `disk`                                     |
 | `process` | `cpu`, `memory`, `restart_rate`, `crash_rate`, `event_rate` |
 
 `restart_rate`/`crash_rate`/`event_rate` comptent les événements de la
@@ -194,12 +194,12 @@ Monté sous `/api/anomaly-detection` :
 
 ## Permissions
 
-| Action            | Description                                              |
-| ------------------ | ---------------------------------------------------------- |
-| `anomaly_read`      | Voir les règles et l'historique des détections               |
-| `anomaly_create`    | Créer une règle                                              |
-| `anomaly_update`    | Modifier / activer / désactiver une règle                    |
-| `anomaly_delete`    | Supprimer une règle                                          |
+| Action           | Description                                    |
+| ---------------- | ---------------------------------------------- |
+| `anomaly_read`   | Voir les règles et l'historique des détections |
+| `anomaly_create` | Créer une règle                                |
+| `anomaly_update` | Modifier / activer / désactiver une règle      |
+| `anomaly_delete` | Supprimer une règle                            |
 
 Toute modification de règle est auditée (`anomaly.rule_change`, voir
 `docs/audit/README.md`).
@@ -221,9 +221,9 @@ d'activité du Dashboard comme toute autre alerte.
 
 ## Configuration (.env)
 
-| Variable                     | Défaut | Description                                              |
-| ------------------------------ | -------- | ------------------------------------------------------------ |
-| `ANOMALY_DETECTION_ENABLED`    | `1`      | Active/désactive l'évaluation (indépendant des règles créées) |
+| Variable                    | Défaut | Description                                                   |
+| --------------------------- | ------ | ------------------------------------------------------------- |
+| `ANOMALY_DETECTION_ENABLED` | `1`    | Active/désactive l'évaluation (indépendant des règles créées) |
 
 Les règles elles-mêmes (sensibilité/fenêtre/cooldown/métriques) se
 configurent via l'API REST ci-dessus, pas par variable d'environnement.

@@ -142,31 +142,34 @@ test("API /api/anomaly-detection", async (t) => {
     }
   });
 
-  await t.test("utilisateur avec anomaly_read uniquement -> 200 en lecture, 403 en update/delete", async () => {
-    const { server, baseUrl } = await startServer(ADMIN);
-    let ruleId;
-    try {
-      const created = await fetch(`${baseUrl}/rules`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(VALID_RULE),
-      });
-      ruleId = (await created.json()).id;
-    } finally {
-      await stopServer(server);
-    }
+  await t.test(
+    "utilisateur avec anomaly_read uniquement -> 200 en lecture, 403 en update/delete",
+    async () => {
+      const { server, baseUrl } = await startServer(ADMIN);
+      let ruleId;
+      try {
+        const created = await fetch(`${baseUrl}/rules`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(VALID_RULE),
+        });
+        ruleId = (await created.json()).id;
+      } finally {
+        await stopServer(server);
+      }
 
-    const { server: server2, baseUrl: baseUrl2 } = await startServer(READ_ONLY_USER);
-    try {
-      assert.equal((await fetch(`${baseUrl2}/rules`)).status, 200);
-      const del = await fetch(`${baseUrl2}/rules/${ruleId}`, { method: "DELETE" });
-      assert.equal(del.status, 403, "READ_ONLY_USER n'a pas anomaly_delete");
-      const disable = await fetch(`${baseUrl2}/rules/${ruleId}/disable`, { method: "POST" });
-      assert.equal(disable.status, 403, "READ_ONLY_USER n'a pas anomaly_update");
-    } finally {
-      await stopServer(server2);
-    }
-  });
+      const { server: server2, baseUrl: baseUrl2 } = await startServer(READ_ONLY_USER);
+      try {
+        assert.equal((await fetch(`${baseUrl2}/rules`)).status, 200);
+        const del = await fetch(`${baseUrl2}/rules/${ruleId}`, { method: "DELETE" });
+        assert.equal(del.status, 403, "READ_ONLY_USER n'a pas anomaly_delete");
+        const disable = await fetch(`${baseUrl2}/rules/${ruleId}/disable`, { method: "POST" });
+        assert.equal(disable.status, 403, "READ_ONLY_USER n'a pas anomaly_update");
+      } finally {
+        await stopServer(server2);
+      }
+    },
+  );
 
   await t.test("admin : enable/disable une règle", async () => {
     const { server, baseUrl } = await startServer(ADMIN);
