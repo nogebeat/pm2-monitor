@@ -391,6 +391,12 @@ pour le détail de ce qui existe et ce qui est prévu.
   health checks, registre de serveurs) — aucune nouvelle collecte, Prometheus
   reste optionnel — voir [Export Prometheus](#export-prometheus-metrics-phase-15)
   et [`docs/metrics/README.md`](docs/metrics/README.md).
+- `lib/services/anomaly-detection/` : détection statistique locale
+  (moyenne mobile/écart-type/z-score, aucune API IA externe) sur les
+  historiques déjà collectés, alimente le moteur d'alertes existant comme
+  un nouveau type de signal — voir
+  [Détection d'anomalies](#détection-danomalies-phase-16) et
+  [`docs/anomaly-detection/README.md`](docs/anomaly-detection/README.md).
 
 ## Fonctionnalités
 
@@ -932,6 +938,39 @@ l'application n'en dépend.
 - Documentation complète (scrape configuration, sécurité, liste des
   métriques) : [`docs/metrics/README.md`](docs/metrics/README.md).
 
+### Détection d'anomalies (Phase 16)
+
+Une détection **statistique locale** (moyenne mobile, écart-type, z-score)
+basée sur l'historique déjà collecté par le monitor — **aucune API IA
+externe, pas de modèle ML**. Repère un comportement inhabituel (CPU/mémoire
+anormale, restart inhabituel, crash inhabituel, taux d'événements
+inhabituel) *avant* qu'un seuil fixe classique ne soit franchi, en se
+basant sur ce qui est normal pour **cette** app plutôt que sur une valeur
+absolue choisie a priori.
+
+- **Aucune nouvelle collecte** : réutilise les historiques déjà alimentés
+  par `lib/history-store.js`, `lib/services/process-history/` et
+  `lib/services/events/`.
+- **Une anomalie alimente le moteur d'alertes existant** comme un nouveau
+  type de signal (via `AlertEngine.evaluate()`, la même méthode que pour
+  une règle d'alerte classique) — **il n'existe pas de deuxième moteur
+  d'alertes** : trigger/active/resolved, déduplication, cooldown,
+  notifications, websocket dashboard et corrélation d'incidents
+  fonctionnent donc automatiquement.
+- **Toujours expliqué** : chaque anomalie détectée est accompagnée de la
+  métrique, la valeur observée, la baseline, l'écart-type, le niveau de
+  confiance statistique et une explication en langage naturel — jamais une
+  alerte "boîte noire".
+- **Jamais de déclenchement sur une absence de données** : en-dessous d'un
+  nombre minimum d'échantillons dans la fenêtre historique, aucune décision
+  n'est prise.
+- **Sévérité escaladée dynamiquement** (jamais rétrogradée) si le z-score
+  continue de s'aggraver pendant qu'une anomalie reste ouverte.
+- Interface dédiée : `Settings → 📊 Anomalies` (règles + historique des
+  détections avec explication).
+- Documentation complète (méthode, configuration, API, permissions) :
+  [`docs/anomaly-detection/README.md`](docs/anomaly-detection/README.md).
+
 ### Général
 
 - **Interface Vue 3** entièrement componentisée (réactive, sans manipulation
@@ -1001,10 +1040,12 @@ droits, plutôt qu'un unique identifiant/mot de passe partagé (Basic Auth).
   `pm2_update`, `pm2_kill`, `manage_users` (gestion des comptes, admin
   uniquement), ainsi que `alerts_read` / `alerts_create` / `alerts_update` /
   `alerts_delete` / `alerts_acknowledge` (moteur d'alertes), `events_read`
-  (timeline d'événements) et `incidents_read` / `incidents_manage`
+  (timeline d'événements), `incidents_read` / `incidents_manage`
   (incidents corrélés + silences, voir
-  [Incidents & Silences](#incidents--silences-phase-14)) — ces dernières ne
-  sont pas décomposées par app dans cette phase.
+  [Incidents & Silences](#incidents--silences-phase-14)) et `anomaly_read` /
+  `anomaly_create` / `anomaly_update` / `anomaly_delete` (détection
+  d'anomalies, voir [Détection d'anomalies](#détection-danomalies-phase-16))
+  — ces dernières ne sont pas décomposées par app dans cette phase.
 
 - L'API et le WebSocket **revalident chaque requête** côté serveur : les
   boutons masqués côté interface ne sont qu'un confort visuel, la sécurité

@@ -47,11 +47,12 @@ test("migrator", async (t) => {
       "015_process_organization",
       "016_incidents",
       "017_servers_last_processes",
+      "018_anomaly_detection",
     ]);
 
     const status = await migrator.status();
     assert.equal(status.pending.length, 0);
-    assert.equal(status.applied.length, 17);
+    assert.equal(status.applied.length, 18);
   });
 
   await t.test("up() est idempotent : rejouer ne fait rien et ne plante pas", async () => {
@@ -94,17 +95,24 @@ test("migrator", async (t) => {
     assert.ok(tables.includes("incident_alerts"));
     assert.ok(tables.includes("incident_timeline"));
     assert.ok(tables.includes("alert_silences"));
+    assert.ok(tables.includes("anomaly_rules"));
+    assert.ok(tables.includes("anomaly_detections"));
   });
 
   await t.test(
-    "down({ steps: 3 }) annule 017 puis 016 puis 015 (reconstruction rollup vers le schéma 004)",
+    "down({ steps: 4 }) annule 018 puis 017 puis 016 puis 015 (reconstruction rollup vers le schéma 004)",
     async () => {
       const migrator = require("../../lib/db/migrator");
       const db = require("../../lib/db");
       await migrator.up();
 
-      const reverted = await migrator.down({ steps: 3 });
-      assert.deepEqual(reverted, ["017_servers_last_processes", "016_incidents", "015_process_organization"]);
+      const reverted = await migrator.down({ steps: 4 });
+      assert.deepEqual(reverted, [
+        "018_anomaly_detection",
+        "017_servers_last_processes",
+        "016_incidents",
+        "015_process_organization",
+      ]);
 
       const status = await migrator.status();
       assert.deepEqual(
@@ -130,6 +138,7 @@ test("migrator", async (t) => {
       // 012 (toujours appliquée ici) garde ses tables ; le rollback de 015
       // retire ses propres tables. Le rollback de 017 ne supprime aucune
       // table (colonne additive sur `servers`, voir la migration elle-même).
+      // Le rollback de 018 retire anomaly_rules/anomaly_detections.
       const tables = (await db.all("SELECT name FROM sqlite_master WHERE type = 'table'", [])).map(
         (r) => r.name,
       );
@@ -166,14 +175,19 @@ test("migrator", async (t) => {
         !tables.includes("incidents") && !tables.includes("alert_silences"),
         "les tables de 016 doivent avoir été supprimées par son rollback",
       );
+      assert.ok(
+        !tables.includes("anomaly_rules") && !tables.includes("anomaly_detections"),
+        "les tables de 018 doivent avoir été supprimées par son rollback",
+      );
     },
   );
 
-  await t.test("down({ steps: 4 }) annule les quatre dernières migrations (017 à 014)", async () => {
+  await t.test("down({ steps: 5 }) annule les cinq dernières migrations (018 à 014)", async () => {
     const migrator = require("../../lib/db/migrator");
     await migrator.up();
-    const reverted = await migrator.down({ steps: 4 });
+    const reverted = await migrator.down({ steps: 5 });
     assert.deepEqual(reverted, [
+      "018_anomaly_detection",
       "017_servers_last_processes",
       "016_incidents",
       "015_process_organization",

@@ -14,6 +14,7 @@ import NotificationsModal from "./modals/NotificationsModal.vue";
 import HealthChecksModal from "./modals/HealthChecksModal.vue";
 import AuditLogModal from "./modals/AuditLogModal.vue";
 import OrganizationModal from "./modals/OrganizationModal.vue";
+import AnomalyDetectionModal from "./modals/AnomalyDetectionModal.vue";
 
 const componentMap = {
   more: MoreMenuModal,
@@ -28,6 +29,7 @@ const componentMap = {
   healthChecks: HealthChecksModal,
   auditLog: AuditLogModal,
   organization: OrganizationModal,
+  anomalyDetection: AnomalyDetectionModal,
 };
 
 const current = computed(() => (state.modal ? componentMap[state.modal.type] : null));

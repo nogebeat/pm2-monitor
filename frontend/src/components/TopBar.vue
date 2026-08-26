@@ -53,6 +53,10 @@ function openAuditLog() {
 function openOrganization() {
   state.modal = { type: "organization" };
 }
+
+function openAnomalyDetection() {
+  state.modal = { type: "anomalyDetection" };
+}
 </script>
 
 <template>
@@ -154,6 +158,14 @@ function openOrganization() {
         @click="openHealthChecks"
       >
         ❤ {{ t("topbar.healthChecks") }}
+      </button>
+      <button
+        v-if="can('anomaly_read')"
+        class="icon-btn"
+        :title="t('topbar.anomalyDetectionTitle')"
+        @click="openAnomalyDetection"
+      >
+        📊 {{ t("topbar.anomalyDetection") }}
       </button>
       <button
         v-if="can('audit_read')"

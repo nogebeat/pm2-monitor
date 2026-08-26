@@ -19,6 +19,7 @@ const eventsStore = require("./lib/services/events/event-store");
 const { dispatchQueue: notificationDispatchQueue } = require("./lib/services/notifications");
 const { engine: healthCheckEngine } = require("./lib/services/health-checks");
 const healthChecksStore = require("./lib/services/health-checks/store");
+const { service: anomalyService } = require("./lib/services/anomaly-detection");
 const { AutoHealingService, auditStore: autoHealingAuditStore } = require("./lib/services/auto-healing");
 const serversStore = require("./lib/services/servers/store");
 const processOrgStore = require("./lib/services/process-organization/store");
@@ -48,6 +49,7 @@ const serversRouter = require("./lib/routes/servers");
 const processOrganizationRouter = require("./lib/routes/process-organization");
 const incidentsRouter = require("./lib/routes/incidents");
 const metricsRouter = require("./lib/routes/metrics");
+const anomalyDetectionRouter = require("./lib/routes/anomaly-detection");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -82,6 +84,15 @@ const HEALTH_CHECKS_SCHEDULER_INTERVAL_MS = process.env.HEALTH_CHECKS_SCHEDULER_
   ? Number(process.env.HEALTH_CHECKS_SCHEDULER_INTERVAL_MS)
   : 5000;
 
+// --- Détection d'anomalies (Phase 16, lib/services/anomaly-detection/) :
+// activable/désactivable séparément du moteur d'alertes classique
+// (ALERTS_ENABLED) — une anomalie ne peut de toute façon produire aucune
+// alerte tant qu'au moins une règle anomaly_rules est créée et activée,
+// mais ce flag permet de couper l'évaluation elle-même (perf, debug) sans
+// toucher aux règles enregistrées. Évaluée dans les deux boucles de
+// lib/polling.js existantes (pas de troisième poller).
+const ANOMALY_DETECTION_ENABLED = process.env.ANOMALY_DETECTION_ENABLED !== "0";
+
 // --- Services (instanciés une fois, injectés dans les routers/temps réel
 // concernés). Doivent être créés après loadDotEnv() : plusieurs constructeurs
 // lisent process.env (voir chaque service pour le détail des variables). ----
@@ -98,6 +109,14 @@ const autoHealing = new AutoHealingService({ pm2 });
 
 const historyStore = new HistoryStore();
 const logStore = new LogStore(path.join(__dirname, "data", "logs"));
+
+// Détection d'anomalies (Phase 16) : branche les stores déjà instanciés
+// ci-dessus / déjà existants sur le service — même approche que
+// healthCheckEngine.onAlertResult plus bas (le module lui-même ne dépend ni
+// de PM2 ni d'Express, ces instances lui sont injectées ici).
+anomalyService.historyStore = historyStore;
+anomalyService.processHistoryStore = require("./lib/services/process-history/store");
+anomalyService.eventStore = eventsStore;
 
 const app = express();
 app.set("trust proxy", 1); // derrière nginx/un reverse proxy : IP réelle, X-Forwarded-* fiables
@@ -264,6 +283,13 @@ app.use("/api/process-organization", processOrganizationRouter());
 // routeur n'expose que la lecture/les transitions manuelles/les silences.
 app.use("/api/incidents", incidentsRouter());
 
+// Détection d'anomalies (lib/services/anomaly-detection/,
+// lib/routes/anomaly-detection.js, Phase 16) : CRUD des règles + lecture de
+// l'historique des détections. Les transitions d'alerte qu'elle produit
+// passent par dispatchAlertTransition comme toute autre alerte (voir
+// lib/polling.js), pas par ce routeur.
+app.use("/api/anomaly-detection", anomalyDetectionRouter());
+
 // Process : liste + actions de base/étendues + métriques (lib/routes/processes.js)
 app.use("/api", processesRouter({ processHistory }));
 
@@ -292,6 +318,7 @@ startPolling({
   dispatchAlertTransition,
   alertsEnabled: ALERTS_ENABLED,
   alertsEvalIntervalMs: ALERTS_EVAL_INTERVAL_MS,
+  anomalyEnabled: ANOMALY_DETECTION_ENABLED,
 });
 
 // Maintenance (rollup + purge) de l'historique process, sur son propre
