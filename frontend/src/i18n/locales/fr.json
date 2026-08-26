@@ -55,7 +55,8 @@
     "language": "Langue",
     "tabServers": "Serveurs",
     "tabLogExplorer": "Logs",
-    "tabIncidents": "Incidents"
+    "tabIncidents": "Incidents",
+    "tabServiceDependencies": "Dépendances"
   },
   "login": {
     "subtitle": "Connexion requise",
@@ -615,5 +616,43 @@
     "silenceExpiresAt": "Expire",
     "silenceCancelled": "Annulé",
     "silenceActive": "Actif"
+  },
+  "serviceDependencies": {
+    "title": "Carte de dépendances de service",
+    "tabGraph": "Graphe",
+    "tabList": "Liste",
+    "tabStatus": "Statut",
+    "add": "+ Ajouter une dépendance",
+    "source": "Source",
+    "sourcePlaceholder": "ex. API",
+    "target": "Cible",
+    "targetPlaceholder": "ex. PostgreSQL",
+    "type": "Type",
+    "healthCheckId": "Health check lié (ID, optionnel)",
+    "description": "Description",
+    "descriptionPlaceholder": "ex. Connexion principale à la base",
+    "enabled": "Activée",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "edit": "Modifier",
+    "enable": "Activer",
+    "disable": "Désactiver",
+    "delete": "Supprimer",
+    "confirmDelete": "Supprimer la dépendance {source} → {target} ?",
+    "yes": "Oui",
+    "no": "Non",
+    "loading": "Chargement…",
+    "empty": "Aucune dépendance déclarée pour le moment.",
+    "service": "Service",
+    "status": "Statut",
+    "statusUp": "OK",
+    "statusDown": "En panne",
+    "statusDegraded": "Dégradé",
+    "statusUnknown": "Inconnu",
+    "selectPrompt": "Sélectionnez un service (graphe, liste ou statut) pour voir son détail.",
+    "currentStatus": "Statut actuel",
+    "potentiallyAffected": "Dépendances potentiellement affectées",
+    "noImpact": "Aucun service ne dépend de celui-ci (ou aucun impact détecté).",
+    "impactDisclaimer": "Ces services sont potentiellement affectés — il ne s'agit pas d'une causalité certaine."
   }
 }

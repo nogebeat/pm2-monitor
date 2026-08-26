@@ -149,3 +149,5 @@ history.json
 *.db
 *.db-wal
 *.db-shm
+
+*:Zone.Identifier

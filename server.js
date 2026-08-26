@@ -20,6 +20,7 @@ const { dispatchQueue: notificationDispatchQueue } = require("./lib/services/not
 const { engine: healthCheckEngine } = require("./lib/services/health-checks");
 const healthChecksStore = require("./lib/services/health-checks/store");
 const { service: anomalyService } = require("./lib/services/anomaly-detection");
+const serviceDependencies = require("./lib/services/service-dependencies");
 const { AutoHealingService, auditStore: autoHealingAuditStore } = require("./lib/services/auto-healing");
 const serversStore = require("./lib/services/servers/store");
 const processOrgStore = require("./lib/services/process-organization/store");
@@ -50,6 +51,7 @@ const processOrganizationRouter = require("./lib/routes/process-organization");
 const incidentsRouter = require("./lib/routes/incidents");
 const metricsRouter = require("./lib/routes/metrics");
 const anomalyDetectionRouter = require("./lib/routes/anomaly-detection");
+const serviceDependenciesRouter = require("./lib/routes/service-dependencies");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -290,6 +292,13 @@ app.use("/api/incidents", incidentsRouter());
 // lib/polling.js), pas par ce routeur.
 app.use("/api/anomaly-detection", anomalyDetectionRouter());
 
+// Service Dependency Map (lib/services/service-dependencies/,
+// lib/routes/service-dependencies.js, Phase 17) : CRUD des dépendances
+// déclarées + lecture du graphe/statut/impact (dérivés des health checks
+// liés, pas de nouveau poller — voir câblage sur healthCheckEngine.onCheckResult
+// plus bas).
+app.use("/api/service-dependencies", serviceDependenciesRouter());
+
 // Process : liste + actions de base/étendues + métriques (lib/routes/processes.js)
 app.use("/api", processesRouter({ processHistory }));
 
@@ -343,7 +352,28 @@ healthCheckEngine.alertsEnabled = ALERTS_ENABLED;
 healthCheckEngine.onAlertResult = ALERTS_ENABLED ? dispatchAlertTransition : null;
 // Dashboard global (Phase 8) : diffuse chaque résultat de sonde en websocket
 // ("health.updated"), sur le bus Socket.IO existant — aucun second poller.
-healthCheckEngine.onCheckResult = (check) => io.emit("health.updated", check);
+//
+// Service Dependency Map (Phase 17) : un résultat de check peut aussi
+// concerner une dépendance déclarée (health_check_id). Pas de nouveau
+// poller ici non plus — on ne fait que réagir au même événement, calculer
+// l'impact ("dépendances affectées") et le diffuser ("dependency.updated" à
+// chaque résultat pertinent pour rafraîchir le graphe côté UI ;
+// "dependency.impact" seulement quand au moins un service est
+// potentiellement affecté). Jamais bloquant pour la boucle de health checks
+// (catch défensif, comme feedAlertEngine/onAlertResult).
+healthCheckEngine.onCheckResult = (check) => {
+  io.emit("health.updated", check);
+  serviceDependencies
+    .handleHealthCheckResult(check)
+    .then((result) => {
+      if (!result) return;
+      io.emit("dependency.updated", { checkId: result.checkId, checkStatus: result.checkStatus });
+      if (result.impacts.length) io.emit("dependency.impact", result);
+    })
+    .catch((e) => {
+      console.error("Erreur de calcul d'impact (Service Dependency Map) :", e.message);
+    });
+};
 if (HEALTH_CHECKS_ENABLED) {
   healthCheckEngine.start(HEALTH_CHECKS_SCHEDULER_INTERVAL_MS);
 }

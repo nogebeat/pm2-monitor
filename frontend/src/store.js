@@ -7,7 +7,7 @@ const MAX_CPU_HISTORY = 20;
 
 export const state = reactive({
   connected: false,
-  view: "dashboard", // "process" | "dashboard" | "system" | "events" | "servers" | "incidents"
+  view: "dashboard", // "process" | "dashboard" | "system" | "events" | "servers" | "incidents" | "serviceDependencies"
 
   // ---------- Auth / permissions ----------
   auth: {
@@ -80,6 +80,20 @@ export const state = reactive({
     silences: [],
     silencesLoading: false,
     silencesLoaded: false,
+  },
+
+  // ---------- Carte de dépendances de service (onglet "Dépendances",
+  // Phase 17 — Service Dependency Map) ----------
+  serviceDependencies: {
+    items: [], // [{ id, source, target, type, enabled, description, healthCheckId, metadata, ... }]
+    loading: false,
+    loaded: false,
+    catalog: null, // { types: [...] }
+    graph: null, // { nodes: [{name,status}], edges: [...withStatus], generatedAt }
+    graphLoading: false,
+    selectedId: null,
+    impact: null, // { service, status, potentiallyAffected } du nœud sélectionné
+    impactLoading: false,
   },
 
   // ---------- Serveurs distants (onglet "Serveurs", Phase 10 — Multi-server / Remote PM2) ----------
@@ -560,6 +574,99 @@ export function cancelSilence(id) {
   });
 }
 
+// ---------- Carte de dépendances de service (GET/POST/PUT/DELETE
+// /api/service-dependencies/*, Phase 17) ----------
+
+export function loadServiceDependencies() {
+  state.serviceDependencies.loading = true;
+  return apiGet("/api/service-dependencies")
+    .then((items) => {
+      state.serviceDependencies.items = items;
+    })
+    .catch(notifyError)
+    .finally(() => {
+      state.serviceDependencies.loading = false;
+      state.serviceDependencies.loaded = true;
+    });
+}
+
+export function loadServiceDependenciesCatalog() {
+  if (state.serviceDependencies.catalog) return Promise.resolve(state.serviceDependencies.catalog);
+  return apiGet("/api/service-dependencies/catalog")
+    .then((catalog) => {
+      state.serviceDependencies.catalog = catalog;
+      return catalog;
+    })
+    .catch(notifyError);
+}
+
+export function loadServiceDependenciesGraph() {
+  state.serviceDependencies.graphLoading = true;
+  return apiGet("/api/service-dependencies/graph")
+    .then((graph) => {
+      state.serviceDependencies.graph = graph;
+    })
+    .catch(notifyError)
+    .finally(() => {
+      state.serviceDependencies.graphLoading = false;
+    });
+}
+
+export function createServiceDependency(fields) {
+  return apiPost("/api/service-dependencies", fields).then((dep) => {
+    state.serviceDependencies.items = [...state.serviceDependencies.items, dep];
+    loadServiceDependenciesGraph();
+    return dep;
+  });
+}
+
+function mergeServiceDependency(updated) {
+  const idx = state.serviceDependencies.items.findIndex((d) => d.id === updated.id);
+  if (idx !== -1) state.serviceDependencies.items.splice(idx, 1, updated);
+  loadServiceDependenciesGraph();
+}
+
+export function updateServiceDependency(id, fields) {
+  return apiPut(`/api/service-dependencies/${id}`, fields).then((updated) => {
+    mergeServiceDependency(updated);
+    return updated;
+  });
+}
+
+export function setServiceDependencyEnabled(id, enabled) {
+  return apiPost(`/api/service-dependencies/${id}/${enabled ? "enable" : "disable"}`).then((updated) => {
+    mergeServiceDependency(updated);
+    return updated;
+  });
+}
+
+export function deleteServiceDependency(id) {
+  return apiDelete(`/api/service-dependencies/${id}`).then(() => {
+    state.serviceDependencies.items = state.serviceDependencies.items.filter((d) => d.id !== id);
+    if (state.serviceDependencies.selectedId === id) {
+      state.serviceDependencies.selectedId = null;
+      state.serviceDependencies.impact = null;
+    }
+    loadServiceDependenciesGraph();
+  });
+}
+
+/** Sélectionne un nœud (nom de service) du graphe et charge son impact potentiel. */
+export function selectServiceDependencyNode(name) {
+  state.serviceDependencies.selectedId = name;
+  state.serviceDependencies.impact = null;
+  if (!name) return;
+  state.serviceDependencies.impactLoading = true;
+  return apiGet(`/api/service-dependencies/impact/${encodeURIComponent(name)}?assumeDown=1`)
+    .then((impact) => {
+      if (state.serviceDependencies.selectedId === name) state.serviceDependencies.impact = impact;
+    })
+    .catch(notifyError)
+    .finally(() => {
+      state.serviceDependencies.impactLoading = false;
+    });
+}
+
 // ---------- Dashboard global (GET /api/dashboard, Phase 8) ----------
 
 export function loadDashboard() {
@@ -984,6 +1091,26 @@ socket.on("alert.triggered", scheduleDashboardRefresh);
 socket.on("alert.resolved", scheduleDashboardRefresh);
 socket.on("health.updated", scheduleDashboardRefresh);
 socket.on("event.created", scheduleDashboardRefresh);
+
+// Service Dependency Map (Phase 17) : diffusé par server.js à chaque
+// résultat de health check concernant une dépendance liée (voir
+// healthCheckEngine.onCheckResult). "dependency.updated" -> le statut d'une
+// arête a pu changer, on ne rafraîchit le graphe que si l'onglet est
+// affiché (même filet que scheduleDashboardRefresh). "dependency.impact"
+// -> au moins un service est potentiellement affecté ; si c'est le nœud
+// actuellement sélectionné, on rafraîchit aussi son panneau d'impact.
+socket.on("dependency.updated", () => {
+  if (state.view === "serviceDependencies") loadServiceDependenciesGraph();
+});
+
+socket.on("dependency.impact", (payload) => {
+  if (state.view !== "serviceDependencies") return;
+  loadServiceDependenciesGraph();
+  const selected = state.serviceDependencies.selectedId;
+  if (selected && payload.impacts.some((i) => i.service === selected)) {
+    selectServiceDependencyNode(selected);
+  }
+});
 
 // ---------- Chargement initial ----------
 

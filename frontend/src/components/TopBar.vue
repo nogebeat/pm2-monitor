@@ -114,6 +114,14 @@ function openAnomalyDetection() {
         {{ t("topbar.tabIncidents") }}
       </button>
       <button
+        v-if="can('dependencies_read')"
+        class="view-tab"
+        :class="{ active: state.view === 'serviceDependencies' }"
+        @click="setView('serviceDependencies')"
+      >
+        {{ t("topbar.tabServiceDependencies") }}
+      </button>
+      <button
         v-if="canAny('logs')"
         class="view-tab"
         :class="{ active: state.view === 'logExplorer' }"

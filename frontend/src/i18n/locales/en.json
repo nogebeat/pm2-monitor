@@ -55,7 +55,8 @@
     "language": "Language",
     "tabServers": "Servers",
     "tabLogExplorer": "Logs",
-    "tabIncidents": "Incidents"
+    "tabIncidents": "Incidents",
+    "tabServiceDependencies": "Dependencies"
   },
   "login": {
     "subtitle": "Login required",
@@ -615,5 +616,43 @@
     "silenceExpiresAt": "Expires",
     "silenceCancelled": "Cancelled",
     "silenceActive": "Active"
+  },
+  "serviceDependencies": {
+    "title": "Service Dependency Map",
+    "tabGraph": "Graph",
+    "tabList": "List",
+    "tabStatus": "Status",
+    "add": "+ Add dependency",
+    "source": "Source",
+    "sourcePlaceholder": "e.g. API",
+    "target": "Target",
+    "targetPlaceholder": "e.g. PostgreSQL",
+    "type": "Type",
+    "healthCheckId": "Linked health check (ID, optional)",
+    "description": "Description",
+    "descriptionPlaceholder": "e.g. Main database connection",
+    "enabled": "Enabled",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "enable": "Enable",
+    "disable": "Disable",
+    "delete": "Delete",
+    "confirmDelete": "Delete dependency {source} → {target}?",
+    "yes": "Yes",
+    "no": "No",
+    "loading": "Loading…",
+    "empty": "No dependency declared yet.",
+    "service": "Service",
+    "status": "Status",
+    "statusUp": "Up",
+    "statusDown": "Down",
+    "statusDegraded": "Degraded",
+    "statusUnknown": "Unknown",
+    "selectPrompt": "Select a service (graph, list, or status) to see its detail.",
+    "currentStatus": "Current status",
+    "potentiallyAffected": "Potentially affected dependencies",
+    "noImpact": "No service depends on this one (or no impact detected).",
+    "impactDisclaimer": "These services are potentially affected — this is not a certain causality."
   }
 }

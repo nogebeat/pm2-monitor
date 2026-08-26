@@ -397,6 +397,12 @@ pour le détail de ce qui existe et ce qui est prévu.
   un nouveau type de signal — voir
   [Détection d'anomalies](#détection-danomalies-phase-16) et
   [`docs/anomaly-detection/README.md`](docs/anomaly-detection/README.md).
+- `lib/services/service-dependencies/` : carte de dépendances de service
+  **déclarées explicitement** (jamais inventées), statut dérivé des health
+  checks existants, détection de cycle et calcul des services
+  potentiellement affectés par une panne — voir
+  [Carte de dépendances de service](#carte-de-dépendances-de-service-phase-17)
+  et [`docs/service-dependencies/README.md`](docs/service-dependencies/README.md).
 
 ## Fonctionnalités
 
@@ -971,6 +977,34 @@ absolue choisie a priori.
 - Documentation complète (méthode, configuration, API, permissions) :
   [`docs/anomaly-detection/README.md`](docs/anomaly-detection/README.md).
 
+### Carte de dépendances de service (Phase 17)
+
+Une carte de dépendances **explicite**, déclarée par l'utilisateur
+(`API -> PostgreSQL`, `Worker -> Redis`, `Frontend -> API`...) —
+**PM2 Monitor n'invente jamais une dépendance**, rien n'est déduit
+automatiquement.
+
+- **Statut dérivé, jamais stocké** : une dépendance peut être liée à un
+  Health Check existant (Phase 6) ; son statut (`UP`/`DOWN`/`DEGRADED`/
+  `UNKNOWN`) est recalculé en lecture à partir de `health_checks.status` —
+  aucun nouveau poller, aucune duplication. Une dépendance de type
+  `PROCESS` sans health check lié dérive son statut du process PM2 **local**
+  réel (`pm2.list()`, appelé seulement si nécessaire) ; un health check lié
+  reste toujours prioritaire.
+- **Détection de cycle** avant toute création/modification
+  (`A -> B -> ... -> A` refusé avec le chemin détecté).
+- **Impact ("dépendances affectées")** : quand un service tombe, la liste
+  des services qui en dépendent (directement ou transitivement) est
+  calculée à la volée — toujours présentée comme une possibilité
+  ("potentially affected"), jamais comme une causalité certaine.
+- **Le Global Status du Dashboard (Phase 8) n'est pas modifié** par cette
+  phase.
+- Interface dédiée : onglet `Dépendances` — vues graphe (couches simples),
+  liste et statut (les deux dernières entièrement accessibles en dehors du
+  graphe), détail + dépendances affectées au clic sur un service.
+- Documentation complète (modèle, API, permissions) :
+  [`docs/service-dependencies/README.md`](docs/service-dependencies/README.md).
+
 ### Général
 
 - **Interface Vue 3** entièrement componentisée (réactive, sans manipulation
@@ -1046,6 +1080,10 @@ droits, plutôt qu'un unique identifiant/mot de passe partagé (Basic Auth).
   `anomaly_create` / `anomaly_update` / `anomaly_delete` (détection
   d'anomalies, voir [Détection d'anomalies](#détection-danomalies-phase-16))
   — ces dernières ne sont pas décomposées par app dans cette phase.
+  Idem pour `dependencies_read` / `dependencies_create` /
+  `dependencies_update` / `dependencies_delete` (carte de dépendances de
+  service, voir
+  [Carte de dépendances de service](#carte-de-dépendances-de-service-phase-17)).
 
 - L'API et le WebSocket **revalident chaque requête** côté serveur : les
   boutons masqués côté interface ne sont qu'un confort visuel, la sécurité
