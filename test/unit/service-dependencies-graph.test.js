@@ -2,7 +2,11 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { detectCycle, computeImpact, buildAdjacency } = require("../../lib/services/service-dependencies/graph");
+const {
+  detectCycle,
+  computeImpact,
+  buildAdjacency,
+} = require("../../lib/services/service-dependencies/graph");
 
 /**
  * Tests unitaires purs du graphe de dépendances (Phase 17). Pas de DB ici,
@@ -75,7 +79,9 @@ test("service-dependencies/graph — computeImpact()", async (t) => {
       { source: "API", target: "PostgreSQL" },
       { source: "Worker", target: "PostgreSQL" },
     ];
-    const affected = computeImpact(edges, "PostgreSQL").map((a) => a.name).sort();
+    const affected = computeImpact(edges, "PostgreSQL")
+      .map((a) => a.name)
+      .sort();
     assert.deepEqual(affected, ["API", "Worker"]);
   });
 

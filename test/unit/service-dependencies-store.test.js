@@ -49,17 +49,11 @@ test("service-dependencies/store — CRUD de base", async (t) => {
   });
 
   await t.test("create() avec type invalide échoue", async () => {
-    await assert.rejects(
-      () => store.create({ source: "A", target: "B", type: "FTP" }),
-      /type invalide/,
-    );
+    await assert.rejects(() => store.create({ source: "A", target: "B", type: "FTP" }), /type invalide/);
   });
 
   await t.test("create() refuse une dépendance sur soi-même", async () => {
-    await assert.rejects(
-      () => store.create({ source: "API", target: "API", type: "CUSTOM" }),
-      /différents/,
-    );
+    await assert.rejects(() => store.create({ source: "API", target: "API", type: "CUSTOM" }), /différents/);
   });
 
   await t.test("create() refuse un doublon (source, target, type)", async () => {
@@ -168,28 +162,31 @@ test("service-dependencies/store — lien avec un health check existant", async 
     assert.equal(stillThere.healthCheckId, null);
   });
 
-  await t.test("listByHealthCheckId() ne retourne que les dépendances activées liées à ce check", async () => {
-    const check = await makeTcpCheck({ name: "shared-check" });
-    const active = await store.create({
-      source: "API",
-      target: "SharedTarget",
-      type: "CUSTOM",
-      healthCheckId: check.id,
-    });
-    const disabled = await store.create({
-      source: "Worker",
-      target: "SharedTarget2",
-      type: "CUSTOM",
-      healthCheckId: check.id,
-    });
-    await store.setEnabled(disabled.id, false);
+  await t.test(
+    "listByHealthCheckId() ne retourne que les dépendances activées liées à ce check",
+    async () => {
+      const check = await makeTcpCheck({ name: "shared-check" });
+      const active = await store.create({
+        source: "API",
+        target: "SharedTarget",
+        type: "CUSTOM",
+        healthCheckId: check.id,
+      });
+      const disabled = await store.create({
+        source: "Worker",
+        target: "SharedTarget2",
+        type: "CUSTOM",
+        healthCheckId: check.id,
+      });
+      await store.setEnabled(disabled.id, false);
 
-    const linked = await store.listByHealthCheckId(check.id);
-    assert.deepEqual(
-      linked.map((d) => d.id),
-      [active.id],
-    );
-  });
+      const linked = await store.listByHealthCheckId(check.id);
+      assert.deepEqual(
+        linked.map((d) => d.id),
+        [active.id],
+      );
+    },
+  );
 
   t.after(() => cleanupDb(dbCtx));
 });

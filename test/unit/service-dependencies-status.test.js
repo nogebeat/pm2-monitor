@@ -6,7 +6,11 @@ const migrator = require("../../lib/db/migrator");
 const { freshDb, cleanupDb } = require("../helpers/tmp-db");
 const store = require("../../lib/services/service-dependencies/store");
 const healthChecksStore = require("../../lib/services/health-checks/store");
-const { buildGraphSnapshot, computeImpact, worstStatus } = require("../../lib/services/service-dependencies/status");
+const {
+  buildGraphSnapshot,
+  computeImpact,
+  worstStatus,
+} = require("../../lib/services/service-dependencies/status");
 
 /**
  * Tests unitaires du calcul de statut/impact (Phase 17). DB SQLite
@@ -205,17 +209,20 @@ test("service-dependencies/status — listProcessStatuses n'est appelée que si 
   const dbCtx = await freshDb();
   await migrator.up();
 
-  await t.test("aucune dépendance PROCESS sans health check : listProcessStatuses jamais appelée", async () => {
-    await store.create({ source: "Frontend6", target: "PostgreSQL6", type: "DATABASE" });
-    let called = false;
-    await buildGraphSnapshot({
-      listProcessStatuses: async () => {
-        called = true;
-        return new Map();
-      },
-    });
-    assert.equal(called, false);
-  });
+  await t.test(
+    "aucune dépendance PROCESS sans health check : listProcessStatuses jamais appelée",
+    async () => {
+      await store.create({ source: "Frontend6", target: "PostgreSQL6", type: "DATABASE" });
+      let called = false;
+      await buildGraphSnapshot({
+        listProcessStatuses: async () => {
+          called = true;
+          return new Map();
+        },
+      });
+      assert.equal(called, false);
+    },
+  );
 
   t.after(() => cleanupDb(dbCtx));
 });

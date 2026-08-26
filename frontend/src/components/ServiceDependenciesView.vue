@@ -106,7 +106,8 @@ function toggleEnabled(dep) {
 }
 
 function removeDependency(dep) {
-  if (!window.confirm(t("serviceDependencies.confirmDelete", { source: dep.source, target: dep.target }))) return;
+  if (!window.confirm(t("serviceDependencies.confirmDelete", { source: dep.source, target: dep.target })))
+    return;
   deleteServiceDependency(dep.id).catch(notifyError);
 }
 
@@ -208,7 +209,9 @@ onMounted(() => {
       <label>
         {{ t("serviceDependencies.type") }}
         <select v-model="form.type">
-          <option v-for="ty in state.serviceDependencies.catalog?.types || []" :key="ty" :value="ty">{{ ty }}</option>
+          <option v-for="ty in state.serviceDependencies.catalog?.types || []" :key="ty" :value="ty">
+            {{ ty }}
+          </option>
         </select>
       </label>
       <label>
@@ -224,8 +227,12 @@ onMounted(() => {
         {{ t("serviceDependencies.enabled") }}
       </label>
       <div class="deps-form-actions">
-        <button type="submit" class="filter-btn" :disabled="saving">{{ t("serviceDependencies.save") }}</button>
-        <button type="button" class="filter-btn" @click="closeForm">{{ t("serviceDependencies.cancel") }}</button>
+        <button type="submit" class="filter-btn" :disabled="saving">
+          {{ t("serviceDependencies.save") }}
+        </button>
+        <button type="button" class="filter-btn" @click="closeForm">
+          {{ t("serviceDependencies.cancel") }}
+        </button>
       </div>
     </form>
 
@@ -233,7 +240,9 @@ onMounted(() => {
       <div class="deps-main-panel">
         <!-- Graphe (couches simples, pas de librairie externe) -->
         <div v-if="subView === 'graph'" class="deps-graph">
-          <div v-if="!state.serviceDependencies.graph" class="deps-empty">{{ t("serviceDependencies.loading") }}</div>
+          <div v-if="!state.serviceDependencies.graph" class="deps-empty">
+            {{ t("serviceDependencies.loading") }}
+          </div>
           <div v-else-if="!state.serviceDependencies.graph.nodes.length" class="deps-empty">
             {{ t("serviceDependencies.empty") }}
           </div>
@@ -243,7 +252,10 @@ onMounted(() => {
                 v-for="node in layer.nodes"
                 :key="node.name"
                 class="deps-node"
-                :class="[`status-${node.status.toLowerCase()}`, { active: state.serviceDependencies.selectedId === node.name }]"
+                :class="[
+                  `status-${node.status.toLowerCase()}`,
+                  { active: state.serviceDependencies.selectedId === node.name },
+                ]"
                 @click="selectNode(node.name)"
               >
                 <span class="deps-node-name">{{ node.name }}</span>
@@ -345,7 +357,10 @@ onMounted(() => {
               {{ t("serviceDependencies.noImpact") }}
             </p>
             <ul v-else class="deps-impact-list">
-              <li v-for="affected in state.serviceDependencies.impact.potentiallyAffected" :key="affected.name">
+              <li
+                v-for="affected in state.serviceDependencies.impact.potentiallyAffected"
+                :key="affected.name"
+              >
                 <span class="deps-impact-name">{{ affected.name }}</span>
                 <span class="deps-impact-path">{{ affected.path.join(" → ") }}</span>
               </li>

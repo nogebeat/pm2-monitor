@@ -50,15 +50,15 @@ que le Dashboard global (Phase 8), sans dupliquer aucune logique de sonde.
 
 Une dépendance (`service_dependencies`) :
 
-| Champ            | Description                                                             |
-| ---------------- | ------------------------------------------------------------------------ |
-| `source`         | Nom du service qui dépend d'un autre (ex. `"API"`)                       |
-| `target`         | Nom du service dont `source` dépend (ex. `"PostgreSQL"`)                 |
-| `type`           | `HTTP` \| `TCP` \| `DATABASE` \| `REDIS` \| `CUSTOM` \| `PROCESS`         |
-| `enabled`        | Dépendance active dans le graphe (calcul d'impact) ou seulement déclarée  |
-| `description`    | Note libre, optionnelle                                                  |
-| `health_check_id`| Health check existant lié (optionnel) — dérive le statut de cette arête  |
-| `metadata`       | Objet JSON libre, optionnel                                              |
+| Champ             | Description                                                              |
+| ----------------- | ------------------------------------------------------------------------ |
+| `source`          | Nom du service qui dépend d'un autre (ex. `"API"`)                       |
+| `target`          | Nom du service dont `source` dépend (ex. `"PostgreSQL"`)                 |
+| `type`            | `HTTP` \| `TCP` \| `DATABASE` \| `REDIS` \| `CUSTOM` \| `PROCESS`        |
+| `enabled`         | Dépendance active dans le graphe (calcul d'impact) ou seulement déclarée |
+| `description`     | Note libre, optionnelle                                                  |
+| `health_check_id` | Health check existant lié (optionnel) — dérive le statut de cette arête  |
+| `metadata`        | Objet JSON libre, optionnel                                              |
 
 `source`/`target` sont des chaînes libres (pas de FK vers une table
 "process" : PM2 Monitor ne stocke pas les process PM2 en base, voir
@@ -113,7 +113,7 @@ la liste des services qui en dépendent, **directement ou transitivement**
 Chaque entrée porte sa distance et le chemin de dépendance jusqu'à `X`.
 
 Ce calcul **n'affirme jamais une causalité certaine** — il liste des
-services *potentiellement* affectés (vocabulaire utilisé partout dans
+services _potentiellement_ affectés (vocabulaire utilisé partout dans
 l'API et l'interface : `potentiallyAffected`), à charge pour la personne
 qui investigue de confirmer.
 
@@ -121,18 +121,18 @@ qui investigue de confirmer.
 
 Toutes les routes sont sous `/api/service-dependencies` :
 
-| Méthode | Route                       | Permission             | Description                                             |
-| ------- | ---------------------------- | ----------------------- | --------------------------------------------------------- |
-| GET     | `/catalog`                   | `dependencies_read`    | Types valides (`HTTP`, `TCP`, ...)                        |
-| GET     | `/graph`                     | `dependencies_read`    | Nœuds + arêtes + statut dérivé                             |
-| GET     | `/impact/:service`            | `dependencies_read`    | Services potentiellement affectés si `:service` tombe (`?assumeDown=1` force le calcul) |
-| GET     | `/`                            | `dependencies_read`    | Liste des dépendances (filtres `source`/`target`/`type`/`enabled`) |
-| GET     | `/:id`                        | `dependencies_read`    | Détail d'une dépendance                                    |
-| POST    | `/`                            | `dependencies_create`  | Créer une dépendance                                       |
-| PUT/PATCH | `/:id`                       | `dependencies_update`  | Modifier une dépendance                                    |
-| POST    | `/:id/enable`                 | `dependencies_update`  | Activer                                                     |
-| POST    | `/:id/disable`                | `dependencies_update`  | Désactiver                                                  |
-| DELETE  | `/:id`                        | `dependencies_delete`  | Supprimer                                                   |
+| Méthode   | Route              | Permission            | Description                                                                             |
+| --------- | ------------------ | --------------------- | --------------------------------------------------------------------------------------- |
+| GET       | `/catalog`         | `dependencies_read`   | Types valides (`HTTP`, `TCP`, ...)                                                      |
+| GET       | `/graph`           | `dependencies_read`   | Nœuds + arêtes + statut dérivé                                                          |
+| GET       | `/impact/:service` | `dependencies_read`   | Services potentiellement affectés si `:service` tombe (`?assumeDown=1` force le calcul) |
+| GET       | `/`                | `dependencies_read`   | Liste des dépendances (filtres `source`/`target`/`type`/`enabled`)                      |
+| GET       | `/:id`             | `dependencies_read`   | Détail d'une dépendance                                                                 |
+| POST      | `/`                | `dependencies_create` | Créer une dépendance                                                                    |
+| PUT/PATCH | `/:id`             | `dependencies_update` | Modifier une dépendance                                                                 |
+| POST      | `/:id/enable`      | `dependencies_update` | Activer                                                                                 |
+| POST      | `/:id/disable`     | `dependencies_update` | Désactiver                                                                              |
+| DELETE    | `/:id`             | `dependencies_delete` | Supprimer                                                                               |
 
 ## Permissions
 
