@@ -52,6 +52,7 @@ const incidentsRouter = require("./lib/routes/incidents");
 const metricsRouter = require("./lib/routes/metrics");
 const anomalyDetectionRouter = require("./lib/routes/anomaly-detection");
 const serviceDependenciesRouter = require("./lib/routes/service-dependencies");
+const apiKeysRouter = require("./lib/routes/api-keys");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -130,6 +131,11 @@ const sessionMw = auth.sessionMiddleware();
 app.use(sessionMw);
 app.use(express.json());
 app.use(auth.loadCurrentUser);
+// Phase 18 — Advanced RBAC & API Keys : charge une éventuelle clé API M2M
+// (header Authorization: Bearer <clé>) AVANT requireAuth, pour qu'une
+// requête sans cookie de session mais avec une clé valide ne soit pas
+// bloquée en 401 — voir lib/auth.js#loadApiKeyAuth/requireAuth.
+app.use(auth.loadApiKeyAuth);
 app.use(auth.requireAuth);
 
 // Empêche tout intermédiaire (CDN type Cloudflare, cache navigateur, proxy) de mettre
@@ -298,6 +304,11 @@ app.use("/api/anomaly-detection", anomalyDetectionRouter());
 // liés, pas de nouveau poller — voir câblage sur healthCheckEngine.onCheckResult
 // plus bas).
 app.use("/api/service-dependencies", serviceDependenciesRouter());
+
+// Clés API M2M (lib/services/api-keys/, lib/routes/api-keys.js, Phase 18) :
+// gestion (CRUD) réservée aux utilisateurs avec session (api_keys_read/
+// api_keys_manage) — voir lib/routes/api-keys.js pour le raisonnement.
+app.use("/api/api-keys", apiKeysRouter());
 
 // Process : liste + actions de base/étendues + métriques (lib/routes/processes.js)
 app.use("/api", processesRouter({ processHistory }));

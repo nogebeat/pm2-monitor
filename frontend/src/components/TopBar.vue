@@ -38,6 +38,10 @@ function openUsers() {
   state.modal = { type: "users" };
 }
 
+function openApiKeys() {
+  state.modal = { type: "apiKeys" };
+}
+
 function openNotifications() {
   state.modal = { type: "notifications" };
 }
@@ -198,6 +202,14 @@ function openAnomalyDetection() {
         @click="openUsers"
       >
         👤 {{ t("topbar.users") }}
+      </button>
+      <button
+        v-if="can('api_keys_read')"
+        class="icon-btn"
+        :title="t('topbar.apiKeysTitle')"
+        @click="openApiKeys"
+      >
+        🔑 {{ t("topbar.apiKeys") }}
       </button>
       <LanguageSwitch />
       <button

@@ -403,6 +403,12 @@ pour le détail de ce qui existe et ce qui est prévu.
   potentiellement affectés par une panne — voir
   [Carte de dépendances de service](#carte-de-dépendances-de-service-phase-17)
   et [`docs/service-dependencies/README.md`](docs/service-dependencies/README.md).
+- `lib/services/api-keys/` : clés API pour intégrations machine-to-machine,
+  scopées explicitement (lecture métriques/process/logs/alertes, plus deux
+  actions sensibles auditées à l'usage) — étend le système de permissions
+  existant, n'introduit aucun second système RBAC — voir
+  [RBAC avancé & Clés API](#rbac-avancé--clés-api-phase-18) et
+  [`docs/rbac-api-keys/README.md`](docs/rbac-api-keys/README.md).
 
 ## Fonctionnalités
 
@@ -1005,6 +1011,35 @@ automatiquement.
 - Documentation complète (modèle, API, permissions) :
   [`docs/service-dependencies/README.md`](docs/service-dependencies/README.md).
 
+### RBAC avancé & Clés API (Phase 18)
+
+Étend le système d'authentification/permissions existant — **aucun second
+système RBAC** : les rôles prédéfinis ne font qu'écrire des lignes de
+permissions concrètes, et les clés API passent par les mêmes points de
+vérification (`requirePermission`/`withAppPermission`) que les utilisateurs
+avec session.
+
+- **Rôles prédéfinis** : Admin / Operator / Viewer / Auditor — un gabarit
+  pratique pour remplir les permissions en un clic (CLI ou API), pas une
+  nouvelle notion d'autorisation.
+- **Clés API M2M** : secret en clair affiché **une seule fois** à la
+  création, jamais stocké en clair (`SHA-256`, comparaison en temps
+  constant), scopes explicites et volontairement restreints
+  (`metrics:read`, `processes:read`, `processes:restart`, `logs:read`,
+  `alerts:read`, `alerts:write`, `notifications:test`, `servers:read`) —
+  toute action hors de cette liste reste hors de portée d'une clé API, quels
+  que soient ses scopes. `processes:restart` est la seule action de
+  mutation exposée, marquée sensible et auditée à chaque usage.
+- **Scope de ressource** (`resourceScopes`) : une clé peut être restreinte
+  par serveur, environnement, groupe et/ou process (critères combinables,
+  tous requis) — voir
+  [Scopes de ressource](docs/rbac-api-keys/README.md#scopes-de-ressource-resourcescopes).
+- **Audit** : création/modification/révocation d'une clé, et toute
+  utilisation d'un scope marqué sensible (`alerts:write`,
+  `notifications:test`), sont tracées — jamais la clé elle-même.
+- Documentation complète (rôles, scopes, API, migration, limites) :
+  [`docs/rbac-api-keys/README.md`](docs/rbac-api-keys/README.md).
+
 ### Général
 
 - **Interface Vue 3** entièrement componentisée (réactive, sans manipulation
@@ -1083,7 +1118,16 @@ droits, plutôt qu'un unique identifiant/mot de passe partagé (Basic Auth).
   Idem pour `dependencies_read` / `dependencies_create` /
   `dependencies_update` / `dependencies_delete` (carte de dépendances de
   service, voir
-  [Carte de dépendances de service](#carte-de-dépendances-de-service-phase-17)).
+  [Carte de dépendances de service](#carte-de-dépendances-de-service-phase-17)),
+  ainsi que `api_keys_read` / `api_keys_manage` (gestion des clés API M2M,
+  voir [RBAC avancé & Clés API](#rbac-avancé--clés-api-phase-18)).
+
+- **Rôles prédéfinis** (Admin/Operator/Viewer/Auditor) : un gabarit qui
+  remplit ces mêmes permissions en un clic plutôt que de les cocher une par
+  une — voir
+  [RBAC avancé & Clés API](#rbac-avancé--clés-api-phase-18). N'introduit
+  aucune notion d'autorisation supplémentaire : `hasPermission()` continue à
+  ne lire que les permissions par app/action ci-dessus + `is_admin`.
 
 - L'API et le WebSocket **revalident chaque requête** côté serveur : les
   boutons masqués côté interface ne sont qu'un confort visuel, la sécurité
@@ -1131,11 +1175,17 @@ supprimer un compte.
 ./deploy.sh users revoke operateur demo-app restart
 ./deploy.sh users promote operateur     # devient admin
 ./deploy.sh users demote  operateur     # n'est plus admin
+./deploy.sh users role    operateur viewer   # applique un rôle prédéfini (admin/operator/viewer/auditor)
 ./deploy.sh users passwd  operateur "nouveau-mot-de-passe"
 ./deploy.sh users delete  operateur
 ```
 
 (équivalent direct : `node bin/manage-users.js …` si tu n'utilises pas `deploy.sh`)
+
+Gestion des **clés API** (intégrations M2M) et détail des **rôles
+prédéfinis** : voir
+[RBAC avancé & Clés API](#rbac-avancé--clés-api-phase-18) et
+[`docs/rbac-api-keys/README.md`](docs/rbac-api-keys/README.md).
 
 ### Désactiver l'auth (déconseillé)
 

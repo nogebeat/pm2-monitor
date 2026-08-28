@@ -15,7 +15,7 @@
 #   ./deploy.sh install [options]
 #   ./deploy.sh update
 #   ./deploy.sh status | logs | restart | stop
-#   ./deploy.sh users <list|create|passwd|delete|grant|revoke|promote|demote> [args…]
+#   ./deploy.sh users <list|create|passwd|delete|grant|revoke|promote|demote|role> [args…]
 #   ./deploy.sh migrate <up|down|status> [--to <version>] [--steps <n>]
 #   ./deploy.sh uninstall [--purge]
 #

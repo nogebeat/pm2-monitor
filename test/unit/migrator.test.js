@@ -49,11 +49,12 @@ test("migrator", async (t) => {
       "017_servers_last_processes",
       "018_anomaly_detection",
       "019_service_dependencies",
+      "020_rbac_api_keys",
     ]);
 
     const status = await migrator.status();
     assert.equal(status.pending.length, 0);
-    assert.equal(status.applied.length, 19);
+    assert.equal(status.applied.length, 20);
   });
 
   await t.test("up() est idempotent : rejouer ne fait rien et ne plante pas", async () => {
@@ -102,14 +103,15 @@ test("migrator", async (t) => {
   });
 
   await t.test(
-    "down({ steps: 5 }) annule 019 puis 018 puis 017 puis 016 puis 015 (reconstruction rollup vers le schéma 004)",
+    "down({ steps: 6 }) annule 020 puis 019 puis 018 puis 017 puis 016 puis 015 (reconstruction rollup vers le schéma 004)",
     async () => {
       const migrator = require("../../lib/db/migrator");
       const db = require("../../lib/db");
       await migrator.up();
 
-      const reverted = await migrator.down({ steps: 5 });
+      const reverted = await migrator.down({ steps: 6 });
       assert.deepEqual(reverted, [
+        "020_rbac_api_keys",
         "019_service_dependencies",
         "018_anomaly_detection",
         "017_servers_last_processes",
@@ -186,14 +188,19 @@ test("migrator", async (t) => {
         !tables.includes("service_dependencies"),
         "la table de 019 doit avoir été supprimée par son rollback",
       );
+      assert.ok(
+        !tables.includes("api_keys"),
+        "la table de 020 doit avoir été supprimée par son rollback",
+      );
     },
   );
 
-  await t.test("down({ steps: 6 }) annule les six dernières migrations (019 à 014)", async () => {
+  await t.test("down({ steps: 7 }) annule les sept dernières migrations (020 à 014)", async () => {
     const migrator = require("../../lib/db/migrator");
     await migrator.up();
-    const reverted = await migrator.down({ steps: 6 });
+    const reverted = await migrator.down({ steps: 7 });
     assert.deepEqual(reverted, [
+      "020_rbac_api_keys",
       "019_service_dependencies",
       "018_anomaly_detection",
       "017_servers_last_processes",

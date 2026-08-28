@@ -16,6 +16,7 @@
  *   node bin/manage-users.js revoke <username> <appName|*> <action|*>
  *   node bin/manage-users.js promote <username>   (donne le rôle admin)
  *   node bin/manage-users.js demote <username>    (retire le rôle admin)
+ *   node bin/manage-users.js role <username> <admin|operator|viewer|auditor>  (Phase 18 — applique un rôle prédéfini)
  */
 
 const path = require("path");
@@ -38,7 +39,7 @@ if (fs.existsSync(envPath)) {
 
 const db = require("../lib/db");
 const userStore = require("../lib/user-store");
-const { APP_ACTIONS, GLOBAL_ACTIONS } = require("../lib/permissions");
+const { APP_ACTIONS, GLOBAL_ACTIONS, ROLES } = require("../lib/permissions");
 
 function usageAndExit() {
   console.log(fs.readFileSync(__filename, "utf8").split("Usage :")[1].split("*/")[0].trim());
@@ -132,6 +133,22 @@ async function main() {
         if (!row) throw new Error(`Utilisateur "${username}" introuvable.`);
         await userStore.setAdmin(row.id, false);
         console.log(`${username} n'est plus administrateur.`);
+        break;
+      }
+
+      case "role": {
+        // Phase 18 — Advanced RBAC : applique un rôle prédéfini (remplace
+        // is_admin + toutes les permissions existantes de l'utilisateur par
+        // celles du rôle, voir lib/user-store.js#applyRole).
+        const [username, roleName] = args;
+        if (!username || !roleName) usageAndExit();
+        if (!ROLES[roleName]) {
+          throw new Error(`Rôle inconnu "${roleName}". Rôles disponibles : ${Object.keys(ROLES).join(", ")}.`);
+        }
+        const row = await userStore.getByUsername(username);
+        if (!row) throw new Error(`Utilisateur "${username}" introuvable.`);
+        await userStore.applyRole(row.id, roleName);
+        console.log(`${username} a maintenant le rôle "${ROLES[roleName].label}".`);
         break;
       }
 

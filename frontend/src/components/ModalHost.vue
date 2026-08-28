@@ -10,6 +10,7 @@ import FullTextSearchModal from "./modals/FullTextSearchModal.vue";
 import GotoDateModal from "./modals/GotoDateModal.vue";
 import ExportRangeModal from "./modals/ExportRangeModal.vue";
 import UsersModal from "./modals/UsersModal.vue";
+import ApiKeysModal from "./modals/ApiKeysModal.vue";
 import NotificationsModal from "./modals/NotificationsModal.vue";
 import HealthChecksModal from "./modals/HealthChecksModal.vue";
 import AuditLogModal from "./modals/AuditLogModal.vue";
@@ -25,6 +26,7 @@ const componentMap = {
   gotodate: GotoDateModal,
   exportrange: ExportRangeModal,
   users: UsersModal,
+  apiKeys: ApiKeysModal,
   notifications: NotificationsModal,
   healthChecks: HealthChecksModal,
   auditLog: AuditLogModal,

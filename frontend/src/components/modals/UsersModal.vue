@@ -13,6 +13,10 @@ function close() {
 
 const users = ref([]);
 const catalog = reactive({ appActions: {}, globalActions: {} });
+// Phase 18 — Advanced RBAC : catalogue des rôles prédéfinis (gabarits de
+// permissions, voir lib/permissions.js#ROLES). Chargement tolérant à
+// l'échec pour la même raison que /api/servers ci-dessous.
+const roleCatalog = reactive({});
 // Serveurs disponibles pour le scoping (Phase 10 — Multi-server). Chargement
 // séparé et tolérant à l'échec : cette modale reste utilisable même si un
 // user n'a pas accès à /api/servers (n'arrive pas en pratique ici, cette
@@ -35,12 +39,14 @@ function load() {
     apiGet("/api/users"),
     apiGet("/api/permissions/catalog"),
     apiGet("/api/servers").catch(() => []),
+    apiGet("/api/users/roles/catalog").catch(() => ({})),
   ])
-    .then(([u, c, srv]) => {
+    .then(([u, c, srv, roles]) => {
       users.value = u;
       catalog.appActions = c.appActions;
       catalog.globalActions = c.globalActions;
       servers.value = srv;
+      Object.assign(roleCatalog, roles);
     })
     .catch(notifyError)
     .finally(() => {
@@ -134,6 +140,25 @@ function changePassword(u) {
     })
     .catch(notifyError);
 }
+
+// ---------- Rôles prédéfinis (Phase 18 — Advanced RBAC) ---------------------
+// Applique un gabarit de permissions en un clic (voir
+// lib/permissions.js#ROLES / lib/user-store.js#applyRole) — remplace
+// intégralement les permissions/le flag admin de l'utilisateur, exactement
+// comme le ferait un admin en cochant les cases une par une ci-dessous.
+const roleDrafts = reactive({});
+
+function applyRole(u) {
+  const role = roleDrafts[u.id];
+  if (!role) return;
+  if (!confirm(t("usersModal.confirmApplyRole", { name: u.username, role: roleCatalog[role]?.label || role }))) return;
+  apiPut(u.id, { role })
+    .then(() => {
+      roleDrafts[u.id] = "";
+      return load();
+    })
+    .catch(notifyError);
+}
 </script>
 
 <template>
@@ -167,6 +192,9 @@ function changePassword(u) {
             <span v-else class="hint-text">{{
               t("usersModal.permissionsCount", { n: u.permissions.length })
             }}</span>
+            <span v-if="u.role" class="badge-role" :title="t('usersModal.roleAppliedHint')">{{
+              roleCatalog[u.role]?.label || u.role
+            }}</span>
             <span style="flex: 1"></span>
             <button
               v-if="u.username !== state.auth.user.username"
@@ -187,6 +215,17 @@ function changePassword(u) {
           </div>
 
           <div v-if="expanded === u.id" class="user-row-body">
+            <div v-if="Object.keys(roleCatalog).length" class="users-new-row" style="margin-bottom: 10px">
+              <select v-model="roleDrafts[u.id]">
+                <option value="" disabled>{{ t("usersModal.applyRolePlaceholder") }}</option>
+                <option v-for="(role, name) in roleCatalog" :key="name" :value="name">{{ role.label }}</option>
+              </select>
+              <button type="button" class="icon-btn" @click="applyRole(u)">
+                {{ t("usersModal.applyRole") }}
+              </button>
+              <span class="hint-text">{{ t("usersModal.applyRoleHint") }}</span>
+            </div>
+
             <div class="users-new-row" style="margin-bottom: 10px">
               <input
                 v-model="pwdDrafts[u.id]"
@@ -318,6 +357,22 @@ function changePassword(u) {
   border-radius: 999px;
   background: var(--accent-dim);
   color: var(--accent);
+}
+.badge-role {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  color: var(--text-dim, inherit);
+}
+.users-new-row select {
+  padding: 7px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
 }
 .user-row-body {
   padding: 12px;
