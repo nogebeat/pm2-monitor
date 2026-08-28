@@ -54,8 +54,10 @@ async function startServer() {
 
   // Route par app ("processes:read", action "view") — même forme que
   // lib/routes/processes.js#GET /processes/:id/metrics.
-  app.get("/api/processes/:id/view", auth.requirePermission("view", (req) => req.params.id), (req, res) =>
-    res.json({ ok: true, app: req.params.id }),
+  app.get(
+    "/api/processes/:id/view",
+    auth.requirePermission("view", (req) => req.params.id),
+    (req, res) => res.json({ ok: true, app: req.params.id }),
   );
 
   // Action sensible ("alerts:write" / alerts_acknowledge) — doit être auditée
@@ -70,8 +72,10 @@ async function startServer() {
 
   // "processes:restart" (Phase 18 suite) — seule action de mutation process
   // exposée à une clé API, mappée depuis l'action "restart".
-  app.post("/api/processes/:id/restart", auth.requirePermission("restart", (req) => req.params.id), (req, res) =>
-    res.json({ ok: true }),
+  app.post(
+    "/api/processes/:id/restart",
+    auth.requirePermission("restart", (req) => req.params.id),
+    (req, res) => res.json({ ok: true }),
   );
 
   // "servers:read" (Phase 18 suite) — action globale + requireServerAccess
@@ -185,29 +189,34 @@ test("Clés API M2M — enforcement de scope bout-en-bout", async (t) => {
     try {
       const ok = await fetch(`${baseUrl}/api/processes/api-prod/view`, { headers: authHeader(secret) });
       assert.equal(ok.status, 200);
-      const denied = await fetch(`${baseUrl}/api/processes/api-staging/view`, { headers: authHeader(secret) });
+      const denied = await fetch(`${baseUrl}/api/processes/api-staging/view`, {
+        headers: authHeader(secret),
+      });
       assert.equal(denied.status, 403);
     } finally {
       await stopServer(server);
     }
   });
 
-  await t.test("scope processes:restart (Phase 18 suite) : seule mutation exposée, auditée à l'usage", async () => {
-    const { secret } = await apiKeysStore.create({ name: "Restart only", scopes: ["processes:restart"] });
-    const { server, baseUrl } = await startServer();
-    try {
-      const res = await fetch(`${baseUrl}/api/processes/api-prod/restart`, {
-        method: "POST",
-        headers: authHeader(secret),
-      });
-      assert.equal(res.status, 200);
+  await t.test(
+    "scope processes:restart (Phase 18 suite) : seule mutation exposée, auditée à l'usage",
+    async () => {
+      const { secret } = await apiKeysStore.create({ name: "Restart only", scopes: ["processes:restart"] });
+      const { server, baseUrl } = await startServer();
+      try {
+        const res = await fetch(`${baseUrl}/api/processes/api-prod/restart`, {
+          method: "POST",
+          headers: authHeader(secret),
+        });
+        assert.equal(res.status, 200);
 
-      const { items } = await auditStore.list({ action: "api_key.sensitive_use" });
-      assert.ok(items.some((i) => i.target === "restart"));
-    } finally {
-      await stopServer(server);
-    }
-  });
+        const { items } = await auditStore.list({ action: "api_key.sensitive_use" });
+        assert.ok(items.some((i) => i.target === "restart"));
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await t.test("processes:restart n'autorise pas stop/reload/delete (aucun mapping de scope)", async () => {
     const { secret } = await apiKeysStore.create({ name: "Restart only 2", scopes: ["processes:restart"] });
@@ -222,33 +231,39 @@ test("Clés API M2M — enforcement de scope bout-en-bout", async (t) => {
     }
   });
 
-  await t.test("scope servers:read (Phase 18 suite) : scope + accès serveur (requireServerAccess) suffisant -> 200", async () => {
-    const { secret } = await apiKeysStore.create({ name: "Servers OK", scopes: ["servers:read"] });
-    const { server, baseUrl } = await startServer();
-    try {
-      const res = await fetch(`${baseUrl}/api/servers/srv-1/status`, { headers: authHeader(secret) });
-      assert.equal(res.status, 200);
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "scope servers:read (Phase 18 suite) : scope + accès serveur (requireServerAccess) suffisant -> 200",
+    async () => {
+      const { secret } = await apiKeysStore.create({ name: "Servers OK", scopes: ["servers:read"] });
+      const { server, baseUrl } = await startServer();
+      try {
+        const res = await fetch(`${baseUrl}/api/servers/srv-1/status`, { headers: authHeader(secret) });
+        assert.equal(res.status, 200);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
-  await t.test("resourceScopes.servers (Phase 18 suite) : restreint l'accès au serveur autorisé", async () => {
-    const { secret } = await apiKeysStore.create({
-      name: "Scoped server",
-      scopes: ["servers:read"],
-      resourceScopes: { servers: ["srv-1"] },
-    });
-    const { server, baseUrl } = await startServer();
-    try {
-      const ok = await fetch(`${baseUrl}/api/servers/srv-1/status`, { headers: authHeader(secret) });
-      assert.equal(ok.status, 200);
-      const denied = await fetch(`${baseUrl}/api/servers/srv-2/status`, { headers: authHeader(secret) });
-      assert.equal(denied.status, 403);
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "resourceScopes.servers (Phase 18 suite) : restreint l'accès au serveur autorisé",
+    async () => {
+      const { secret } = await apiKeysStore.create({
+        name: "Scoped server",
+        scopes: ["servers:read"],
+        resourceScopes: { servers: ["srv-1"] },
+      });
+      const { server, baseUrl } = await startServer();
+      try {
+        const ok = await fetch(`${baseUrl}/api/servers/srv-1/status`, { headers: authHeader(secret) });
+        assert.equal(ok.status, 200);
+        const denied = await fetch(`${baseUrl}/api/servers/srv-2/status`, { headers: authHeader(secret) });
+        assert.equal(denied.status, 403);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await t.test("scope servers:read manquant -> 403 avant même de vérifier requireServerAccess", async () => {
     const { secret } = await apiKeysStore.create({ name: "Sans servers:read", scopes: ["metrics:read"] });
@@ -261,19 +276,29 @@ test("Clés API M2M — enforcement de scope bout-en-bout", async (t) => {
     }
   });
 
-  await t.test("action jamais exposée à une clé API (manage_users) -> 403 même avec tous les scopes", async () => {
-    const { secret } = await apiKeysStore.create({
-      name: "Tous les scopes",
-      scopes: ["metrics:read", "processes:read", "logs:read", "alerts:read", "alerts:write", "notifications:test"],
-    });
-    const { server, baseUrl } = await startServer();
-    try {
-      const res = await fetch(`${baseUrl}/api/users`, { headers: authHeader(secret) });
-      assert.equal(res.status, 403);
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "action jamais exposée à une clé API (manage_users) -> 403 même avec tous les scopes",
+    async () => {
+      const { secret } = await apiKeysStore.create({
+        name: "Tous les scopes",
+        scopes: [
+          "metrics:read",
+          "processes:read",
+          "logs:read",
+          "alerts:read",
+          "alerts:write",
+          "notifications:test",
+        ],
+      });
+      const { server, baseUrl } = await startServer();
+      try {
+        const res = await fetch(`${baseUrl}/api/users`, { headers: authHeader(secret) });
+        assert.equal(res.status, 403);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await t.test("utilisation d'un scope sensible (alerts:write) : autorisée ET auditée", async () => {
     const { secret } = await apiKeysStore.create({ name: "Ack", scopes: ["alerts:write"] });
@@ -319,33 +344,36 @@ test("Clés API M2M — les permissions utilisateur (session) restent inchangée
   const migrator = require("../../lib/db/migrator");
   await migrator.up();
 
-  await t.test("un utilisateur avec session continue de fonctionner exactement comme avant (aucune clé API impliquée)", async () => {
-    process.env.PM2_MONITOR_DISABLE_AUTH = "0";
-    delete require.cache[require.resolve("../../lib/auth")];
-    const auth = require("../../lib/auth");
+  await t.test(
+    "un utilisateur avec session continue de fonctionner exactement comme avant (aucune clé API impliquée)",
+    async () => {
+      process.env.PM2_MONITOR_DISABLE_AUTH = "0";
+      delete require.cache[require.resolve("../../lib/auth")];
+      const auth = require("../../lib/auth");
 
-    const app = express();
-    app.use(express.json());
-    app.use((req, res, next) => {
-      req.user = { id: 1, isAdmin: false, permissions: [{ appName: "*", action: "system" }] };
-      next();
-    });
-    app.get("/api/system", auth.requirePermission("system"), (req, res) => res.json({ ok: true }));
-    app.get("/api/other", auth.requirePermission("manage_users"), (req, res) => res.json({ ok: true }));
+      const app = express();
+      app.use(express.json());
+      app.use((req, res, next) => {
+        req.user = { id: 1, isAdmin: false, permissions: [{ appName: "*", action: "system" }] };
+        next();
+      });
+      app.get("/api/system", auth.requirePermission("system"), (req, res) => res.json({ ok: true }));
+      app.get("/api/other", auth.requirePermission("manage_users"), (req, res) => res.json({ ok: true }));
 
-    const server = http.createServer(app);
-    await new Promise((resolve) => server.listen(0, resolve));
-    const { port } = server.address();
-    const baseUrl = `http://127.0.0.1:${port}`;
-    try {
-      const allowed = await fetch(`${baseUrl}/api/system`);
-      assert.equal(allowed.status, 200);
-      const denied = await fetch(`${baseUrl}/api/other`);
-      assert.equal(denied.status, 403);
-    } finally {
-      await stopServer(server);
-    }
-  });
+      const server = http.createServer(app);
+      await new Promise((resolve) => server.listen(0, resolve));
+      const { port } = server.address();
+      const baseUrl = `http://127.0.0.1:${port}`;
+      try {
+        const allowed = await fetch(`${baseUrl}/api/system`);
+        assert.equal(allowed.status, 200);
+        const denied = await fetch(`${baseUrl}/api/other`);
+        assert.equal(denied.status, 403);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await cleanupDb(dbCtx);
 });

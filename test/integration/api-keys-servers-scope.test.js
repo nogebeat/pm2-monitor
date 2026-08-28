@@ -67,20 +67,23 @@ test("Clés API M2M — scope servers:read et resourceScopes.servers", async (t)
     }
   });
 
-  await t.test("avec servers:read, sans resourceScopes.servers -> liste tous les serveurs (+ local)", async () => {
-    const { secret } = await apiKeysStore.create({ name: "Tous serveurs", scopes: ["servers:read"] });
-    const { server, baseUrl } = await startServer();
-    try {
-      const res = await fetch(baseUrl, { headers: authHeader(secret) });
-      assert.equal(res.status, 200);
-      const list = await res.json();
-      const keys = list.map((s) => s.serverKey);
-      assert.ok(keys.includes(srvA.serverKey));
-      assert.ok(keys.includes(srvB.serverKey));
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "avec servers:read, sans resourceScopes.servers -> liste tous les serveurs (+ local)",
+    async () => {
+      const { secret } = await apiKeysStore.create({ name: "Tous serveurs", scopes: ["servers:read"] });
+      const { server, baseUrl } = await startServer();
+      try {
+        const res = await fetch(baseUrl, { headers: authHeader(secret) });
+        assert.equal(res.status, 200);
+        const list = await res.json();
+        const keys = list.map((s) => s.serverKey);
+        assert.ok(keys.includes(srvA.serverKey));
+        assert.ok(keys.includes(srvB.serverKey));
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await t.test("avec resourceScopes.servers : la liste est filtrée", async () => {
     const { secret } = await apiKeysStore.create({
@@ -100,22 +103,25 @@ test("Clés API M2M — scope servers:read et resourceScopes.servers", async (t)
     }
   });
 
-  await t.test("GET /:key/status : requireServerAccess refuse un serverKey hors resourceScopes.servers", async () => {
-    const { secret } = await apiKeysStore.create({
-      name: "Scopée srv-a",
-      scopes: ["servers:read"],
-      resourceScopes: { servers: [srvA.serverKey] },
-    });
-    const { server, baseUrl } = await startServer();
-    try {
-      const allowed = await fetch(`${baseUrl}/${srvA.serverKey}/status`, { headers: authHeader(secret) });
-      assert.equal(allowed.status, 200);
-      const denied = await fetch(`${baseUrl}/${srvB.serverKey}/status`, { headers: authHeader(secret) });
-      assert.equal(denied.status, 403);
-    } finally {
-      await stopServer(server);
-    }
-  });
+  await t.test(
+    "GET /:key/status : requireServerAccess refuse un serverKey hors resourceScopes.servers",
+    async () => {
+      const { secret } = await apiKeysStore.create({
+        name: "Scopée srv-a",
+        scopes: ["servers:read"],
+        resourceScopes: { servers: [srvA.serverKey] },
+      });
+      const { server, baseUrl } = await startServer();
+      try {
+        const allowed = await fetch(`${baseUrl}/${srvA.serverKey}/status`, { headers: authHeader(secret) });
+        assert.equal(allowed.status, 200);
+        const denied = await fetch(`${baseUrl}/${srvB.serverKey}/status`, { headers: authHeader(secret) });
+        assert.equal(denied.status, 403);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await t.test("scope insuffisant pour /:key/status (pas de servers:read du tout) -> 403", async () => {
     const { secret } = await apiKeysStore.create({ name: "Logs uniquement", scopes: ["logs:read"] });

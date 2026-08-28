@@ -98,7 +98,10 @@ test("API_KEY_SCOPES — catalogue et sensibilité", async (t) => {
   });
 
   await t.test("les scopes dangereux sont marqués sensibles", () => {
-    assert.deepEqual(SENSITIVE_API_KEY_SCOPES.sort(), ["alerts:write", "notifications:test", "processes:restart"].sort());
+    assert.deepEqual(
+      SENSITIVE_API_KEY_SCOPES.sort(),
+      ["alerts:write", "notifications:test", "processes:restart"].sort(),
+    );
     assert.equal(isSensitiveApiKeyScope("alerts:write"), true);
     assert.equal(isSensitiveApiKeyScope("notifications:test"), true);
     assert.equal(isSensitiveApiKeyScope("processes:restart"), true);
@@ -125,10 +128,13 @@ test("hasScope()", async (t) => {
     assert.equal(hasScope(key, "alerts:write"), false);
   });
 
-  await t.test("aucun wildcard '*' pour les clés API (refus explicite, contrairement aux permissions humaines)", () => {
-    const key = { scopes: ["*"] };
-    assert.equal(hasScope(key, "metrics:read"), false);
-  });
+  await t.test(
+    "aucun wildcard '*' pour les clés API (refus explicite, contrairement aux permissions humaines)",
+    () => {
+      const key = { scopes: ["*"] };
+      assert.equal(hasScope(key, "metrics:read"), false);
+    },
+  );
 });
 
 test("apiKeyCanPerform()", async (t) => {
@@ -142,12 +148,15 @@ test("apiKeyCanPerform()", async (t) => {
     assert.equal(apiKeyCanPerform(key, null, "system"), false);
   });
 
-  await t.test("action non exposée aux clés API (ex: manage_users) -> toujours false, même avec tous les scopes", () => {
-    const key = { scopes: ALL_API_KEY_SCOPES };
-    assert.equal(apiKeyCanPerform(key, null, "manage_users"), false);
-    assert.equal(apiKeyCanPerform(key, "any-app", "stop"), false);
-    assert.equal(apiKeyCanPerform(key, "any-app", "delete"), false);
-  });
+  await t.test(
+    "action non exposée aux clés API (ex: manage_users) -> toujours false, même avec tous les scopes",
+    () => {
+      const key = { scopes: ALL_API_KEY_SCOPES };
+      assert.equal(apiKeyCanPerform(key, null, "manage_users"), false);
+      assert.equal(apiKeyCanPerform(key, "any-app", "stop"), false);
+      assert.equal(apiKeyCanPerform(key, "any-app", "delete"), false);
+    },
+  );
 
   await t.test("scope de ressource 'processes' : restreint aux process listés", () => {
     const key = { scopes: ["processes:read"], resourceScopes: { processes: ["api-prod"] } };

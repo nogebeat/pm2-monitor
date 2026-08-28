@@ -127,34 +127,37 @@ test("API /api/api-keys", async (t) => {
   });
 
   let keyId;
-  await t.test("admin (api_keys_manage implicite) : crée une clé (201), secret présent une seule fois", async () => {
-    const { server, baseUrl } = await startServer(ADMIN);
-    try {
-      const created = await fetch(baseUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Intégration CI", scopes: ["metrics:read", "logs:read"] }),
-      });
-      assert.equal(created.status, 201);
-      const body = await created.json();
-      assert.ok(body.secret.startsWith("pmk_"));
-      assert.equal(body.apiKey.name, "Intégration CI");
-      assert.deepEqual(body.apiKey.scopes, ["metrics:read", "logs:read"]);
-      assert.equal(body.apiKey.hash, undefined);
-      assert.equal(body.apiKey.keyHash, undefined);
-      keyId = body.apiKey.id;
+  await t.test(
+    "admin (api_keys_manage implicite) : crée une clé (201), secret présent une seule fois",
+    async () => {
+      const { server, baseUrl } = await startServer(ADMIN);
+      try {
+        const created = await fetch(baseUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "Intégration CI", scopes: ["metrics:read", "logs:read"] }),
+        });
+        assert.equal(created.status, 201);
+        const body = await created.json();
+        assert.ok(body.secret.startsWith("pmk_"));
+        assert.equal(body.apiKey.name, "Intégration CI");
+        assert.deepEqual(body.apiKey.scopes, ["metrics:read", "logs:read"]);
+        assert.equal(body.apiKey.hash, undefined);
+        assert.equal(body.apiKey.keyHash, undefined);
+        keyId = body.apiKey.id;
 
-      const listed = await fetch(baseUrl);
-      const list = await listed.json();
-      assert.equal(list.length, 1);
-      // Le secret ne doit JAMAIS réapparaître dans une réponse de liste (voir
-      // lib/services/api-keys/store.js#rowToApiKey).
-      assert.equal(JSON.stringify(list).includes(body.secret), false);
-      assert.equal(list[0].secret, undefined);
-    } finally {
-      await stopServer(server);
-    }
-  });
+        const listed = await fetch(baseUrl);
+        const list = await listed.json();
+        assert.equal(list.length, 1);
+        // Le secret ne doit JAMAIS réapparaître dans une réponse de liste (voir
+        // lib/services/api-keys/store.js#rowToApiKey).
+        assert.equal(JSON.stringify(list).includes(body.secret), false);
+        assert.equal(list[0].secret, undefined);
+      } finally {
+        await stopServer(server);
+      }
+    },
+  );
 
   await t.test("PATCH : modifie les scopes d'une clé existante", async () => {
     const { server, baseUrl } = await startServer(MANAGE_USER);

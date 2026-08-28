@@ -27,11 +27,11 @@ purement additifs :
 
 `lib/permissions.js#ROLES` définit quatre rôles :
 
-| Rôle       | Ce qu'il donne |
-|------------|----------------|
-| `admin`    | `is_admin = 1` (accès complet, comme avant cette phase). |
-| `operator` | Toutes les actions process sauf `delete`, sur toutes les apps (`*`), plus l'acquittement d'alertes, la gestion des health checks/incidents. |
-| `viewer`   | Lecture seule des process (`view`/`logs` sur `*`). |
+| Rôle       | Ce qu'il donne                                                                                                                                                                                                                                                    |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `admin`    | `is_admin = 1` (accès complet, comme avant cette phase).                                                                                                                                                                                                          |
+| `operator` | Toutes les actions process sauf `delete`, sur toutes les apps (`*`), plus l'acquittement d'alertes, la gestion des health checks/incidents.                                                                                                                       |
+| `viewer`   | Lecture seule des process (`view`/`logs` sur `*`).                                                                                                                                                                                                                |
 | `auditor`  | Lecture transverse orientée conformité : audit, événements, alertes, incidents, health checks, notifications, serveurs, dépendances — volontairement **sans** `view`/`logs` (un auditeur consulte l'état des sous-systèmes, pas le contenu des logs applicatifs). |
 
 Appliquer un rôle (**via l'API ou le CLI**) ne fait qu'écrire des lignes
@@ -48,14 +48,14 @@ Une clé API (`lib/services/api-keys/`) est un objet indépendant d'un
 utilisateur, pour une intégration M2M précise (superviser des métriques,
 relayer des alertes…). Elle porte :
 
-| Champ | Description |
-|-------|--------------|
-| `id`, `name` | Identifiant et nom donné par l'utilisateur. |
-| `scopes` | Sous-ensemble de la liste ci-dessous. |
-| `resourceScopes` | Optionnel — restreint la clé par serveur/environnement/groupe/process, voir [Scopes de ressource](#scopes-de-ressource-resourcescopes). |
-| `createdAt`, `expiresAt` | `expiresAt` optionnel — une clé sans expiration reste valide indéfiniment (jusqu'à révocation). |
-| `lastUsedAt` | Mis à jour à chaque vérification réussie. |
-| `revokedAt` | Une clé révoquée n'est **jamais supprimée** (trace d'audit conservée). |
+| Champ                    | Description                                                                                                                             |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`, `name`             | Identifiant et nom donné par l'utilisateur.                                                                                             |
+| `scopes`                 | Sous-ensemble de la liste ci-dessous.                                                                                                   |
+| `resourceScopes`         | Optionnel — restreint la clé par serveur/environnement/groupe/process, voir [Scopes de ressource](#scopes-de-ressource-resourcescopes). |
+| `createdAt`, `expiresAt` | `expiresAt` optionnel — une clé sans expiration reste valide indéfiniment (jusqu'à révocation).                                         |
+| `lastUsedAt`             | Mis à jour à chaque vérification réussie.                                                                                               |
+| `revokedAt`              | Une clé révoquée n'est **jamais supprimée** (trace d'audit conservée).                                                                  |
 
 Le secret en clair (`pmk_<48 hex>`, 192 bits d'aléatoire) **n'est renvoyé
 qu'à la création**, jamais réaffiché ensuite. Il n'est jamais stocké en
@@ -71,16 +71,16 @@ Authorization: Bearer pmk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ## Scopes
 
-| Scope | Donne accès à |
-|-------|----------------|
-| `metrics:read` | Métriques système (CPU/RAM/disque). |
-| `processes:read` | Liste des process et leur statut. |
-| `processes:restart` | **Sensible** — redémarrer un process (seule action de mutation exposée). |
-| `logs:read` | Lecture/recherche des logs d'un process. |
-| `alerts:read` | Règles d'alerte + alertes actives/historique. |
-| `alerts:write` | **Sensible** — acquitter une alerte active. |
-| `notifications:test` | **Sensible** — déclencher une notification de test. |
-| `servers:read` | Registre de serveurs (Multi-server) et leur statut. |
+| Scope                | Donne accès à                                                            |
+| -------------------- | ------------------------------------------------------------------------ |
+| `metrics:read`       | Métriques système (CPU/RAM/disque).                                      |
+| `processes:read`     | Liste des process et leur statut.                                        |
+| `processes:restart`  | **Sensible** — redémarrer un process (seule action de mutation exposée). |
+| `logs:read`          | Lecture/recherche des logs d'un process.                                 |
+| `alerts:read`        | Règles d'alerte + alertes actives/historique.                            |
+| `alerts:write`       | **Sensible** — acquitter une alerte active.                              |
+| `notifications:test` | **Sensible** — déclencher une notification de test.                      |
+| `servers:read`       | Registre de serveurs (Multi-server) et leur statut.                      |
 
 Ce catalogue est volontairement **court et explicite** — une clé API n'a
 jamais accès à une action qui n'y figure pas, même si elle porte tous les
@@ -96,12 +96,12 @@ de ressources — toutes les listes contiennent des **noms** (jamais
 d'identifiants numériques), et une liste absente/vide = pas de restriction
 sur ce critère :
 
-| Champ | Restreint à | Vérifié par |
-|-------|-------------|-------------|
-| `resourceScopes.processes` | Une liste d'apps précises. | `lib/permissions.js#apiKeyCanPerform` (pur, synchrone). |
-| `resourceScopes.servers` | Une liste de `serverKey` (Multi-server). | `lib/permissions.js#apiKeyHasServerAccess`, via `lib/auth.js#requireServerAccess`. |
-| `resourceScopes.environments` | Une liste de noms d'environnement (voir Organisation des process). | `lib/services/api-keys/resource-scope.js#processResourceScopeAllows` (lookup DB). |
-| `resourceScopes.groups` | Une liste de noms de groupe. | Idem. |
+| Champ                         | Restreint à                                                        | Vérifié par                                                                        |
+| ----------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `resourceScopes.processes`    | Une liste d'apps précises.                                         | `lib/permissions.js#apiKeyCanPerform` (pur, synchrone).                            |
+| `resourceScopes.servers`      | Une liste de `serverKey` (Multi-server).                           | `lib/permissions.js#apiKeyHasServerAccess`, via `lib/auth.js#requireServerAccess`. |
+| `resourceScopes.environments` | Une liste de noms d'environnement (voir Organisation des process). | `lib/services/api-keys/resource-scope.js#processResourceScopeAllows` (lookup DB).  |
+| `resourceScopes.groups`       | Une liste de noms de groupe.                                       | Idem.                                                                              |
 
 Plusieurs critères combinés sont tous requis (ET logique) : une clé avec
 `environments: ["production"]` **et** `groups: ["backend"]` ne peut agir que
@@ -133,13 +133,13 @@ Toutes ces routes sont réservées aux utilisateurs avec **session**
 (`api_keys_read`/`api_keys_manage`) — une clé API ne peut jamais gérer les
 clés API elles-mêmes.
 
-| Méthode | Route | Permission |
-|---------|-------|------------|
-| GET | `/api/api-keys` | `api_keys_read` — liste (jamais le secret). |
-| GET | `/api/api-keys/scopes` | `api_keys_read` — catalogue des scopes. |
-| POST | `/api/api-keys` | `api_keys_manage` — crée une clé, renvoie `{ apiKey, secret }`. |
-| PATCH | `/api/api-keys/:id` | `api_keys_manage` — modifie nom/scopes/resourceScopes/expiration. |
-| POST | `/api/api-keys/:id/revoke` | `api_keys_manage` — révoque (jamais de suppression). |
+| Méthode | Route                      | Permission                                                        |
+| ------- | -------------------------- | ----------------------------------------------------------------- |
+| GET     | `/api/api-keys`            | `api_keys_read` — liste (jamais le secret).                       |
+| GET     | `/api/api-keys/scopes`     | `api_keys_read` — catalogue des scopes.                           |
+| POST    | `/api/api-keys`            | `api_keys_manage` — crée une clé, renvoie `{ apiKey, secret }`.   |
+| PATCH   | `/api/api-keys/:id`        | `api_keys_manage` — modifie nom/scopes/resourceScopes/expiration. |
+| POST    | `/api/api-keys/:id/revoke` | `api_keys_manage` — révoque (jamais de suppression).              |
 
 Rôles : `GET /api/users/roles/catalog` (admin) liste les rôles prédéfinis ;
 `POST`/`PUT /api/users(/:id)` acceptent désormais un champ `role` optionnel.
@@ -153,6 +153,7 @@ node bin/manage-users.js role <username> <admin|operator|viewer|auditor>
 ## Migration
 
 `020_rbac_api_keys` (réversible) ajoute :
+
 - `users.role` (colonne texte nullable, informative).
 - La table `api_keys` (voir ci-dessus), avec index sur `key_hash`.
 

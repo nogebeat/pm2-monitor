@@ -143,7 +143,9 @@ async function main() {
         const [username, roleName] = args;
         if (!username || !roleName) usageAndExit();
         if (!ROLES[roleName]) {
-          throw new Error(`Rôle inconnu "${roleName}". Rôles disponibles : ${Object.keys(ROLES).join(", ")}.`);
+          throw new Error(
+            `Rôle inconnu "${roleName}". Rôles disponibles : ${Object.keys(ROLES).join(", ")}.`,
+          );
         }
         const row = await userStore.getByUsername(username);
         if (!row) throw new Error(`Utilisateur "${username}" introuvable.`);

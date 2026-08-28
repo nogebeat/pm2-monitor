@@ -114,7 +114,9 @@ function toggleExpand(k) {
   expanded.value = k.id;
   editDrafts[k.id] = {
     scopes: [...k.scopes],
-    processesText: (k.resourceScopes && k.resourceScopes.processes ? k.resourceScopes.processes : []).join(", "),
+    processesText: (k.resourceScopes && k.resourceScopes.processes ? k.resourceScopes.processes : []).join(
+      ", ",
+    ),
   };
 }
 
@@ -157,7 +159,8 @@ function fmtDate(ts) {
 
 function keyStatus(k) {
   if (k.revokedAt) return { label: t("apiKeysModal.statusRevoked"), cls: "badge-revoked" };
-  if (k.expiresAt && k.expiresAt < Date.now()) return { label: t("apiKeysModal.statusExpired"), cls: "badge-revoked" };
+  if (k.expiresAt && k.expiresAt < Date.now())
+    return { label: t("apiKeysModal.statusExpired"), cls: "badge-revoked" };
   return { label: t("apiKeysModal.statusActive"), cls: "badge-active" };
 }
 </script>
@@ -235,8 +238,14 @@ function keyStatus(k) {
                 {{ t("apiKeysModal.scopedProcesses") }}: {{ k.resourceScopes.processes.join(", ") }}
               </div>
               <div>{{ t("apiKeysModal.createdAt") }}: {{ fmtDate(k.createdAt) }}</div>
-              <div>{{ t("apiKeysModal.expiresAt") }}: {{ k.expiresAt ? fmtDate(k.expiresAt) : t("apiKeysModal.never") }}</div>
-              <div>{{ t("apiKeysModal.lastUsedAt") }}: {{ k.lastUsedAt ? fmtDate(k.lastUsedAt) : t("apiKeysModal.never") }}</div>
+              <div>
+                {{ t("apiKeysModal.expiresAt") }}:
+                {{ k.expiresAt ? fmtDate(k.expiresAt) : t("apiKeysModal.never") }}
+              </div>
+              <div>
+                {{ t("apiKeysModal.lastUsedAt") }}:
+                {{ k.lastUsedAt ? fmtDate(k.lastUsedAt) : t("apiKeysModal.never") }}
+              </div>
             </div>
 
             <template v-if="canManage && !k.revokedAt && editDrafts[k.id]">

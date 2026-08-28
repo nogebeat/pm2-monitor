@@ -188,10 +188,7 @@ test("migrator", async (t) => {
         !tables.includes("service_dependencies"),
         "la table de 019 doit avoir été supprimée par son rollback",
       );
-      assert.ok(
-        !tables.includes("api_keys"),
-        "la table de 020 doit avoir été supprimée par son rollback",
-      );
+      assert.ok(!tables.includes("api_keys"), "la table de 020 doit avoir été supprimée par son rollback");
     },
   );
 

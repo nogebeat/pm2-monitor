@@ -39,7 +39,10 @@ test("api-keys/resource-scope — processResourceScopeAllows()", async (t) => {
 
   await t.test("clé/appName absents -> true (rien à vérifier)", async () => {
     assert.equal(await processResourceScopeAllows(null, "api-prod"), true);
-    assert.equal(await processResourceScopeAllows({ resourceScopes: { environments: ["production"] } }, null), true);
+    assert.equal(
+      await processResourceScopeAllows({ resourceScopes: { environments: ["production"] } }, null),
+      true,
+    );
   });
 
   await t.test("sans resourceScopes -> true (pas de restriction)", async () => {
@@ -69,10 +72,13 @@ test("api-keys/resource-scope — processResourceScopeAllows()", async (t) => {
     assert.equal(await processResourceScopeAllows(key, "api-prod"), false);
   });
 
-  await t.test("resourceScopes.processes (autre critère) n'interfère pas avec cette vérification", async () => {
-    const key = { resourceScopes: { processes: ["api-prod"], environments: ["production"] } };
-    assert.equal(await processResourceScopeAllows(key, "api-prod"), true);
-  });
+  await t.test(
+    "resourceScopes.processes (autre critère) n'interfère pas avec cette vérification",
+    async () => {
+      const key = { resourceScopes: { processes: ["api-prod"], environments: ["production"] } };
+      assert.equal(await processResourceScopeAllows(key, "api-prod"), true);
+    },
+  );
 
   await cleanupDb(dbCtx);
 });

@@ -151,7 +151,10 @@ const roleDrafts = reactive({});
 function applyRole(u) {
   const role = roleDrafts[u.id];
   if (!role) return;
-  if (!confirm(t("usersModal.confirmApplyRole", { name: u.username, role: roleCatalog[role]?.label || role }))) return;
+  if (
+    !confirm(t("usersModal.confirmApplyRole", { name: u.username, role: roleCatalog[role]?.label || role }))
+  )
+    return;
   apiPut(u.id, { role })
     .then(() => {
       roleDrafts[u.id] = "";
@@ -218,7 +221,9 @@ function applyRole(u) {
             <div v-if="Object.keys(roleCatalog).length" class="users-new-row" style="margin-bottom: 10px">
               <select v-model="roleDrafts[u.id]">
                 <option value="" disabled>{{ t("usersModal.applyRolePlaceholder") }}</option>
-                <option v-for="(role, name) in roleCatalog" :key="name" :value="name">{{ role.label }}</option>
+                <option v-for="(role, name) in roleCatalog" :key="name" :value="name">
+                  {{ role.label }}
+                </option>
               </select>
               <button type="button" class="icon-btn" @click="applyRole(u)">
                 {{ t("usersModal.applyRole") }}
