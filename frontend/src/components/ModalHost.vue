@@ -16,6 +16,7 @@ import HealthChecksModal from "./modals/HealthChecksModal.vue";
 import AuditLogModal from "./modals/AuditLogModal.vue";
 import OrganizationModal from "./modals/OrganizationModal.vue";
 import AnomalyDetectionModal from "./modals/AnomalyDetectionModal.vue";
+import BackupModal from "./modals/BackupModal.vue";
 
 const componentMap = {
   more: MoreMenuModal,
@@ -32,6 +33,7 @@ const componentMap = {
   auditLog: AuditLogModal,
   organization: OrganizationModal,
   anomalyDetection: AnomalyDetectionModal,
+  backup: BackupModal,
 };
 
 const current = computed(() => (state.modal ? componentMap[state.modal.type] : null));

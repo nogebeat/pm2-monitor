@@ -53,6 +53,7 @@ const metricsRouter = require("./lib/routes/metrics");
 const anomalyDetectionRouter = require("./lib/routes/anomaly-detection");
 const serviceDependenciesRouter = require("./lib/routes/service-dependencies");
 const apiKeysRouter = require("./lib/routes/api-keys");
+const backupRouter = require("./lib/routes/backup");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -129,6 +130,15 @@ const io = new Server(server);
 
 const sessionMw = auth.sessionMiddleware();
 app.use(sessionMw);
+// Phase 19 — Backup & Restore : un backup complet (beaucoup
+// d'enregistrements et/ou secrets inclus) peut dépasser la limite globale
+// de 100 Ko (défaut d'express.json() ci-dessous) — scope dédié, monté
+// AVANT le parseur générique, pour ne pas changer cette limite pour le
+// reste de l'API (posture anti-DoS inchangée partout ailleurs). Le
+// parseur générique voit `req._body` déjà positionné par celui-ci et ne
+// retente pas de parser (garde interne de body-parser) — voir
+// docs/backup-restore/README.md#limites-connues.
+app.use("/api/backup", express.json({ limit: process.env.BACKUP_MAX_BODY_SIZE || "20mb" }));
 app.use(express.json());
 app.use(auth.loadCurrentUser);
 // Phase 18 — Advanced RBAC & API Keys : charge une éventuelle clé API M2M
@@ -309,6 +319,7 @@ app.use("/api/service-dependencies", serviceDependenciesRouter());
 // gestion (CRUD) réservée aux utilisateurs avec session (api_keys_read/
 // api_keys_manage) — voir lib/routes/api-keys.js pour le raisonnement.
 app.use("/api/api-keys", apiKeysRouter());
+app.use("/api/backup", backupRouter());
 
 // Process : liste + actions de base/étendues + métriques (lib/routes/processes.js)
 app.use("/api", processesRouter({ processHistory }));

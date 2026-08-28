@@ -1040,6 +1040,35 @@ avec session.
 - Documentation complète (rôles, scopes, API, migration, limites) :
   [`docs/rbac-api-keys/README.md`](docs/rbac-api-keys/README.md).
 
+### Backup & Restore (Phase 19)
+
+Export/restauration versionnés de la **configuration** (utilisateurs,
+permissions, règles d'alerte, notifications, health checks, auto-healing,
+tags/environnements/groupes, silences actifs, serveurs, dépendances de
+service) — jamais les données runtime/temporaires.
+
+- **Format versionné** (`formatVersion`), sections indépendantes : une
+  section inconnue d'une version antérieure est ignorée à l'import, jamais
+  fatale.
+- **Secrets exclus par défaut** ; si explicitement inclus (`includeSecrets`),
+  chiffrés avec une clé dédiée (`BACKUP_ENCRYPTION_KEY`, AES-256-GCM,
+  distincte de `NOTIFICATIONS_ENCRYPTION_KEY`) — aucun secret en clair,
+  aucune cryptographie maison. `password_hash`/`token_hash`/`key_hash` ne
+  sont jamais exportés ; un utilisateur recréé reçoit un mot de passe
+  temporaire affiché **une seule fois**.
+- **Restauration par fusion** sur clé naturelle (jamais par id numérique),
+  jamais destructive : un enregistrement déjà existant est laissé tel quel
+  (`onConflict: "skip"`, défaut) ou mis à jour (`"overwrite"`), les
+  permissions ne sont **jamais** révoquées automatiquement.
+- **Validation à blanc** (`POST /api/backup/validate`, aucune écriture) qui
+  affiche un résumé et les conflits détectés, avant toute confirmation.
+- **Transactionnelle** : une erreur en cours de restauration annule
+  l'intégralité des écritures déjà faites dans le même appel.
+- CLI (`node bin/backup.js export|validate|restore`) et UI (bouton
+  **💾 Backup** dans la barre du haut, visible selon les permissions).
+- Documentation complète (format, secrets, API, CLI, permissions, limites) :
+  [`docs/backup-restore/README.md`](docs/backup-restore/README.md).
+
 ### Général
 
 - **Interface Vue 3** entièrement componentisée (réactive, sans manipulation
@@ -1120,7 +1149,11 @@ droits, plutôt qu'un unique identifiant/mot de passe partagé (Basic Auth).
   service, voir
   [Carte de dépendances de service](#carte-de-dépendances-de-service-phase-17)),
   ainsi que `api_keys_read` / `api_keys_manage` (gestion des clés API M2M,
-  voir [RBAC avancé & Clés API](#rbac-avancé--clés-api-phase-18)).
+  voir [RBAC avancé & Clés API](#rbac-avancé--clés-api-phase-18)), et
+  `backup_export` / `backup_restore` (export/restauration de la
+  configuration — `backup_restore` exige en plus `is_admin` pour une
+  restauration réelle, voir
+  [Backup & Restore](#backup--restore-phase-19)).
 
 - **Rôles prédéfinis** (Admin/Operator/Viewer/Auditor) : un gabarit qui
   remplit ces mêmes permissions en un clic plutôt que de les cocher une par
@@ -1219,6 +1252,12 @@ de départ dans le code) : [`docs/features.md`](docs/features.md).
   un redémarrage sans clé explicite rend les secrets déjà stockés
   **définitivement** indéchiffrables (voir
   [`docs/notifications/README.md#secrets`](docs/notifications/README.md#secrets)).
+- Un backup peut optionnellement embarquer les secrets de providers de
+  notification, chiffrés avec une clé **dédiée et distincte**,
+  `BACKUP_ENCRYPTION_KEY` : sans elle, une demande d'export avec secrets
+  échoue explicitement (pas de repli silencieux) plutôt que de les exclure
+  sans le dire — voir
+  [`docs/backup-restore/README.md#secrets`](docs/backup-restore/README.md#secrets).
 - Le trafic n'est **pas chiffré** en HTTP simple : si tu exposes le
   dashboard au-delà de `localhost`, mets-le derrière un reverse proxy HTTPS
   (nginx + certificat, voir `./deploy.sh install --domain …`) ou un VPN, et

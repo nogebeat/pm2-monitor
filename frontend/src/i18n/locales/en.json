@@ -58,7 +58,9 @@
     "tabServers": "Servers",
     "tabLogExplorer": "Logs",
     "tabIncidents": "Incidents",
-    "tabServiceDependencies": "Dependencies"
+    "tabServiceDependencies": "Dependencies",
+    "backupTitle": "Backup / restore configuration",
+    "backup": "Backup"
   },
   "login": {
     "subtitle": "Login required",
@@ -686,5 +688,28 @@
     "potentiallyAffected": "Potentially affected dependencies",
     "noImpact": "No service depends on this one (or no impact detected).",
     "impactDisclaimer": "These services are potentially affected — this is not a certain causality."
+  },
+  "backupModal": {
+    "title": "Backup & Restore",
+    "exportTitle": "Export configuration",
+    "exportHint": "Choose which sections to include. Secrets (passwords, tokens, API keys) are never included in clear text.",
+    "includeSecrets": "Include notification provider secrets (encrypted)",
+    "secretsUnavailable": "BACKUP_ENCRYPTION_KEY is not configured on the server: notification provider secrets will be excluded from the export.",
+    "exportButton": "Export (.json)",
+    "restoreTitle": "Restore a backup",
+    "restoreHint": "Load a file or paste the backup JSON, then validate before restoring. No existing data is changed without explicit confirmation.",
+    "pastePlaceholder": "Paste the backup JSON here…",
+    "invalidJson": "Invalid JSON.",
+    "onConflict": "On conflict:",
+    "onConflictSkip": "Skip existing (recommended)",
+    "onConflictOverwrite": "Overwrite existing",
+    "validateButton": "Validate (preview)",
+    "reset": "Reset",
+    "summaryFor": "Backup created on {date}",
+    "summaryCounts": "{created} created, {updated} updated, {skipped} skipped/conflicts",
+    "confirmRestoreButton": "Confirm restore",
+    "confirmRestore": "Restore this backup? This will change this instance's configuration.",
+    "restoreDone": "Restore complete.",
+    "generatedPasswordsHint": "Temporary passwords generated for new users — hand these out then have them changed:"
   }
 }

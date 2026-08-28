@@ -47,6 +47,13 @@ découpage, décidé en Phase 1).
   notification (règle/process/tag/environnement/groupe), branché sur
   l'Alert Engine et le routing des notifications sans les modifier. Voir
   [`docs/incidents/README.md`](../incidents/README.md).
+- **`backup/`** — export/validation/restauration versionnés de la
+  configuration (utilisateurs, permissions, alert rules, notifications,
+  health checks, auto-healing, tags/environnements/groupes, silences actifs,
+  serveurs, dépendances de service), restauration transactionnelle par
+  fusion sur clé naturelle, secrets exclus par défaut ou chiffrés
+  (AES-256-GCM dédié). Voir
+  [`docs/backup-restore/README.md`](../backup-restore/README.md).
 
 ## Comment un service se branche au reste de l'app
 

@@ -61,6 +61,10 @@ function openOrganization() {
 function openAnomalyDetection() {
   state.modal = { type: "anomalyDetection" };
 }
+
+function openBackup() {
+  state.modal = { type: "backup" };
+}
 </script>
 
 <template>
@@ -210,6 +214,14 @@ function openAnomalyDetection() {
         @click="openApiKeys"
       >
         🔑 {{ t("topbar.apiKeys") }}
+      </button>
+      <button
+        v-if="can('backup_export') || can('backup_restore')"
+        class="icon-btn"
+        :title="t('topbar.backupTitle')"
+        @click="openBackup"
+      >
+        💾 {{ t("topbar.backup") }}
       </button>
       <LanguageSwitch />
       <button

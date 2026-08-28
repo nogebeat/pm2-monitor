@@ -58,7 +58,9 @@
     "tabServers": "Serveurs",
     "tabLogExplorer": "Logs",
     "tabIncidents": "Incidents",
-    "tabServiceDependencies": "Dépendances"
+    "tabServiceDependencies": "Dépendances",
+    "backupTitle": "Sauvegarder / restaurer la configuration",
+    "backup": "Backup"
   },
   "login": {
     "subtitle": "Connexion requise",
@@ -686,5 +688,28 @@
     "potentiallyAffected": "Dépendances potentiellement affectées",
     "noImpact": "Aucun service ne dépend de celui-ci (ou aucun impact détecté).",
     "impactDisclaimer": "Ces services sont potentiellement affectés — il ne s'agit pas d'une causalité certaine."
+  },
+  "backupModal": {
+    "title": "Backup & Restore",
+    "exportTitle": "Exporter la configuration",
+    "exportHint": "Choisis les sections à inclure. Les secrets (mots de passe, tokens, clés API) ne sont jamais inclus en clair.",
+    "includeSecrets": "Inclure les secrets des providers de notification (chiffrés)",
+    "secretsUnavailable": "BACKUP_ENCRYPTION_KEY n'est pas configurée côté serveur : les secrets de providers de notification seront exclus de l'export.",
+    "exportButton": "Exporter (.json)",
+    "restoreTitle": "Restaurer un backup",
+    "restoreHint": "Charge un fichier ou colle le JSON du backup, puis valide avant de restaurer. Aucune donnée existante n'est modifiée sans confirmation explicite.",
+    "pastePlaceholder": "Colle ici le contenu JSON du backup…",
+    "invalidJson": "JSON invalide.",
+    "onConflict": "En cas de conflit :",
+    "onConflictSkip": "Ignorer l'existant (recommandé)",
+    "onConflictOverwrite": "Écraser l'existant",
+    "validateButton": "Valider (aperçu)",
+    "reset": "Réinitialiser",
+    "summaryFor": "Backup créé le {date}",
+    "summaryCounts": "{created} créés, {updated} mis à jour, {skipped} ignorés/conflits",
+    "confirmRestoreButton": "Confirmer la restauration",
+    "confirmRestore": "Restaurer ce backup ? Cette action va modifier la configuration de cette instance.",
+    "restoreDone": "Restauration terminée.",
+    "generatedPasswordsHint": "Mots de passe temporaires générés pour les nouveaux utilisateurs — à transmettre puis faire changer :"
   }
 }
