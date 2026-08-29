@@ -130,6 +130,14 @@ function openBackup() {
         {{ t("topbar.tabServiceDependencies") }}
       </button>
       <button
+        v-if="can('reports_read')"
+        class="view-tab"
+        :class="{ active: state.view === 'reports' }"
+        @click="setView('reports')"
+      >
+        {{ t("topbar.tabReports") }}
+      </button>
+      <button
         v-if="canAny('logs')"
         class="view-tab"
         :class="{ active: state.view === 'logExplorer' }"

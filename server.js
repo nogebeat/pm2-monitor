@@ -54,6 +54,8 @@ const anomalyDetectionRouter = require("./lib/routes/anomaly-detection");
 const serviceDependenciesRouter = require("./lib/routes/service-dependencies");
 const apiKeysRouter = require("./lib/routes/api-keys");
 const backupRouter = require("./lib/routes/backup");
+const reportsRouter = require("./lib/routes/reports");
+const reportsSystemHistory = require("./lib/services/reports/system-history-store");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -321,6 +323,15 @@ app.use("/api/service-dependencies", serviceDependenciesRouter());
 app.use("/api/api-keys", apiKeysRouter());
 app.use("/api/backup", backupRouter());
 
+// Reports & Capacity Planning (lib/services/reports/, lib/routes/reports.js,
+// Phase 20) : agrège les données déjà collectées (process-history, alertes,
+// incidents, notifications, auto-healing, health checks, historique système)
+// — aucune nouvelle collecte, voir lib/services/reports/aggregator.js.
+app.use(
+  "/api/reports",
+  reportsRouter({ pm2, fmtProcess, visibleProcesses, processHistory }),
+);
+
 // Process : liste + actions de base/étendues + métriques (lib/routes/processes.js)
 app.use("/api", processesRouter({ processHistory }));
 
@@ -364,6 +375,11 @@ eventsService.start();
 // par défaut) : no-op tant que la variable n'est pas définie explicitement,
 // voir lib/services/audit/config.js et docs/audit/README.md#rétention.
 auditRetentionService.start();
+
+// Purge périodique de l'historique système persisté pour les rapports
+// (Phase 20, rétention system-history-store.js#RETENTION_MS) — même
+// découpage que les autres boucles de maintenance ci-dessus.
+reportsSystemHistory.startPurgeLoop();
 
 // --- Health checks (Phase 6) ---------------------------------------------
 // Branche le dispatch de notifications sur les transitions d'alerte

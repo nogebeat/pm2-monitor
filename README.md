@@ -1069,6 +1069,31 @@ service) — jamais les données runtime/temporaires.
 - Documentation complète (format, secrets, API, CLI, permissions, limites) :
   [`docs/backup-restore/README.md`](docs/backup-restore/README.md).
 
+### Reports & Capacity Planning (Phase 20)
+
+Rapports (disponibilité, incidents, alertes, crashes/restarts, CPU/RAM,
+health checks, notifications, auto-healing) sur une période, composés
+à la volée à partir des données déjà collectées ailleurs.
+
+- **Périodes** : daily/weekly/monthly (glissantes) ou plage personnalisée ;
+  filtres serveur / environnement / groupe / process (réutilise le système
+  de tags/environnements/groupes de la Phase 13).
+- **Process ranking** : top process les plus problématiques par crashes,
+  restarts, CPU, RAM, indisponibilité ou nombre d'alertes.
+- **Capacity Planning** : projections système (CPU/RAM/disque) par
+  régression linéaire simple, méthode explicable — jamais présentées comme
+  une certitude (confiance qualifiée, R², nombre de points). Basées sur un
+  historique **persisté** (`system_metrics_history`, migration
+  `021_system_metrics_history`) : un point toutes les 5 minutes, dérivé de
+  la même métrique système déjà calculée en temps réel — pas une seconde
+  collecte, juste une rétention (400 jours) plus longue que les 24h en
+  mémoire de l'onglet Système, pour des projections weekly/monthly fiables.
+- **Export** JSON et CSV (`GET /api/reports/export`).
+- **UI** : onglet `Reports` — filtres, cartes de résumé, classement,
+  Capacity Planning, tableau détaillé par process.
+- Documentation complète (contenu du rapport, API, permissions, limites
+  connues) : [`docs/reports/README.md`](docs/reports/README.md).
+
 ### Général
 
 - **Interface Vue 3** entièrement componentisée (réactive, sans manipulation
@@ -1153,7 +1178,9 @@ droits, plutôt qu'un unique identifiant/mot de passe partagé (Basic Auth).
   `backup_export` / `backup_restore` (export/restauration de la
   configuration — `backup_restore` exige en plus `is_admin` pour une
   restauration réelle, voir
-  [Backup & Restore](#backup--restore-phase-19)).
+  [Backup & Restore](#backup--restore-phase-19)), et `reports_read`
+  (consultation et export des rapports, voir
+  [Reports & Capacity Planning](#reports--capacity-planning-phase-20)).
 
 - **Rôles prédéfinis** (Admin/Operator/Viewer/Auditor) : un gabarit qui
   remplit ces mêmes permissions en un clic plutôt que de les cocher une par

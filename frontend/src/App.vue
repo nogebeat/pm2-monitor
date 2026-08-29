@@ -10,6 +10,7 @@ import SystemView from "./components/SystemView.vue";
 import EventsView from "./components/EventsView.vue";
 import ServersView from "./components/ServersView.vue";
 import IncidentsView from "./components/IncidentsView.vue";
+import ReportsView from "./components/ReportsView.vue";
 import ServiceDependenciesView from "./components/ServiceDependenciesView.vue";
 import LogExplorerView from "./components/LogExplorerView.vue";
 import DashboardView from "./components/DashboardView.vue";
@@ -45,6 +46,7 @@ onMounted(() => {
       <EventsView v-if="state.view === 'events'" />
       <ServersView v-if="state.view === 'servers'" />
       <IncidentsView v-if="state.view === 'incidents'" />
+      <ReportsView v-if="state.view === 'reports'" />
       <ServiceDependenciesView v-if="state.view === 'serviceDependencies'" />
       <LogExplorerView v-if="state.view === 'logExplorer'" />
 

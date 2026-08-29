@@ -82,6 +82,23 @@ export const state = reactive({
     silencesLoaded: false,
   },
 
+  // ---------- Rapports & Capacity Planning (onglet "Reports", Phase 20) ----------
+  reports: {
+    filters: {
+      period: "daily", // daily | weekly | monthly | custom
+      start: "", // ISO, utilisé seulement si period === "custom"
+      end: "",
+      serverKey: "",
+      environment: "",
+      group: "",
+      process: "",
+    },
+    report: null, // dernier rapport reçu de GET /api/reports (voir lib/services/reports/aggregator.js)
+    loading: false,
+    loaded: false,
+    catalog: null, // { periods, formats, rankingCriteria } (GET /api/reports/catalog)
+  },
+
   // ---------- Carte de dépendances de service (onglet "Dépendances",
   // Phase 17 — Service Dependency Map) ----------
   serviceDependencies: {
@@ -572,6 +589,64 @@ export function cancelSilence(id) {
     if (idx !== -1) state.incidents.silences.splice(idx, 1, cancelled);
     return cancelled;
   });
+}
+
+// ---------- Rapports & Capacity Planning (GET /api/reports/*, Phase 20) ----------
+
+function reportsQueryParams() {
+  const f = state.reports.filters;
+  const params = new URLSearchParams({ period: f.period });
+  if (f.period === "custom") {
+    if (f.start) params.set("start", String(new Date(f.start).getTime()));
+    if (f.end) params.set("end", String(new Date(f.end).getTime()));
+  }
+  if (f.serverKey) params.set("serverKey", f.serverKey);
+  if (f.environment) params.set("environment", f.environment);
+  if (f.group) params.set("group", f.group);
+  if (f.process) params.set("process", f.process);
+  return params;
+}
+
+export function loadReportsCatalog() {
+  if (state.reports.catalog) return Promise.resolve(state.reports.catalog);
+  return apiGet("/api/reports/catalog")
+    .then((catalog) => {
+      state.reports.catalog = catalog;
+      return catalog;
+    })
+    .catch((err) => {
+      notifyError(err);
+      return null;
+    });
+}
+
+export function loadReports() {
+  state.reports.loading = true;
+  return apiGet(`/api/reports?${reportsQueryParams().toString()}`)
+    .then((report) => {
+      state.reports.report = report;
+    })
+    .catch((err) => {
+      state.reports.report = null;
+      notifyError(err);
+    })
+    .finally(() => {
+      state.reports.loading = false;
+      state.reports.loaded = true;
+    });
+}
+
+/** Met à jour un ou plusieurs filtres puis recharge le rapport (voir ReportsView.vue). */
+export function setReportsFilters(patch) {
+  Object.assign(state.reports.filters, patch);
+  loadReports();
+}
+
+/** Ouvre le téléchargement de l'export (voir exportLogExplorer() plus bas pour le même principe). */
+export function exportReport(format) {
+  const params = reportsQueryParams();
+  params.set("format", format);
+  window.open(`/api/reports/export?${params.toString()}`, "_blank");
 }
 
 // ---------- Carte de dépendances de service (GET/POST/PUT/DELETE
