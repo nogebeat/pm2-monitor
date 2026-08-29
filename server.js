@@ -327,10 +327,7 @@ app.use("/api/backup", backupRouter());
 // Phase 20) : agrège les données déjà collectées (process-history, alertes,
 // incidents, notifications, auto-healing, health checks, historique système)
 // — aucune nouvelle collecte, voir lib/services/reports/aggregator.js.
-app.use(
-  "/api/reports",
-  reportsRouter({ pm2, fmtProcess, visibleProcesses, processHistory }),
-);
+app.use("/api/reports", reportsRouter({ pm2, fmtProcess, visibleProcesses, processHistory }));
 
 // Process : liste + actions de base/étendues + métriques (lib/routes/processes.js)
 app.use("/api", processesRouter({ processHistory }));

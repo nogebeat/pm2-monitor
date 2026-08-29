@@ -84,7 +84,9 @@ const rankingLabels = computed(() => ({
   alertCount: t("reports.rankingAlertCount"),
 }));
 
-const activeRankingRows = computed(() => (report.value ? report.value.ranking[activeRankingTab.value] || [] : []));
+const activeRankingRows = computed(() =>
+  report.value ? report.value.ranking[activeRankingTab.value] || [] : [],
+);
 
 function rankingValueFor(entry) {
   switch (activeRankingTab.value) {
@@ -118,7 +120,10 @@ function projectionSummary(projection) {
     case "insufficient_data":
       return t("reports.capacityInsufficientData");
     default:
-      return t("reports.capacityProjection", { threshold: projection.threshold, days: projection.daysUntilThreshold });
+      return t("reports.capacityProjection", {
+        threshold: projection.threshold,
+        days: projection.daysUntilThreshold,
+      });
   }
 }
 
@@ -180,7 +185,11 @@ watch(
         </label>
         <label>
           <span>{{ t("reports.endLabel") }}</span>
-          <input type="datetime-local" :value="filters.end" @change="onFilterChange('end', $event.target.value)" />
+          <input
+            type="datetime-local"
+            :value="filters.end"
+            @change="onFilterChange('end', $event.target.value)"
+          />
         </label>
       </template>
 
@@ -215,7 +224,9 @@ watch(
     <div v-else-if="!report" class="reports-empty">{{ t("reports.empty") }}</div>
 
     <template v-else>
-      <p class="reports-scope-hint">{{ t("reports.processesInScope", { count: report.scope.processCount }) }}</p>
+      <p class="reports-scope-hint">
+        {{ t("reports.processesInScope", { count: report.scope.processCount }) }}
+      </p>
 
       <section class="reports-summary-grid">
         <div class="summary-card">
@@ -253,7 +264,9 @@ watch(
           <span class="summary-label">{{ t("reports.healthChecks") }}</span>
           <span class="summary-value"
             >{{ report.summary.healthChecks.up }}/{{
-              report.summary.healthChecks.up + report.summary.healthChecks.down + report.summary.healthChecks.degraded
+              report.summary.healthChecks.up +
+              report.summary.healthChecks.down +
+              report.summary.healthChecks.degraded
             }}
             UP</span
           >
@@ -283,7 +296,11 @@ watch(
         </div>
         <div v-if="!activeRankingRows.length" class="reports-empty">{{ t("reports.rankingEmpty") }}</div>
         <ol v-else class="ranking-list">
-          <li v-for="entry in activeRankingRows" :key="entry.processName + entry.serverKey" class="ranking-row">
+          <li
+            v-for="entry in activeRankingRows"
+            :key="entry.processName + entry.serverKey"
+            class="ranking-row"
+          >
             <span class="ranking-name">{{ entry.processName }}</span>
             <span class="ranking-server">{{ entry.serverKey }}</span>
             <span class="ranking-value">{{ rankingValueFor(entry) }}</span>

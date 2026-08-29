@@ -61,15 +61,15 @@ lib/routes/reports.js — GET /api/reports, /export, /catalog
 Aucune nouvelle collecte n'est ajoutée : `aggregator.js` lit exclusivement
 des services déjà existants :
 
-| Donnée               | Source réutilisée                                                        |
-| -------------------- | -------------------------------------------------------------------------- |
-| Disponibilité/CPU/RAM/restarts/crashes par process | `lib/services/process-history/analytics.js#computePeriodStats()` (Phase 11) |
-| Alertes               | `alerts` (table existante, Phase 3), lues directement (`queries.js`)     |
-| Incidents             | `incidents` (table existante, Phase 14), lues directement                |
-| Notifications         | `notification_history` (table existante, Phase 6), lues directement      |
-| Auto-Healing          | `auto_healing_audit` (table existante, Phase 9), lue directement         |
-| Health checks         | `lib/services/health-checks/store.js#list()` — statut **courant** uniquement |
-| CPU/RAM/disque système | `lib/services/reports/system-history-store.js` (persistance downsamplée 5 min, migration 021) |
+| Donnée                                             | Source réutilisée                                                                             |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Disponibilité/CPU/RAM/restarts/crashes par process | `lib/services/process-history/analytics.js#computePeriodStats()` (Phase 11)                   |
+| Alertes                                            | `alerts` (table existante, Phase 3), lues directement (`queries.js`)                          |
+| Incidents                                          | `incidents` (table existante, Phase 14), lues directement                                     |
+| Notifications                                      | `notification_history` (table existante, Phase 6), lues directement                           |
+| Auto-Healing                                       | `auto_healing_audit` (table existante, Phase 9), lue directement                              |
+| Health checks                                      | `lib/services/health-checks/store.js#list()` — statut **courant** uniquement                  |
+| CPU/RAM/disque système                             | `lib/services/reports/system-history-store.js` (persistance downsamplée 5 min, migration 021) |
 
 `queries.js` interroge certaines tables directement via `lib/db` plutôt que
 par les stores existants (`alert-store.js`, `incident-store.js`...) : ces
@@ -123,8 +123,8 @@ volontairement explicable plutôt qu'un modèle "boîte noire"
   projection n'est jamais présentée comme une certitude**, l'UI doit
   toujours afficher cette qualification à côté de la date projetée.
 
-Exemple de lecture : *"Projection : dépassement de 80% dans environ 67
-jours (confiance moyenne, R²=0.62, 18 points)."*
+Exemple de lecture : _"Projection : dépassement de 80% dans environ 67
+jours (confiance moyenne, R²=0.62, 18 points)."_
 
 ### Historique système utilisé
 
@@ -148,11 +148,11 @@ sur `insufficient_data`.
 
 Toutes les routes nécessitent la permission `reports_read`.
 
-| Méthode | Route                | Description                                                  |
-| ------- | --------------------- | -------------------------------------------------------------- |
-| GET     | `/api/reports`        | Génère un rapport (voir paramètres ci-dessous), réponse JSON. |
-| GET     | `/api/reports/export` | Même génération, réponse en pièce jointe (`format=json\|csv`). |
-| GET     | `/api/reports/catalog` | `{ periods, formats, rankingCriteria }` — pour peupler l'UI.  |
+| Méthode | Route                  | Description                                                    |
+| ------- | ---------------------- | -------------------------------------------------------------- |
+| GET     | `/api/reports`         | Génère un rapport (voir paramètres ci-dessous), réponse JSON.  |
+| GET     | `/api/reports/export`  | Même génération, réponse en pièce jointe (`format=json\|csv`). |
+| GET     | `/api/reports/catalog` | `{ periods, formats, rankingCriteria }` — pour peupler l'UI.   |
 
 Paramètres de requête (communs à `/` et `/export`) :
 
@@ -169,8 +169,8 @@ Un `period`/`format` invalide, ou un `custom` sans `start` valide, renvoie
 
 - **JSON** : le rapport complet, sans transformation.
 - **CSV** : une ligne par process (`process, server, availability_percent,
-  crashes, restarts, cpu_avg_percent, memory_avg_bytes, downtime_ms,
-  alert_count`) — les sections `summary`/`ranking`/`capacityPlanning`
+crashes, restarts, cpu_avg_percent, memory_avg_bytes, downtime_ms,
+alert_count`) — les sections `summary`/`ranking`/`capacityPlanning`
   restent disponibles via le format JSON, plus adapté à leur forme imbriquée.
 - **PDF** : non ajouté (voir prompt de phase : uniquement si une solution
   propre existe déjà, ou si la dépendance est raisonnable). Ce projet n'a

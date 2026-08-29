@@ -20,7 +20,7 @@ const SAMPLE_REPORT = {
       alertCount: 2,
     },
     {
-      processName: "wei,rd \"name\"",
+      processName: 'wei,rd "name"',
       serverKey: "local",
       availabilityPercent: null,
       crashes: 0,

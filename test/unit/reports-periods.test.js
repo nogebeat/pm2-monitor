@@ -26,7 +26,11 @@ test("resolvePeriod() — custom accepte start/end en epoch ms", () => {
 });
 
 test("resolvePeriod() — custom accepte des dates ISO", () => {
-  const result = resolvePeriod({ period: "custom", start: "2026-01-01T00:00:00.000Z", end: "2026-01-08T00:00:00.000Z" });
+  const result = resolvePeriod({
+    period: "custom",
+    start: "2026-01-01T00:00:00.000Z",
+    end: "2026-01-08T00:00:00.000Z",
+  });
   assert.equal(result.start, Date.parse("2026-01-01T00:00:00.000Z"));
   assert.equal(result.end, Date.parse("2026-01-08T00:00:00.000Z"));
 });
