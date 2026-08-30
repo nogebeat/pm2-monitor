@@ -81,7 +81,8 @@ body::before {
   position: fixed;
   inset: 0;
   z-index: -2;
-  background-image: linear-gradient(var(--border-soft) 1px, transparent 1px),
+  background-image:
+    linear-gradient(var(--border-soft) 1px, transparent 1px),
     linear-gradient(90deg, var(--border-soft) 1px, transparent 1px);
   background-size: 64px 64px;
   mask-image: radial-gradient(ellipse 70% 55% at 50% 0%, black 0%, transparent 70%);
@@ -220,7 +221,10 @@ section {
   text-decoration: none;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: transform 0.15s var(--ease), border-color 0.15s var(--ease), background 0.15s var(--ease);
+  transition:
+    transform 0.15s var(--ease),
+    border-color 0.15s var(--ease),
+    background 0.15s var(--ease);
   white-space: nowrap;
 }
 
@@ -358,7 +362,9 @@ section {
     transform: translateY(-8px);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+    transition:
+      opacity 0.2s var(--ease),
+      transform 0.2s var(--ease);
   }
   .nav-links a:not(.btn) {
     padding: 14px 4px;
@@ -458,7 +464,9 @@ section {
   background: linear-gradient(180deg, var(--panel-raised), var(--panel));
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  box-shadow:
+    0 30px 80px -30px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset;
   overflow: hidden;
   transform: rotateX(2deg);
 }
@@ -801,7 +809,9 @@ section {
   border-radius: 6px;
   cursor: pointer;
   color: var(--text-muted);
-  transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
+  transition:
+    color 0.15s var(--ease),
+    border-color 0.15s var(--ease);
 }
 
 .copy-btn:hover {
@@ -1234,7 +1244,9 @@ footer {
 [data-reveal] {
   opacity: 0;
   transform: translateY(18px);
-  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+  transition:
+    opacity 0.6s var(--ease),
+    transform 0.6s var(--ease);
 }
 
 [data-reveal].is-visible {
