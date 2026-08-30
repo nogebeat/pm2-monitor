@@ -60,31 +60,34 @@ test("plugins/index — loadAll() / enable() / disable()", async (t) => {
     assert.equal(entry.error, null);
   });
 
-  await t.test("plugin dont le fichier est syntaxiquement invalide -> status invalid, ne bloque pas les autres", async () => {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-    fs.mkdirSync(tmpDir, { recursive: true });
-    writePlugin(tmpDir, "broken-syntax", `this is not valid javascript {{{`);
-    writePlugin(
-      tmpDir,
-      "sibling-ok",
-      `module.exports = {
+  await t.test(
+    "plugin dont le fichier est syntaxiquement invalide -> status invalid, ne bloque pas les autres",
+    async () => {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      fs.mkdirSync(tmpDir, { recursive: true });
+      writePlugin(tmpDir, "broken-syntax", `this is not valid javascript {{{`);
+      writePlugin(
+        tmpDir,
+        "sibling-ok",
+        `module.exports = {
         name: "sibling-ok",
         version: "1.0.0",
         pluginApiVersion: "1.0.0",
         init: async () => {},
       };`,
-    );
-    const plugins = freshPluginsService();
-    const list = await plugins.loadAll();
+      );
+      const plugins = freshPluginsService();
+      const list = await plugins.loadAll();
 
-    const broken = list.find((p) => p.name === "broken-syntax");
-    assert.ok(broken);
-    assert.equal(broken.status, "invalid");
-    assert.ok(broken.error);
+      const broken = list.find((p) => p.name === "broken-syntax");
+      assert.ok(broken);
+      assert.equal(broken.status, "invalid");
+      assert.ok(broken.error);
 
-    const sibling = list.find((p) => p.name === "sibling-ok");
-    assert.equal(sibling.status, "active");
-  });
+      const sibling = list.find((p) => p.name === "sibling-ok");
+      assert.equal(sibling.status, "active");
+    },
+  );
 
   await t.test("plugin structurellement invalide (contrat incomplet) -> status invalid", async () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });

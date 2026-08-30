@@ -78,12 +78,12 @@ l'instant, juste un point d'entrée générique. Validé par
 `init(context)` / `onDisable(context)` reçoivent une API **restreinte**
 (voir [`context.js`](../../lib/services/plugins/context.js)) :
 
-| Clé | Description |
-| --- | --- |
-| `context.logger.info/warn/error(...)` | Logs préfixés `[plugin:<nom>]` |
-| `context.config.get()` | Retourne la config **propre à ce plugin** (persistée) |
-| `context.config.set(obj)` | Remplace la config de ce plugin (JSON-sérialisable) |
-| `context.meta.name` / `context.meta.version` | Identité du plugin lui-même |
+| Clé                                          | Description                                           |
+| -------------------------------------------- | ----------------------------------------------------- |
+| `context.logger.info/warn/error(...)`        | Logs préfixés `[plugin:<nom>]`                        |
+| `context.config.get()`                       | Retourne la config **propre à ce plugin** (persistée) |
+| `context.config.set(obj)`                    | Remplace la config de ce plugin (JSON-sérialisable)   |
+| `context.meta.name` / `context.meta.version` | Identité du plugin lui-même                           |
 
 **Jamais exposé** : la DB brute (`lib/db`), le filesystem arbitraire, les
 secrets (clés de chiffrement, tokens, `.env`), le process Node
@@ -156,13 +156,13 @@ contrairement aux secrets des providers de notification, voir
 
 Toutes les routes sont sous `/api/plugins`.
 
-| Méthode | Route | Permission | Description |
-| --- | --- | --- | --- |
-| GET | `/` | `plugins_read` | Liste tous les plugins découverts |
-| GET | `/:name` | `plugins_read` | Détail d'un plugin |
-| POST | `/:name/enable` | `plugins_manage` | Active un plugin (appelle `init()`) |
-| POST | `/:name/disable` | `plugins_manage` | Désactive un plugin (appelle `onDisable()` si fourni) |
-| PUT | `/:name/config` | `plugins_manage` | Remplace la configuration d'un plugin |
+| Méthode | Route            | Permission       | Description                                           |
+| ------- | ---------------- | ---------------- | ----------------------------------------------------- |
+| GET     | `/`              | `plugins_read`   | Liste tous les plugins découverts                     |
+| GET     | `/:name`         | `plugins_read`   | Détail d'un plugin                                    |
+| POST    | `/:name/enable`  | `plugins_manage` | Active un plugin (appelle `init()`)                   |
+| POST    | `/:name/disable` | `plugins_manage` | Désactive un plugin (appelle `onDisable()` si fourni) |
+| PUT     | `/:name/config`  | `plugins_manage` | Remplace la configuration d'un plugin                 |
 
 Champs d'une entrée (`GET /` et `GET /:name`) :
 

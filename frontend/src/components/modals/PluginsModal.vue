@@ -70,7 +70,9 @@ function statusLabel(status) {
 
 function toggleEnabled(p) {
   const action = p.enabled ? "disable" : "enable";
-  apiPost(`/api/plugins/${encodeURIComponent(p.name)}/${action}`).then(loadPlugins).catch(notifyError);
+  apiPost(`/api/plugins/${encodeURIComponent(p.name)}/${action}`)
+    .then(loadPlugins)
+    .catch(notifyError);
 }
 
 function startEditConfig(p) {
@@ -130,11 +132,7 @@ const canManage = computed(() => can("plugins_manage"));
           </div>
 
           <div v-else class="pl-card-actions">
-            <button
-              v-if="canManage && p.compatible"
-              class="icon-btn"
-              @click="toggleEnabled(p)"
-            >
+            <button v-if="canManage && p.compatible" class="icon-btn" @click="toggleEnabled(p)">
               {{ p.enabled ? t("pluginsModal.disable") : t("pluginsModal.enable") }}
             </button>
             <button v-if="canManage" class="icon-btn" @click="startEditConfig(p)">

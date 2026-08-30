@@ -106,10 +106,7 @@ test("plugins/registry — PluginRegistry", async (t) => {
   await t.test("register() refuse un nom déjà pris", () => {
     const registry = new PluginRegistry();
     registry.register(validPlugin());
-    assert.throws(
-      () => registry.register(validPlugin({ description: "autre instance" })),
-      /déjà enregistré/,
-    );
+    assert.throws(() => registry.register(validPlugin({ description: "autre instance" })), /déjà enregistré/);
   });
 
   await t.test("unregister() puis clear()", () => {
