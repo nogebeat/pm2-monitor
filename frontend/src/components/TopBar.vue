@@ -65,6 +65,10 @@ function openAnomalyDetection() {
 function openBackup() {
   state.modal = { type: "backup" };
 }
+
+function openPlugins() {
+  state.modal = { type: "plugins" };
+}
 </script>
 
 <template>
@@ -230,6 +234,14 @@ function openBackup() {
         @click="openBackup"
       >
         💾 {{ t("topbar.backup") }}
+      </button>
+      <button
+        v-if="can('plugins_read')"
+        class="icon-btn"
+        :title="t('topbar.pluginsTitle')"
+        @click="openPlugins"
+      >
+        🧩 {{ t("topbar.plugins") }}
       </button>
       <LanguageSwitch />
       <button

@@ -61,7 +61,9 @@
     "tabReports": "Rapports",
     "tabServiceDependencies": "Dépendances",
     "backupTitle": "Sauvegarder / restaurer la configuration",
-    "backup": "Backup"
+    "backup": "Backup",
+    "pluginsTitle": "Settings → Plugins (extensions tierces)",
+    "plugins": "Plugins"
   },
   "login": {
     "subtitle": "Connexion requise",
@@ -689,6 +691,22 @@
     "potentiallyAffected": "Dépendances potentiellement affectées",
     "noImpact": "Aucun service ne dépend de celui-ci (ou aucun impact détecté).",
     "impactDisclaimer": "Ces services sont potentiellement affectés — il ne s'agit pas d'une causalité certaine."
+  },
+  "pluginsModal": {
+    "title": "Plugins",
+    "intro": "Extensions déposées manuellement dans le dossier plugins/ du serveur — aucune installation depuis cette interface.",
+    "loading": "Chargement…",
+    "empty": "Aucun plugin détecté dans le dossier plugins/.",
+    "enable": "Activer",
+    "disable": "Désactiver",
+    "editConfig": "Configuration",
+    "saveConfig": "Enregistrer",
+    "invalidJson": "JSON invalide.",
+    "statusActive": "Actif",
+    "statusDisabled": "Désactivé",
+    "statusError": "Erreur",
+    "statusInvalid": "Invalide",
+    "statusIncompatible": "Incompatible"
   },
   "backupModal": {
     "title": "Backup & Restore",

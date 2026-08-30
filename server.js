@@ -21,6 +21,7 @@ const { engine: healthCheckEngine } = require("./lib/services/health-checks");
 const healthChecksStore = require("./lib/services/health-checks/store");
 const { service: anomalyService } = require("./lib/services/anomaly-detection");
 const serviceDependencies = require("./lib/services/service-dependencies");
+const pluginsService = require("./lib/services/plugins");
 const { AutoHealingService, auditStore: autoHealingAuditStore } = require("./lib/services/auto-healing");
 const serversStore = require("./lib/services/servers/store");
 const processOrgStore = require("./lib/services/process-organization/store");
@@ -52,6 +53,7 @@ const incidentsRouter = require("./lib/routes/incidents");
 const metricsRouter = require("./lib/routes/metrics");
 const anomalyDetectionRouter = require("./lib/routes/anomaly-detection");
 const serviceDependenciesRouter = require("./lib/routes/service-dependencies");
+const pluginsRouter = require("./lib/routes/plugins");
 const apiKeysRouter = require("./lib/routes/api-keys");
 const backupRouter = require("./lib/routes/backup");
 const reportsRouter = require("./lib/routes/reports");
@@ -317,6 +319,12 @@ app.use("/api/anomaly-detection", anomalyDetectionRouter());
 // plus bas).
 app.use("/api/service-dependencies", serviceDependenciesRouter());
 
+// Plugin System (lib/services/plugins/, lib/routes/plugins.js, Phase 21) :
+// activation/désactivation/configuration des plugins découverts au
+// démarrage (voir pluginsService.loadAll() plus bas) — aucune route
+// d'installation, voir plugins/README.md.
+app.use("/api/plugins", pluginsRouter());
+
 // Clés API M2M (lib/services/api-keys/, lib/routes/api-keys.js, Phase 18) :
 // gestion (CRUD) réservée aux utilisateurs avec session (api_keys_read/
 // api_keys_manage) — voir lib/routes/api-keys.js pour le raisonnement.
@@ -449,6 +457,15 @@ db.init()
   // (production/staging/development) si absents, idempotent comme ci-dessus
   // (voir lib/services/process-organization/store.js#ensureDefaults).
   .then(processOrgStore.ensureDefaults)
+  // Phase 21 — Plugin System : découvre/charge les plugins présents sous
+  // plugins/ (voir lib/services/plugins/loader.js). Isolé par plugin (une
+  // erreur d'un plugin ne fait jamais échouer cette étape ni le démarrage,
+  // voir lib/services/plugins/index.js#loadAll).
+  .then(() =>
+    pluginsService.loadAll().catch((e) => {
+      console.error("Erreur au chargement des plugins (ignorée, démarrage poursuivi) :", e.message);
+    }),
+  )
   .then(startPm2Bus)
   .catch((err) => {
     console.error("Échec d'initialisation de la base de données :", err.message);

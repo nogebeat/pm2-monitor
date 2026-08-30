@@ -409,6 +409,13 @@ pour le détail de ce qui existe et ce qui est prévu.
   existant, n'introduit aucun second système RBAC — voir
   [RBAC avancé & Clés API](#rbac-avancé--clés-api-phase-18) et
   [`docs/rbac-api-keys/README.md`](docs/rbac-api-keys/README.md).
+- `lib/services/plugins/` : architecture de plugins permettant d'étendre le
+  monitor sans modifier le core — un plugin est un dossier de code déposé
+  manuellement dans `plugins/`, jamais installé/téléchargé automatiquement,
+  chargé via une API restreinte (`init(context)`, pas d'accès direct à la
+  DB/au filesystem/aux secrets) — voir
+  [Plugin System](#plugin-system-phase-21) et
+  [`docs/plugins/README.md`](docs/plugins/README.md).
 
 ## Fonctionnalités
 
@@ -1094,6 +1101,34 @@ health checks, notifications, auto-healing) sur une période, composés
 - Documentation complète (contenu du rapport, API, permissions, limites
   connues) : [`docs/reports/README.md`](docs/reports/README.md).
 
+### Plugin System (Phase 21)
+
+Architecture de plugins permettant à des contributeurs d'étendre PM2
+Monitor **sans modifier le core**.
+
+- Un plugin est un dossier `plugins/<nom>/index.js` déposé **manuellement**
+  sur le serveur — jamais installé ou téléchargé automatiquement depuis
+  l'interface ou l'API (aucune route d'upload n'existe).
+- **Contrat minimal et stable** : `name`, `version`, `pluginApiVersion`,
+  `init(context)`, `onDisable(context)` (optionnel). Le `context` exposé à
+  un plugin est restreint (`logger`, `config` propre au plugin) — jamais la
+  DB brute, le filesystem arbitraire, des secrets, ou le process Node.
+- **Isolation des erreurs** : un plugin qui plante à l'initialisation (ou
+  dont le code est invalide) reste visible dans l'UI avec un statut
+  `error`/`invalid`, sans jamais empêcher le démarrage du monitor ni les
+  autres plugins de charger.
+- **Compatibility** : un plugin déclare le `pluginApiVersion` visé ; un
+  écart de version MAJOR est détecté et bloque l'activation (statut
+  `incompatible`), explicitement, plutôt que de charger un plugin écrit
+  pour une API différente.
+- **UI** : onglet Settings → Plugins (liste, statut, version, activation/
+  désactivation, configuration JSON) — actions réservées à `plugins_manage`.
+- Un plugin de démonstration interne (`plugins/hello-world/`) valide l'API
+  de bout en bout ; il n'est pas une dépendance obligatoire.
+- Documentation complète (architecture, API, cycle de vie, sécurité,
+  création d'un plugin, compatibility, exemple) :
+  [`docs/plugins/README.md`](docs/plugins/README.md).
+
 ### Général
 
 - **Interface Vue 3** entièrement componentisée (réactive, sans manipulation
@@ -1180,7 +1215,10 @@ droits, plutôt qu'un unique identifiant/mot de passe partagé (Basic Auth).
   restauration réelle, voir
   [Backup & Restore](#backup--restore-phase-19)), et `reports_read`
   (consultation et export des rapports, voir
-  [Reports & Capacity Planning](#reports--capacity-planning-phase-20)).
+  [Reports & Capacity Planning](#reports--capacity-planning-phase-20)), et
+  `plugins_read` / `plugins_manage` (voir, liste, activation/désactivation
+  et configuration des plugins, voir
+  [Plugin System](#plugin-system-phase-21)).
 
 - **Rôles prédéfinis** (Admin/Operator/Viewer/Auditor) : un gabarit qui
   remplit ces mêmes permissions en un clic plutôt que de les cocher une par
