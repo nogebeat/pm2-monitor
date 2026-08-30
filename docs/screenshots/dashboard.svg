@@ -1,0 +1,107 @@
+<svg viewBox="0 0 1200 700" xmlns="http://www.w3.org/2000/svg" font-family="'Space Grotesk', 'Segoe UI', sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f1115"/>
+      <stop offset="100%" stop-color="#161a22"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="700" fill="url(#bg)"/>
+
+  <!-- top bar -->
+  <rect x="0" y="0" width="1200" height="56" fill="#12151c"/>
+  <circle cx="30" cy="28" r="10" fill="#4f7cff"/>
+  <text x="52" y="34" fill="#e8eaf0" font-size="18" font-weight="600">PM2 Monitor</text>
+  <rect x="1040" y="14" width="60" height="28" rx="6" fill="#1e2330"/>
+  <text x="1052" y="33" fill="#8b93a7" font-size="12">FR/EN</text>
+  <rect x="1112" y="14" width="70" height="28" rx="6" fill="#1e2330"/>
+  <text x="1126" y="33" fill="#8b93a7" font-size="12">admin</text>
+
+  <!-- status cards -->
+  <g font-family="'JetBrains Mono', monospace">
+    <rect x="24" y="80" width="270" height="90" rx="10" fill="#171b24" stroke="#242938"/>
+    <text x="44" y="112" fill="#8b93a7" font-size="12">PROCESS EN LIGNE</text>
+    <text x="44" y="148" fill="#4ee69a" font-size="30" font-weight="700">12/12</text>
+
+    <rect x="310" y="80" width="270" height="90" rx="10" fill="#171b24" stroke="#242938"/>
+    <text x="330" y="112" fill="#8b93a7" font-size="12">CPU MOYEN</text>
+    <text x="330" y="148" fill="#e8eaf0" font-size="30" font-weight="700">18%</text>
+
+    <rect x="596" y="80" width="270" height="90" rx="10" fill="#171b24" stroke="#242938"/>
+    <text x="616" y="112" fill="#8b93a7" font-size="12">MÉMOIRE</text>
+    <text x="616" y="148" fill="#e8eaf0" font-size="30" font-weight="700">1.4 GB</text>
+
+    <rect x="882" y="80" width="294" height="90" rx="10" fill="#171b24" stroke="#242938"/>
+    <text x="902" y="112" fill="#8b93a7" font-size="12">ALERTES ACTIVES</text>
+    <text x="902" y="148" fill="#f2545b" font-size="30" font-weight="700">0</text>
+  </g>
+
+  <!-- process table -->
+  <rect x="24" y="192" width="1152" height="320" rx="10" fill="#12151c" stroke="#242938"/>
+  <text x="44" y="222" fill="#e8eaf0" font-size="14" font-weight="600">Processus</text>
+
+  <g font-family="'JetBrains Mono', monospace" font-size="12" fill="#8b93a7">
+    <text x="44" y="252">NOM</text>
+    <text x="330" y="252">STATUT</text>
+    <text x="470" y="252">CPU</text>
+    <text x="580" y="252">MÉMOIRE</text>
+    <text x="700" y="252">REDÉMARRAGES</text>
+    <text x="900" y="252">UPTIME</text>
+  </g>
+  <line x1="44" y1="264" x2="1132" y2="264" stroke="#242938"/>
+
+  <g font-family="'JetBrains Mono', monospace" font-size="13">
+    <!-- rows -->
+    <g fill="#c7cbd6">
+      <circle cx="50" cy="292" r="4" fill="#4ee69a"/>
+      <text x="66" y="297">api-gateway</text>
+      <text x="330" y="297" fill="#4ee69a">online</text>
+      <text x="470" y="297">4.2%</text>
+      <text x="580" y="297">128 MB</text>
+      <text x="700" y="297">2</text>
+      <text x="900" y="297">14j 3h</text>
+    </g>
+    <line x1="44" y1="316" x2="1132" y2="316" stroke="#1c2130"/>
+    <g fill="#c7cbd6">
+      <circle cx="50" cy="344" r="4" fill="#4ee69a"/>
+      <text x="66" y="349">worker-queue</text>
+      <text x="330" y="349" fill="#4ee69a">online</text>
+      <text x="470" y="349">11.8%</text>
+      <text x="580" y="349">256 MB</text>
+      <text x="700" y="349">0</text>
+      <text x="900" y="349">6j 21h</text>
+    </g>
+    <line x1="44" y1="368" x2="1132" y2="368" stroke="#1c2130"/>
+    <g fill="#c7cbd6">
+      <circle cx="50" cy="396" r="4" fill="#f2c94c"/>
+      <text x="66" y="401">cron-reports</text>
+      <text x="330" y="401" fill="#f2c94c">restarting</text>
+      <text x="470" y="401">—</text>
+      <text x="580" y="401">—</text>
+      <text x="700" y="401">5</text>
+      <text x="900" y="401">12s</text>
+    </g>
+    <line x1="44" y1="420" x2="1132" y2="420" stroke="#1c2130"/>
+    <g fill="#c7cbd6">
+      <circle cx="50" cy="448" r="4" fill="#4ee69a"/>
+      <text x="66" y="453">notifications-svc</text>
+      <text x="330" y="453" fill="#4ee69a">online</text>
+      <text x="470" y="453">2.1%</text>
+      <text x="580" y="453">96 MB</text>
+      <text x="700" y="453">1</text>
+      <text x="900" y="453">3j 8h</text>
+    </g>
+  </g>
+
+  <!-- chart area -->
+  <rect x="24" y="530" width="1152" height="140" rx="10" fill="#12151c" stroke="#242938"/>
+  <text x="44" y="558" fill="#e8eaf0" font-size="14" font-weight="600">Charge CPU / mémoire (24h)</text>
+  <polyline points="60,650 160,620 260,635 360,600 460,610 560,580 660,595 760,560 860,575 960,545 1060,560 1150,540"
+    fill="none" stroke="#4f7cff" stroke-width="2"/>
+  <polyline points="60,660 160,655 260,650 360,648 460,652 560,640 660,645 760,635 860,638 960,628 1060,632 1150,625"
+    fill="none" stroke="#4ee69a" stroke-width="2"/>
+
+  <!-- placeholder watermark -->
+  <rect x="0" y="0" width="1200" height="700" fill="#0b0d12" opacity="0.55"/>
+  <text x="600" y="340" text-anchor="middle" fill="#e8eaf0" font-size="26" font-weight="700">Aperçu illustratif — pas une vraie capture</text>
+  <text x="600" y="372" text-anchor="middle" fill="#8b93a7" font-size="15">À remplacer par une capture réelle du dashboard — voir docs/screenshots/README.md</text>
+</svg>

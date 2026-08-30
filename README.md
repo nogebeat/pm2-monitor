@@ -17,6 +17,17 @@ un frontend **Vue 3 + Vite** qui consomme cette API en REST + WebSocket.
 dans la barre du haut). 🤝 Projet open source — contributions bienvenues,
 voir [CONTRIBUTING.md](CONTRIBUTING.md).
 
+<p align="center">
+  <img src="docs/screenshots/dashboard.svg" width="32%" alt="Dashboard PM2 Monitor : liste des process, statuts, CPU/mémoire" />
+  <img src="docs/screenshots/live-logs.svg" width="32%" alt="Logs en direct via WebSocket" />
+  <img src="docs/screenshots/log-explorer.svg" width="32%" alt="Log Explorer avec filtres et recherche" />
+</p>
+
+> Les images ci-dessus sont des aperçus illustratifs générés (voir
+> [`docs/screenshots/README.md`](docs/screenshots/README.md)), pas de vraies
+> captures — à remplacer dès que possible par des captures du dashboard
+> réel.
+
 ## Stack technique
 
 - **Backend** : Node.js, Express, `pm2` (API programmatique), Socket.IO,
@@ -1301,8 +1312,9 @@ premier compte admin. Lance ensuite `./deploy.sh update` (qui fait tourner
 
 ## Pour aller plus loin
 
-Backlog non engagé d'idées de fonctionnalités (avec effort estimé et point
-de départ dans le code) : [`docs/features.md`](docs/features.md).
+- 🖥️ Landing page du projet : [`docs/index.html`](docs/index.html).
+- Backlog non engagé d'idées de fonctionnalités (avec effort estimé et point
+  de départ dans le code) : [`docs/features.md`](docs/features.md).
 
 ## Notes importantes
 

@@ -1,0 +1,64 @@
+<svg viewBox="0 0 1200 700" xmlns="http://www.w3.org/2000/svg" font-family="'Space Grotesk', sans-serif">
+  <rect width="1200" height="700" fill="#0f1115"/>
+  <rect x="0" y="0" width="1200" height="56" fill="#12151c"/>
+  <circle cx="30" cy="28" r="10" fill="#4f7cff"/>
+  <text x="52" y="34" fill="#e8eaf0" font-size="18" font-weight="600">Log Explorer</text>
+
+  <!-- search / filter bar -->
+  <rect x="24" y="80" width="1152" height="52" rx="8" fill="#171b24" stroke="#242938"/>
+  <text x="44" y="112" fill="#c7cbd6" font-size="13" font-family="'JetBrains Mono', monospace">level:error AND process:api-gateway AND after:2026-08-29</text>
+  <rect x="1064" y="90" width="92" height="32" rx="6" fill="#4f7cff"/>
+  <text x="1084" y="111" fill="#0d0f14" font-size="12" font-weight="700">Rechercher</text>
+
+  <!-- filter chips -->
+  <g font-size="12" font-family="'JetBrains Mono', monospace">
+    <rect x="24" y="144" width="96" height="26" rx="13" fill="#1c2130" stroke="#2b3245"/>
+    <text x="38" y="161" fill="#8b93a7">7 derniers jours</text>
+    <rect x="128" y="144" width="70" height="26" rx="13" fill="#1c2130" stroke="#2b3245"/>
+    <text x="142" y="161" fill="#f25c5c">error</text>
+    <rect x="206" y="144" width="80" height="26" rx="13" fill="#1c2130" stroke="#2b3245"/>
+    <text x="220" y="161" fill="#f2c94c">warning</text>
+  </g>
+
+  <!-- results table -->
+  <rect x="24" y="184" width="1152" height="440" rx="10" fill="#12151c" stroke="#242938"/>
+  <g font-size="12" fill="#8b93a7" font-family="'JetBrains Mono', monospace">
+    <text x="44" y="212">HORODATAGE</text>
+    <text x="220" y="212">PROCESS</text>
+    <text x="380" y="212">NIVEAU</text>
+    <text x="470" y="212">MESSAGE</text>
+  </g>
+  <line x1="44" y1="224" x2="1132" y2="224" stroke="#242938"/>
+
+  <g font-size="12.5" font-family="'JetBrains Mono', monospace">
+    <text x="44" y="252" fill="#5c657a">08-30 09:41:02</text>
+    <text x="220" y="252" fill="#c7cbd6">api-gateway</text>
+    <text x="380" y="252" fill="#f25c5c">error</text>
+    <text x="470" y="252" fill="#c7cbd6">Upstream timeout after 5000ms (orders-svc)</text>
+
+    <line x1="44" y1="264" x2="1132" y2="264" stroke="#1c2130"/>
+    <text x="44" y="292" fill="#5c657a">08-30 08:15:44</text>
+    <text x="220" y="292" fill="#c7cbd6">api-gateway</text>
+    <text x="380" y="292" fill="#f25c5c">error</text>
+    <text x="470" y="292" fill="#c7cbd6">JWT verification failed: token expired</text>
+
+    <line x1="44" y1="304" x2="1132" y2="304" stroke="#1c2130"/>
+    <text x="44" y="332" fill="#5c657a">08-29 22:03:11</text>
+    <text x="220" y="332" fill="#c7cbd6">api-gateway</text>
+    <text x="380" y="332" fill="#f2c94c">warning</text>
+    <text x="470" y="332" fill="#c7cbd6">Rate limit approaching for key sk_live_***3f2</text>
+
+    <line x1="44" y1="344" x2="1132" y2="344" stroke="#1c2130"/>
+    <text x="44" y="372" fill="#5c657a">08-29 19:58:37</text>
+    <text x="220" y="372" fill="#c7cbd6">api-gateway</text>
+    <text x="380" y="372" fill="#f25c5c">error</text>
+    <text x="470" y="372" fill="#c7cbd6">ECONNREFUSED 127.0.0.1:5432 (db pool exhausted)</text>
+  </g>
+
+  <text x="44" y="600" fill="#5c657a" font-size="12" font-family="'JetBrains Mono', monospace">1–4 sur 47 résultats · export CSV disponible</text>
+
+  <!-- placeholder watermark -->
+  <rect x="0" y="0" width="1200" height="700" fill="#0b0d12" opacity="0.55"/>
+  <text x="600" y="340" text-anchor="middle" fill="#e8eaf0" font-size="26" font-weight="700">Aperçu illustratif — pas une vraie capture</text>
+  <text x="600" y="372" text-anchor="middle" fill="#8b93a7" font-size="15">À remplacer par une capture réelle du Log Explorer — voir docs/screenshots/README.md</text>
+</svg>

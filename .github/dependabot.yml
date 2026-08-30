@@ -1,0 +1,63 @@
+version: 2
+
+updates:
+  # Dépendances npm du backend (racine du dépôt)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      # Regroupe les mises à jour mineures/patch en une seule PR pour
+      # réduire le bruit ; les majeures restent isolées (breaking changes).
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Le champ engines.node est verrouillé sur >=22 ; on ne veut pas que
+      # Dependabot propose des bumps de @types/node ou similaires en dehors
+      # de cette contrainte sans revue explicite.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+
+  # Dépendances npm du frontend (Vue 3 + Vite)
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Actions utilisées dans les workflows CI
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "ci"
+    groups:
+      github-actions:
+        update-types:
+          - "minor"
+          - "patch"

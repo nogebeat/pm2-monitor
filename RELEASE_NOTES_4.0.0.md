@@ -1,11 +1,10 @@
-# Changelog
+# v4.0.0
 
-Toutes les modifications notables de ce projet seront documentées ici.
-
-Le format suit les principes de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/),
-et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
-
-## [Non publié]
+Première coupure de version taguée du projet (phases 1-21) : i18n FR/EN,
+gouvernance open source, CI, hygiène Git, et un lot de corrections
+critiques sur `deploy.sh` et la suite de tests. Tout ce qui suit était
+jusqu'ici accumulé sous "[Non publié]" dans le CHANGELOG, sans tag ni
+release correspondants.
 
 ## [4.0.0] - 2026-08-30
 
@@ -90,10 +89,4 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
   `*.test.js` à la main en JS pur avant de les passer explicitement à
   `node --test` — comportement documenté et stable.
 
-## Format des entrées futures
-
-Chaque nouvelle version doit lister ses changements sous les catégories :
-`Ajouté`, `Modifié`, `Déprécié`, `Supprimé`, `Corrigé`, `Sécurité`.
-
-[Non publié]: https://github.com/nogebeat/pm2-monitor/compare/v4.0.0...HEAD
-[4.0.0]: https://github.com/nogebeat/pm2-monitor/releases/tag/v4.0.0
+**Full Changelog**: https://github.com/nogebeat/pm2-monitor/commits/v4.0.0
