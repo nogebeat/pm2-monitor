@@ -42,5 +42,21 @@ module.exports = [
       },
     },
   },
+  {
+    // docs/ : landing page statique (HTML/CSS/JS vanilla, sans build), pas
+    // partie du backend Node — même logique que frontend/eslint.config.js,
+    // en plus léger vu qu'il n'y a qu'un seul fichier JS. Override APRÈS le
+    // bloc générique `files: ["**/*.js"]` ci-dessus, qui sinon la traiterait
+    // comme du CommonJS Node (`sourceType`, globals Node) et ferait échouer
+    // `npm run lint` sur `window`/`document`/`fetch`/... signalés "undef".
+    files: ["docs/assets/*.js"],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: "script",
+      globals: {
+        ...globals.browser,
+      },
+    },
+  },
   prettierConfig,
 ];
