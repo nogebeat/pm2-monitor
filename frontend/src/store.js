@@ -156,12 +156,17 @@ export const state = reactive({
   modal: null,
 });
 
-function detectLevel(text) {
-  const t = text.toLowerCase();
-  if (/\berror\b|\bexception\b|\bfatal\b/.test(t)) return "error";
-  if (/\bwarn(ing)?\b/.test(t)) return "warn";
+// Même règle que lib/log-store.js#classifyLevel (backend) — notamment le
+// fallback selon le flux (`streamType`) : une ligne stderr sans mot-clé
+// explicite doit rester "error" ici aussi, sinon le filtre par niveau ne
+// donne pas le même résultat en direct (LogsPanel) qu'une fois persistée
+// (Log Explorer, qui utilise classifyLevel côté serveur).
+function detectLevel(text, streamType) {
+  const t = String(text).toLowerCase();
+  if (/\b(error|err!|exception|fatal|traceback|fail(?:ed|ure)?)\b/.test(t)) return "error";
+  if (/\b(warn(?:ing)?|deprecat(?:ed|ion))\b/.test(t)) return "warn";
   if (/\bdebug\b/.test(t)) return "debug";
-  return "info";
+  return streamType === "err" ? "error" : "info";
 }
 
 export function notifyError(err) {
@@ -270,7 +275,7 @@ export function loadBacklog(id) {
           type: row.type,
           data: row.text,
           at: null, // pas d'horodatage exact disponible pour l'historique natif PM2
-          level: detectLevel(row.text),
+          level: detectLevel(row.text, row.type),
           backlog: true,
         });
       });
@@ -320,8 +325,20 @@ export function loadLogsStats() {
 }
 
 // ---------- Logs ----------
-
+//
+// Filtrage appliqué UNIQUEMENT à l'affichage (visibleLogs), jamais à
+// l'ingestion : state.logs accumule tout ce qui arrive (backlog ET direct),
+// dans la limite de MAX_LOG_LINES. Ça évite deux problèmes qu'avait
+// l'ancienne version :
+//  1) le backlog (loadBacklog) poussait ses lignes sans jamais passer par ce
+//     filtre, contrairement aux lignes reçues en direct par le socket "log" —
+//     changer le filtre stdout/stderr ou niveau n'avait donc aucun effet sur
+//     les lignes déjà chargées à la sélection d'un process ;
+//  2) filtrer dès l'ingestion perdait définitivement les lignes qui ne
+//     matchaient pas au moment de leur arrivée : re-choisir "tout" ensuite ne
+//     les faisait pas réapparaître, puisqu'elles n'avaient jamais été stockées.
 function passesFilters(entry) {
+  if (entry.kind === "event") return true;
   if (state.filter !== "all" && state.filter !== entry.type) return false;
   if (state.levelFilter !== "all" && entry.level && state.levelFilter !== entry.level) return false;
   if (state.search) {
@@ -332,7 +349,7 @@ function passesFilters(entry) {
       } catch (e) {
         /* regex invalide : on n'exclut rien */
       }
-    } else if (!entry.data.toLowerCase().includes(state.search)) {
+    } else if (!entry.data.toLowerCase().includes(state.search.toLowerCase())) {
       return false;
     }
   }
@@ -350,9 +367,7 @@ function pushLog(entry) {
 export function togglePause() {
   state.paused = !state.paused;
   if (!state.paused) {
-    state.pausedQueue.forEach((entry) => {
-      if (passesFilters(entry)) pushLog(entry);
-    });
+    state.pausedQueue.forEach((entry) => pushLog(entry));
     state.pausedQueue = [];
   }
 }
@@ -363,19 +378,7 @@ export function clearLogs() {
 }
 
 export function visibleLogs() {
-  if (!state.search) return state.logs;
-  const q = state.regexMode ? state.search : state.search.toLowerCase();
-  return state.logs.filter((entry) => {
-    if (entry.kind === "event") return true;
-    if (state.regexMode) {
-      try {
-        return new RegExp(q, "i").test(entry.data);
-      } catch (e) {
-        return true;
-      }
-    }
-    return entry.data.toLowerCase().includes(q);
-  });
+  return state.logs.filter(passesFilters);
 }
 
 // ---------- Historique CPU/RAM (vue système) ----------
@@ -1036,7 +1039,7 @@ function passesLogExplorerLiveFilters(entry) {
   if (ex.selectedServers.length && !ex.selectedServers.includes(serverKey)) return false;
   if (ex.filters.type !== "all" && ex.filters.type !== entry.type) return false;
 
-  const level = detectLevel(entry.data);
+  const level = detectLevel(entry.data, entry.type);
   if (ex.filters.level !== "all" && ex.filters.level !== level) return false;
 
   if (ex.filters.query) {
@@ -1084,13 +1087,14 @@ socket.on("log", (entry) => {
 
   if (state.selected !== entry.pm_id) return;
 
-  const full = { ...entry, kind: "log", level: detectLevel(entry.data) };
+  const full = { ...entry, kind: "log", level: detectLevel(entry.data, entry.type) };
 
+  // Le filtrage (type/niveau/recherche) est appliqué à l'affichage par
+  // visibleLogs(), pas ici : voir le commentaire au-dessus de passesFilters().
   if (state.paused) {
     state.pausedQueue.push(full);
     return;
   }
-  if (!passesFilters(full)) return;
   pushLog(full);
 });
 
@@ -1104,7 +1108,7 @@ socket.on("log", (entry) => {
   state.logExplorer.results.unshift({
     t: entry.at || Date.now(),
     type: entry.type,
-    level: detectLevel(entry.data),
+    level: detectLevel(entry.data, entry.type),
     text: entry.data,
     line: null,
     source: { serverKey: entry.serverId || "local", name: entry.process },

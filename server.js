@@ -338,10 +338,10 @@ app.use("/api/backup", backupRouter());
 app.use("/api/reports", reportsRouter({ pm2, fmtProcess, visibleProcesses, processHistory }));
 
 // Process : liste + actions de base/étendues + métriques (lib/routes/processes.js)
-app.use("/api", processesRouter({ processHistory }));
+app.use("/api", processesRouter({ processHistory, logStore }));
 
 // Actions sur le daemon PM2 lui-même (lib/routes/pm2-daemon.js)
-app.use("/api/pm2", pm2DaemonRouter());
+app.use("/api/pm2", pm2DaemonRouter({ logStore }));
 
 // Système : snapshot + historique (lib/routes/system.js)
 app.use("/api/system", systemRouter({ historyStore }));

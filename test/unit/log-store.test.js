@@ -335,3 +335,50 @@ test("LogStore#searchMulti — multi-process / multi-serveur", async (t) => {
     }
   });
 });
+
+test("LogStore — clear() / clearAll()", async (t) => {
+  await t.test("clear() supprime le fichier actif ET les archives d'UNE instance, laisse les autres intactes", () => {
+    const { store, dir } = makeStore();
+    try {
+      // Instance ciblée : un actif + une archive déjà compressée.
+      store.appendPacket(1, "api", "out", "ligne active\n", Date.now());
+      fs.writeFileSync(path.join(dir, "proc-1-api-2026-01-01T00-00-00-000Z.jsonl.gz"), "archive");
+      // Autre process : ne doit pas être touché.
+      store.appendPacket(2, "worker", "out", "autre process\n", Date.now());
+
+      const { removed } = store.clear("local", 1, "api");
+      assert.equal(removed, 2);
+
+      const remaining = fs.readdirSync(dir).sort();
+      assert.deepEqual(remaining, ["proc-2-worker.jsonl"]);
+    } finally {
+      cleanup(dir);
+    }
+  });
+
+  await t.test("clear() sur une instance sans fichiers ne fait rien (removed: 0)", () => {
+    const { store, dir } = makeStore();
+    try {
+      const { removed } = store.clear("local", 99, "inconnu");
+      assert.equal(removed, 0);
+    } finally {
+      cleanup(dir);
+    }
+  });
+
+  await t.test("clearAll() supprime tous les process/serveurs confondus", () => {
+    const { store, dir } = makeStore();
+    try {
+      store.appendPacket(1, "api", "out", "a\n", Date.now());
+      store.appendPacket(2, "worker", "out", "b\n", Date.now());
+      store.appendPacket(3, "api", "out", "c\n", Date.now(), "remote-1");
+      fs.writeFileSync(path.join(dir, "proc-1-api-2026-01-01T00-00-00-000Z.jsonl.gz"), "archive");
+
+      const { removed } = store.clearAll();
+      assert.equal(removed, 4);
+      assert.deepEqual(fs.readdirSync(dir), []);
+    } finally {
+      cleanup(dir);
+    }
+  });
+});
