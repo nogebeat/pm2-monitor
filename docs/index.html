@@ -8,18 +8,42 @@
       name="description"
       content="Dashboard complet, auto-hébergé et open source pour PM2 : process, logs en direct, alertes, auto-healing, multi-serveur. Un serveur Node.js, aucun SaaS."
     />
+    <meta
+      name="keywords"
+      content="pm2, pm2 monitor, monitoring nodejs, dashboard pm2, process manager, self-hosted monitoring, auto-healing, health checks, open source, node.js"
+    />
+    <meta name="author" content="PM2 Monitor contributors" />
+    <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#0a0e11" />
+    <link rel="canonical" href="https://pm2-monitor.noge.me/" />
 
+    <!-- Open Graph / Facebook / LinkedIn -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PM2 Monitor" />
     <meta property="og:title" content="PM2 Monitor — dashboard temps réel pour tes apps PM2" />
     <meta
       property="og:description"
       content="Process, logs en direct, alertes, auto-healing, multi-serveur. Auto-hébergé, open source, MIT."
     />
-    <meta property="og:url" content="https://github.com/nogebeat/pm2-monitor" />
+    <meta property="og:url" content="https://pm2-monitor.noge.me/" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta property="og:image" content="https://pm2-monitor.noge.me/assets/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="PM2 Monitor — dashboard temps réel pour tes apps PM2" />
+
+    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PM2 Monitor — dashboard temps réel pour tes apps PM2" />
+    <meta
+      name="twitter:description"
+      content="Process, logs en direct, alertes, auto-healing, multi-serveur. Auto-hébergé, open source, MIT."
+    />
+    <meta name="twitter:image" content="https://pm2-monitor.noge.me/assets/og-image.png" />
 
     <link rel="icon" href="../public/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -29,6 +53,26 @@
     />
 
     <link rel="stylesheet" href="assets/style.css" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "PM2 Monitor",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Linux, macOS, Windows",
+        "url": "https://pm2-monitor.noge.me/",
+        "image": "https://pm2-monitor.noge.me/assets/og-image.png",
+        "description": "Dashboard complet, auto-hébergé et open source pour PM2 : process, logs en direct, alertes, auto-healing, multi-serveur.",
+        "license": "https://opensource.org/licenses/MIT",
+        "codeRepository": "https://github.com/nogebeat/pm2-monitor",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
     <noscript
       ><style>
         [data-reveal] {
@@ -53,11 +97,15 @@
         </a>
 
         <div class="nav-links">
-          <a href="#features">Fonctionnalités</a>
-          <a href="#install">Installation</a>
-          <a href="#log-explorer">Log Explorer</a>
-          <a href="#open-source">Open source</a>
-          <a href="https://github.com/nogebeat/pm2-monitor/tree/main/docs" target="_blank" rel="noopener"
+          <a href="#features" data-i18n="nav.features">Fonctionnalités</a>
+          <a href="#install" data-i18n="nav.install">Installation</a>
+          <a href="#log-explorer" data-i18n="nav.logexplorer">Log Explorer</a>
+          <a href="#open-source" data-i18n="nav.opensource">Open source</a>
+          <a
+            href="https://github.com/nogebeat/pm2-monitor/tree/main/docs"
+            target="_blank"
+            rel="noopener"
+            data-i18n="nav.docs"
             >Documentation</a
           >
           <a
@@ -76,7 +124,21 @@
           </a>
         </div>
 
-        <button class="nav-toggle" aria-label="Ouvrir le menu" aria-expanded="false">
+        <button
+          class="lang-switch"
+          id="lang-switch"
+          type="button"
+          aria-label="Switch language / changer de langue"
+        >
+          <span data-lang-current>FR</span>
+        </button>
+
+        <button
+          class="nav-toggle"
+          aria-label="Ouvrir le menu"
+          aria-expanded="false"
+          data-i18n-aria="nav.menuLabel"
+        >
           <svg
             viewBox="0 0 24 24"
             fill="none"
@@ -96,9 +158,9 @@
     <header class="hero" id="top">
       <div class="container">
         <div class="hero-copy" data-reveal>
-          <span class="eyebrow">auto-hébergé · open source · mit</span>
-          <h1>Tes process PM2,<br /><span class="accent">en direct</span>.</h1>
-          <p class="lede">
+          <span class="eyebrow" data-i18n="hero.eyebrow">auto-hébergé · open source · mit</span>
+          <h1 data-i18n-html="hero.h1">Tes process PM2,<br /><span class="accent">en direct</span>.</h1>
+          <p class="lede" data-i18n="hero.lede">
             Statut, CPU/RAM, logs stdout/stderr, alertes, auto-healing, multi-serveur — un seul dashboard qui
             tourne sur ta machine, pas sur celle de quelqu'un d'autre. Aucun compte à créer, aucun SaaS, juste
             ton PM2.
@@ -115,10 +177,10 @@
                   d="M12 .5C5.65.5.5 5.65.5 12c0 5.1 3.29 9.42 7.86 10.95.57.1.79-.25.79-.55 0-.27-.01-1.16-.02-2.11-3.2.7-3.87-1.36-3.87-1.36-.53-1.33-1.29-1.69-1.29-1.69-1.05-.72.08-.7.08-.7 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.04 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.58.24 2.75.12 3.04.74.81 1.19 1.83 1.19 3.09 0 4.41-2.7 5.39-5.26 5.67.41.36.78 1.08.78 2.17 0 1.57-.01 2.83-.01 3.22 0 .3.21.66.8.55A10.98 10.98 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"
                 />
               </svg>
-              Voir sur GitHub
+              <span data-i18n="cta.github">Voir sur GitHub</span>
             </a>
             <a href="#install" class="btn btn-ghost">
-              Installation
+              <span data-i18n="cta.install">Installation</span>
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
@@ -153,7 +215,8 @@
                 <path
                   d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.6 2.8 5.5 3.1 5.5 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4.1 9.5c0 4.6 2.7 5.7 5.5 6-.4.4-.4.9-.5 1.5V21"
                 /></svg
-              ><span data-star-count hidden id="hero-stars"></span> sur GitHub</span
+              ><span data-star-count hidden id="hero-stars"></span
+              ><span data-i18n="hero.meta.starsSuffix"> sur GitHub</span></span
             >
           </div>
         </div>
@@ -164,7 +227,7 @@
             <div class="mockup-bar">
               <div class="mockup-dots"><i></i><i></i><i></i></div>
               <span class="mockup-path">pm2-monitor — production</span>
-              <span class="mockup-live"><i></i>3 en ligne</span>
+              <span class="mockup-live"><i></i><span data-i18n="mockup.online">3 en ligne</span></span>
             </div>
             <div class="mockup-body">
               <div class="mockup-procs">
@@ -201,11 +264,11 @@
      =================================================================== -->
     <div class="tech-strip">
       <div class="container">
-        <span class="label">Sous le capot</span>
+        <span class="label" data-i18n="tech.label">Sous le capot</span>
         <div class="tech-list">
           <span>Node.js</span> · <span>Express</span> · <span>Socket.IO</span> · <span>Vue 3</span> ·
           <span>Vite</span> · <span>SQLite</span> / <span>MySQL</span> ·
-          <span>zéro build à installer côté serveur</span>
+          <span data-i18n="tech.nobuild">zéro build à installer côté serveur</span>
         </div>
       </div>
     </div>
@@ -216,9 +279,9 @@
     <section id="features">
       <div class="container">
         <div class="section-head" data-reveal>
-          <span class="eyebrow">fonctionnalités</span>
-          <h2>Tout ce que <code>pm2 monit</code> ne te montre pas.</h2>
-          <p>
+          <span class="eyebrow" data-i18n="features.eyebrow">fonctionnalités</span>
+          <h2 data-i18n-html="features.h2">Tout ce que <code>pm2 monit</code> ne te montre pas.</h2>
+          <p data-i18n="features.lede">
             21 phases de développement, un seul dashboard. Chaque brique s'appuie sur le même flux temps réel
             — pas de système parallèle à maintenir.
           </p>
@@ -240,8 +303,8 @@
                 <path d="M7 6.5h.01M7 17h.01" />
               </svg>
             </div>
-            <h3>Process en un coup d'œil</h3>
-            <p>
+            <h3 data-i18n="feat.processes.title">Process en un coup d'œil</h3>
+            <p data-i18n="feat.processes.body">
               Statut, CPU, mémoire, restarts, uptime, mode fork/cluster. Start / restart / reload / stop en un
               clic, scale et hot-reload de la config sans passer par le terminal.
             </p>
@@ -264,8 +327,8 @@
                 <path d="M7.5 9l2.5 2.5L7.5 14M12.5 14h4" />
               </svg>
             </div>
-            <h3>Logs en direct, sans latence</h3>
-            <p>
+            <h3 data-i18n="feat.logs.title">Logs en direct, sans latence</h3>
+            <p data-i18n-html="feat.logs.body">
               stdout/stderr streamés par WebSocket, comme <code>pm2 logs</code> mais dans le navigateur.
               Pause, recherche regex, coloration ANSI, export brut ou par période exacte.
             </p>
@@ -289,7 +352,7 @@
               </svg>
             </div>
             <h3>Log Explorer</h3>
-            <p>
+            <p data-i18n-html="feat.explorer.body">
               Recherche full-text ou regex à travers plusieurs process <em>et</em> plusieurs serveurs en un
               seul appel, avec contexte avant/après et export streamé.
             </p>
@@ -312,12 +375,12 @@
                 <circle cx="20" cy="6" r="2" />
               </svg>
             </div>
-            <h3>Dashboard global</h3>
-            <p>
+            <h3 data-i18n="feat.dashboard.title">Dashboard global</h3>
+            <p data-i18n-html="feat.dashboard.body">
               Statut <code>HEALTHY / WARNING / CRITICAL</code> calculé automatiquement : système, process,
               alertes et timeline d'événements, en un seul coup d'œil au démarrage.
             </p>
-            <div class="tag-row"><span class="pill">temps réel</span></div>
+            <div class="tag-row"><span class="pill" data-i18n="feat.dashboard.pill">temps réel</span></div>
           </article>
 
           <article class="feature-card" data-reveal>
@@ -334,8 +397,8 @@
                 <path d="M9.5 14.5A2.5 2.5 0 0 0 12 17" />
               </svg>
             </div>
-            <h3>Alertes &amp; health checks</h3>
-            <p>
+            <h3 data-i18n="feat.alerts.title">Alertes &amp; health checks</h3>
+            <p data-i18n="feat.alerts.body">
               Seuils CPU/RAM/restarts avec cooldown et déduplication, plus des sondes HTTP/TCP/Command
               indépendantes du statut PM2 pour surveiller ce que PM2 ne voit pas.
             </p>
@@ -359,7 +422,7 @@
               </svg>
             </div>
             <h3>Auto-Healing</h3>
-            <p>
+            <p data-i18n="feat.autoheal.body">
               Redémarrage automatique d'un process qui crash en boucle, avec garde-fous configurables et
               journalisation de chaque intervention. Désactivé par défaut.
             </p>
@@ -382,8 +445,8 @@
                 <path d="M6.7 7.6 10.5 16M17.3 7.6 13.5 16M7.2 6h9.6" />
               </svg>
             </div>
-            <h3>Multi-serveur</h3>
-            <p>
+            <h3 data-i18n="feat.multiserver.title">Multi-serveur</h3>
+            <p data-i18n="feat.multiserver.body">
               Connecte plusieurs machines via des agents distants et surveille toute ta flotte PM2 depuis un
               seul écran — process, logs et recherche compris.
             </p>
@@ -403,8 +466,8 @@
                 <path d="M3 5l18 7-18 7 4-7-4-7Z" />
               </svg>
             </div>
-            <h3>Notifications multi-canal</h3>
-            <p>
+            <h3 data-i18n="feat.notif.title">Notifications multi-canal</h3>
+            <p data-i18n="feat.notif.body">
               Email, Discord, Telegram, Slack, webhook générique. Routing par règles depuis le moteur
               d'alertes, avec file d'attente, retry et déduplication.
             </p>
@@ -428,8 +491,8 @@
                 <path d="M11.5 12.5 20 4M17 8l2.5 2.5M14 11l2 2" />
               </svg>
             </div>
-            <h3>RBAC, clés API &amp; audit</h3>
-            <p>
+            <h3 data-i18n="feat.rbac.title">RBAC, clés API &amp; audit</h3>
+            <p data-i18n="feat.rbac.body">
               Permissions fines par app et par serveur, clés API scopées pour intégrer PM2 Monitor ailleurs,
               et un journal d'audit append-only de chaque action sensible.
             </p>
@@ -445,9 +508,9 @@
     <section id="install">
       <div class="container">
         <div class="section-head" data-reveal>
-          <span class="eyebrow">installation</span>
-          <h2>En route en trois commandes.</h2>
-          <p>
+          <span class="eyebrow" data-i18n="install.eyebrow">installation</span>
+          <h2 data-i18n="install.h2">En route en trois commandes.</h2>
+          <p data-i18n-html="install.lede">
             <code>deploy.sh</code> installe Node.js et PM2 si besoin, compile le frontend, configure nginx +
             HTTPS en option, et fait un rollback automatique si une mise à jour casse tout.
           </p>
@@ -455,17 +518,20 @@
 
         <div class="install-grid">
           <div class="install-card" data-reveal>
-            <div class="install-step"><b>01</b> cloner le dépôt</div>
-            <h3>Récupère le code</h3>
-            <p>Un simple clone Git, aucune inscription ni token requis.</p>
+            <div class="install-step">
+              <b>01</b> <span data-i18n="install.step1.tag">cloner le dépôt</span>
+            </div>
+            <h3 data-i18n="install.step1.title">Récupère le code</h3>
+            <p data-i18n="install.step1.body">Un simple clone Git, aucune inscription ni token requis.</p>
             <div class="code-block">
-              <pre><span class="comment"># sur ton serveur</span>
+              <pre><span class="comment" data-i18n="install.step1.comment"># sur ton serveur</span>
 git clone https://github.com/nogebeat/pm2-monitor.git
 <span class="dim">cd</span> pm2-monitor</pre>
               <button
                 class="copy-btn"
                 data-copy="git clone https://github.com/nogebeat/pm2-monitor.git && cd pm2-monitor"
                 aria-label="Copier la commande"
+                data-i18n-aria="install.copyCmd"
               >
                 <svg
                   class="icon-copy"
@@ -495,17 +561,22 @@ git clone https://github.com/nogebeat/pm2-monitor.git
           </div>
 
           <div class="install-card" data-reveal>
-            <div class="install-step"><b>02</b> installer &amp; démarrer</div>
-            <h3>Un script, toutes les situations</h3>
-            <p>Détecte ce qui est déjà en place, ne réinstalle rien inutilement.</p>
+            <div class="install-step">
+              <b>02</b> <span data-i18n="install.step2.tag">installer &amp; démarrer</span>
+            </div>
+            <h3 data-i18n="install.step2.title">Un script, toutes les situations</h3>
+            <p data-i18n="install.step2.body">
+              Détecte ce qui est déjà en place, ne réinstalle rien inutilement.
+            </p>
             <div class="code-block">
-              <pre><span class="comment"># installe, build, démarre sous PM2</span>
+              <pre><span class="comment" data-i18n="install.step2.comment"># installe, build, démarre sous PM2</span>
 chmod +x deploy.sh
 ./deploy.sh install</pre>
               <button
                 class="copy-btn"
                 data-copy="chmod +x deploy.sh && ./deploy.sh install"
                 aria-label="Copier la commande"
+                data-i18n-aria="install.copyCmd"
               >
                 <svg
                   class="icon-copy"
@@ -535,13 +606,22 @@ chmod +x deploy.sh
           </div>
 
           <div class="install-card" data-reveal>
-            <div class="install-step"><b>03</b> ouvrir le dashboard</div>
-            <h3>Port 4200 par défaut</h3>
-            <p>Accès direct par IP, ou derrière nginx + HTTPS si tu as fourni un domaine.</p>
+            <div class="install-step">
+              <b>03</b> <span data-i18n="install.step3.tag">ouvrir le dashboard</span>
+            </div>
+            <h3 data-i18n="install.step3.title">Port 4200 par défaut</h3>
+            <p data-i18n="install.step3.body">
+              Accès direct par IP, ou derrière nginx + HTTPS si tu as fourni un domaine.
+            </p>
             <div class="code-block">
-              <pre><span class="comment"># identifiants générés à l'install</span>
+              <pre><span class="comment" data-i18n="install.step3.comment"># identifiants générés à l'install</span>
 <span class="dim">open</span> http://ton-serveur:4200</pre>
-              <button class="copy-btn" data-copy="http://ton-serveur:4200" aria-label="Copier l'adresse">
+              <button
+                class="copy-btn"
+                data-copy="http://ton-serveur:4200"
+                aria-label="Copier l'adresse"
+                data-i18n-aria="install.copyAddr"
+              >
                 <svg
                   class="icon-copy"
                   viewBox="0 0 24 24"
@@ -580,7 +660,7 @@ chmod +x deploy.sh
         <div class="showcase-copy">
           <div class="section-head" data-reveal>
             <span class="eyebrow">log explorer</span>
-            <h2>Retrouve la ligne qui explique l'incident, pas dans dix onglets.</h2>
+            <h2 data-i18n="explorer.h2">Retrouve la ligne qui explique l'incident, pas dans dix onglets.</h2>
           </div>
           <ul class="check-list" data-reveal>
             <li>
@@ -594,7 +674,7 @@ chmod +x deploy.sh
               >
                 <path d="M20 6 9 17l-5-5" />
               </svg>
-              <span
+              <span data-i18n-html="explorer.item1"
                 ><b>Recherche unifiée</b> — full-text ou regex, sur un process, plusieurs process, ou
                 plusieurs serveurs en même temps.</span
               >
@@ -610,7 +690,7 @@ chmod +x deploy.sh
               >
                 <path d="M20 6 9 17l-5-5" />
               </svg>
-              <span
+              <span data-i18n-html="explorer.item2"
                 ><b>Filtres combinables</b> — niveau (info/warn/error/debug), flux (stdout/stderr), plage de
                 dates précise.</span
               >
@@ -626,7 +706,7 @@ chmod +x deploy.sh
               >
                 <path d="M20 6 9 17l-5-5" />
               </svg>
-              <span
+              <span data-i18n-html="explorer.item3"
                 ><b>Contexte automatique</b> — les lignes juste avant/après chaque résultat, sans changer
                 d'écran.</span
               >
@@ -642,7 +722,7 @@ chmod +x deploy.sh
               >
                 <path d="M20 6 9 17l-5-5" />
               </svg>
-              <span
+              <span data-i18n-html="explorer.item4"
                 ><b>Garde-fous intégrés</b> — regex bornées et anti-ReDoS, limites de lignes scannées : jamais
                 une requête non bornée.</span
               >
@@ -660,7 +740,7 @@ chmod +x deploy.sh
               ECONNREFUSED<span class="mockup-caret"></span>
             </div>
             <span class="chip active">api-payments</span>
-            <span class="chip">tous les serveurs</span>
+            <span class="chip" data-i18n="explorer.allServers">tous les serveurs</span>
             <span class="chip">err</span>
           </div>
           <div class="explorer-rows">
@@ -709,20 +789,30 @@ chmod +x deploy.sh
               margin-top: 14px;
               line-height: 1.15;
             "
+            data-i18n="oss.h2"
           >
             100% open source, sans surprise.
           </h2>
-          <p style="margin-top: 16px; color: var(--text-muted); font-size: 1.05rem; max-width: 52ch">
+          <p
+            style="margin-top: 16px; color: var(--text-muted); font-size: 1.05rem; max-width: 52ch"
+            data-i18n="oss.lede"
+          >
             Licence MIT. Zéro télémétrie, zéro palier payant caché — le code que tu fais tourner est
             exactement celui du dépôt. Les PR sont les bienvenues.
           </p>
           <div class="badges">
             <img
               src="https://github.com/nogebeat/pm2-monitor/actions/workflows/ci.yml/badge.svg"
+              data-i18n-alt="oss.badge.ci"
               alt="Statut CI"
               loading="lazy"
             />
-            <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="Licence MIT" loading="lazy" />
+            <img
+              src="https://img.shields.io/badge/License-MIT-yellow.svg"
+              data-i18n-alt="oss.badge.mit"
+              alt="Licence MIT"
+              loading="lazy"
+            />
             <img
               src="https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg"
               alt="Node.js >= 22"
@@ -741,7 +831,7 @@ chmod +x deploy.sh
               rel="noopener"
               class="btn btn-ghost"
             >
-              Guide de contribution
+              <span data-i18n="oss.contribGuide">Guide de contribution</span>
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
@@ -758,6 +848,7 @@ chmod +x deploy.sh
               target="_blank"
               rel="noopener"
               class="btn btn-ghost"
+              data-i18n="oss.reportBug"
               >Signaler un bug</a
             >
           </div>
@@ -777,9 +868,9 @@ chmod +x deploy.sh
                 <rect x="4" y="10" width="16" height="10" rx="2" />
                 <path d="M8 10V7a4 4 0 0 1 8 0v3" />
               </svg>
-              <h4>Auto-hébergé, toujours</h4>
+              <h4 data-i18n="oss.card1.title">Auto-hébergé, toujours</h4>
             </div>
-            <p>
+            <p data-i18n="oss.card1.body">
               Tes logs et tes métriques ne quittent jamais ta machine. Base SQLite locale par défaut,
               MySQL/MariaDB en option si tu en as déjà un.
             </p>
@@ -797,9 +888,9 @@ chmod +x deploy.sh
                 <path d="M4 17V7l8-4 8 4v10l-8 4-8-4Z" />
                 <path d="M4 7l8 4 8-4M12 11v10" />
               </svg>
-              <h4>Un script d'install qui fait le travail</h4>
+              <h4 data-i18n="oss.card2.title">Un script d'install qui fait le travail</h4>
             </div>
-            <p>
+            <p data-i18n-html="oss.card2.body">
               <code>deploy.sh</code> gère Node.js, PM2, nginx, HTTPS, le pare-feu, et fait un rollback
               automatique si une mise à jour casse le démarrage.
             </p>
@@ -813,9 +904,9 @@ chmod +x deploy.sh
      =================================================================== -->
     <section class="final-cta">
       <div class="container">
-        <span class="eyebrow">à toi de jouer</span>
-        <h2 data-reveal>Prêt à voir ce que fait vraiment ton serveur ?</h2>
-        <p data-reveal>
+        <span class="eyebrow" data-i18n="finalcta.eyebrow">à toi de jouer</span>
+        <h2 data-reveal data-i18n="finalcta.h2">Prêt à voir ce que fait vraiment ton serveur ?</h2>
+        <p data-reveal data-i18n="finalcta.lede">
           Cinq minutes d'installation, un dashboard qui reste à toi. Aucune carte bancaire, aucune limite
           artificielle.
         </p>
@@ -831,9 +922,9 @@ chmod +x deploy.sh
                 d="M12 .5C5.65.5.5 5.65.5 12c0 5.1 3.29 9.42 7.86 10.95.57.1.79-.25.79-.55 0-.27-.01-1.16-.02-2.11-3.2.7-3.87-1.36-3.87-1.36-.53-1.33-1.29-1.69-1.29-1.69-1.05-.72.08-.7.08-.7 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.04 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.58.24 2.75.12 3.04.74.81 1.19 1.83 1.19 3.09 0 4.41-2.7 5.39-5.26 5.67.41.36.78 1.08.78 2.17 0 1.57-.01 2.83-.01 3.22 0 .3.21.66.8.55A10.98 10.98 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"
               />
             </svg>
-            Voir sur GitHub
+            <span data-i18n="cta.github">Voir sur GitHub</span>
           </a>
-          <a href="#install" class="btn btn-ghost">Guide d'installation</a>
+          <a href="#install" class="btn btn-ghost" data-i18n="finalcta.installGuide">Guide d'installation</a>
         </div>
       </div>
     </section>
@@ -852,22 +943,23 @@ chmod +x deploy.sh
               </svg>
               pm2-monitor
             </a>
-            <p>
+            <p data-i18n="footer.brand.body">
               Dashboard temps réel auto-hébergé pour PM2 — process, logs, alertes, auto-healing,
               multi-serveur. MIT, par et pour des devs.
             </p>
           </div>
 
           <div class="footer-col">
-            <h5>Produit</h5>
+            <h5 data-i18n="footer.product.title">Produit</h5>
             <ul>
-              <li><a href="#features">Fonctionnalités</a></li>
-              <li><a href="#install">Installation</a></li>
+              <li><a href="#features" data-i18n="nav.features">Fonctionnalités</a></li>
+              <li><a href="#install" data-i18n="nav.install">Installation</a></li>
               <li>
                 <a
                   href="https://github.com/nogebeat/pm2-monitor/blob/main/docs/ARCHITECTURE.md"
                   target="_blank"
                   rel="noopener"
+                  data-i18n="footer.product.architecture"
                   >Architecture</a
                 >
               </li>
@@ -876,6 +968,7 @@ chmod +x deploy.sh
                   href="https://github.com/nogebeat/pm2-monitor/blob/main/CHANGELOG.md"
                   target="_blank"
                   rel="noopener"
+                  data-i18n="footer.product.changelog"
                   >Changelog</a
                 >
               </li>
@@ -883,13 +976,14 @@ chmod +x deploy.sh
           </div>
 
           <div class="footer-col">
-            <h5>Documentation</h5>
+            <h5 data-i18n="footer.docs.title">Documentation</h5>
             <ul>
               <li>
                 <a
                   href="https://github.com/nogebeat/pm2-monitor/tree/main/docs/multi-server"
                   target="_blank"
                   rel="noopener"
+                  data-i18n="footer.docs.multiserver"
                   >Multi-serveur</a
                 >
               </li>
@@ -898,6 +992,7 @@ chmod +x deploy.sh
                   href="https://github.com/nogebeat/pm2-monitor/tree/main/docs/notifications"
                   target="_blank"
                   rel="noopener"
+                  data-i18n="footer.docs.notifications"
                   >Notifications</a
                 >
               </li>
@@ -922,6 +1017,7 @@ chmod +x deploy.sh
                   href="https://github.com/nogebeat/pm2-monitor/tree/main/docs/rbac-api-keys"
                   target="_blank"
                   rel="noopener"
+                  data-i18n="footer.docs.rbac"
                   >RBAC &amp; clés API</a
                 >
               </li>
@@ -929,10 +1025,14 @@ chmod +x deploy.sh
           </div>
 
           <div class="footer-col">
-            <h5>Communauté</h5>
+            <h5 data-i18n="footer.community.title">Communauté</h5>
             <ul>
               <li>
-                <a href="https://github.com/nogebeat/pm2-monitor/issues" target="_blank" rel="noopener"
+                <a
+                  href="https://github.com/nogebeat/pm2-monitor/issues"
+                  target="_blank"
+                  rel="noopener"
+                  data-i18n="footer.community.issues"
                   >Issues</a
                 >
               </li>
@@ -941,6 +1041,7 @@ chmod +x deploy.sh
                   href="https://github.com/nogebeat/pm2-monitor/blob/main/CONTRIBUTING.md"
                   target="_blank"
                   rel="noopener"
+                  data-i18n="footer.community.contribute"
                   >Contribuer</a
                 >
               </li>
@@ -949,6 +1050,7 @@ chmod +x deploy.sh
                   href="https://github.com/nogebeat/pm2-monitor/blob/main/LICENSE"
                   target="_blank"
                   rel="noopener"
+                  data-i18n="footer.community.license"
                   >Licence MIT</a
                 >
               </li>
@@ -957,6 +1059,7 @@ chmod +x deploy.sh
                   href="https://github.com/nogebeat/pm2-monitor/blob/main/SECURITY.md"
                   target="_blank"
                   rel="noopener"
+                  data-i18n="footer.community.security"
                   >Sécurité</a
                 >
               </li>
@@ -965,7 +1068,9 @@ chmod +x deploy.sh
         </div>
 
         <div class="footer-bottom">
-          <span>© <span id="year">2026</span> PM2 Monitor contributors — MIT License</span>
+          <span data-i18n-html="footer.copyright"
+            >© <span id="year">2026</span> PM2 Monitor contributors — MIT License</span
+          >
         </div>
       </div>
     </footer>
