@@ -52,7 +52,7 @@
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^13.0.3",
-    "express": "^4.19.2",
+    "express": "^5.2.1",
     "express-session": "^1.18.0",
     "nodemailer": "^9.0.5",
     "pm2": "^7.0.3",
