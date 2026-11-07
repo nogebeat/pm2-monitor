@@ -63,7 +63,8 @@
     "backupTitle": "Sauvegarder / restaurer la configuration",
     "backup": "Backup",
     "pluginsTitle": "Settings → Plugins (extensions tierces)",
-    "plugins": "Plugins"
+    "plugins": "Plugins",
+    "tabDocker": "Docker"
   },
   "login": {
     "subtitle": "Connexion requise",
@@ -794,5 +795,45 @@
     "colRam": "RAM moy.",
     "colDowntime": "Indispo.",
     "colAlerts": "Alertes"
+  },
+  "dockerView": {
+    "title": "Docker",
+    "subtitle": "Monitoring des conteneurs Docker de cet hôte (lecture seule).",
+    "disabledHint": "Docker Monitoring est désactivé sur ce serveur (DOCKER_MONITORING_ENABLED=0).",
+    "unavailableTitle": "Docker indisponible",
+    "unavailableHint": "Docker n'est pas installé ou le socket n'est pas accessible sur cet hôte. Le monitoring PM2 continue de fonctionner normalement.",
+    "none": "Aucun conteneur Docker sur cet hôte.",
+    "colName": "Conteneur",
+    "colStatus": "État",
+    "colCpu": "CPU",
+    "colMemory": "Mémoire",
+    "colUptime": "Depuis",
+    "back": "Retour à la liste",
+    "state": {
+      "running": "En cours",
+      "exited": "Arrêté",
+      "paused": "En pause",
+      "restarting": "Redémarre",
+      "created": "Créé",
+      "removing": "Suppression…",
+      "dead": "Mort"
+    },
+    "detail": {
+      "id": "ID",
+      "image": "Image",
+      "created": "Créé",
+      "network": "Réseau",
+      "disk": "Disque I/O",
+      "pids": "Processus",
+      "rx": "Reçu",
+      "tx": "Envoyé",
+      "read": "Lu",
+      "write": "Écrit",
+      "notExposed": "Non exposé par Docker sur cet hôte."
+    },
+    "logsTitle": "Logs — {name}",
+    "logsUnavailable": "Vous n'avez pas la permission de voir les logs des conteneurs Docker.",
+    "logsError": "Flux de logs interrompu : {error}",
+    "waitingForLogs": "En attente de logs…"
   }
 }

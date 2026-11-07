@@ -63,7 +63,8 @@
     "backupTitle": "Backup / restore configuration",
     "backup": "Backup",
     "pluginsTitle": "Settings → Plugins (third-party extensions)",
-    "plugins": "Plugins"
+    "plugins": "Plugins",
+    "tabDocker": "Docker"
   },
   "login": {
     "subtitle": "Login required",
@@ -794,5 +795,45 @@
     "colRam": "RAM avg",
     "colDowntime": "Downtime",
     "colAlerts": "Alerts"
+  },
+  "dockerView": {
+    "title": "Docker",
+    "subtitle": "Docker container monitoring on this host (read-only).",
+    "disabledHint": "Docker Monitoring is disabled on this server (DOCKER_MONITORING_ENABLED=0).",
+    "unavailableTitle": "Docker unavailable",
+    "unavailableHint": "Docker isn't installed or its socket isn't reachable on this host. PM2 monitoring keeps working normally.",
+    "none": "No Docker containers on this host.",
+    "colName": "Container",
+    "colStatus": "Status",
+    "colCpu": "CPU",
+    "colMemory": "Memory",
+    "colUptime": "Uptime",
+    "back": "Back to list",
+    "state": {
+      "running": "Running",
+      "exited": "Exited",
+      "paused": "Paused",
+      "restarting": "Restarting",
+      "created": "Created",
+      "removing": "Removing…",
+      "dead": "Dead"
+    },
+    "detail": {
+      "id": "ID",
+      "image": "Image",
+      "created": "Created",
+      "network": "Network",
+      "disk": "Disk I/O",
+      "pids": "Processes",
+      "rx": "Received",
+      "tx": "Sent",
+      "read": "Read",
+      "write": "Written",
+      "notExposed": "Not exposed by Docker on this host."
+    },
+    "logsTitle": "Logs — {name}",
+    "logsUnavailable": "You don't have permission to view Docker container logs.",
+    "logsError": "Log stream interrupted: {error}",
+    "waitingForLogs": "Waiting for logs…"
   }
 }

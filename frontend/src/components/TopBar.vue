@@ -142,6 +142,14 @@ function openPlugins() {
         {{ t("topbar.tabReports") }}
       </button>
       <button
+        v-if="can('docker_read')"
+        class="view-tab"
+        :class="{ active: state.view === 'docker' }"
+        @click="setView('docker')"
+      >
+        {{ t("topbar.tabDocker") }}
+      </button>
+      <button
         v-if="canAny('logs')"
         class="view-tab"
         :class="{ active: state.view === 'logExplorer' }"

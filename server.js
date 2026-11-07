@@ -32,6 +32,8 @@ const { startPolling } = require("./lib/polling");
 const { attachProcessSocket } = require("./lib/realtime/process-socket");
 const { createPm2Bus } = require("./lib/realtime/pm2-bus");
 const { attachAgentHub } = require("./lib/realtime/agent-hub");
+const { attachDockerBus } = require("./lib/realtime/docker-bus");
+const dockerService = require("./lib/services/docker");
 
 const authRouter = require("./lib/routes/auth");
 const usersRouter = require("./lib/routes/users");
@@ -58,6 +60,7 @@ const apiKeysRouter = require("./lib/routes/api-keys");
 const backupRouter = require("./lib/routes/backup");
 const reportsRouter = require("./lib/routes/reports");
 const reportsSystemHistory = require("./lib/services/reports/system-history-store");
+const dockerRouter = require("./lib/routes/docker");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -251,6 +254,7 @@ app.use(
     healthChecksStore,
     serversStore,
     agentHub,
+    dockerService, // Phase 22 — lecture du cache du poller Docker, aucun nouvel appel Docker par scrape
   }),
 );
 
@@ -354,6 +358,11 @@ app.use("/api", logsRouter({ logStore }));
 // logsRouter ci-dessus (voir en-tête de lib/routes/log-explorer.js).
 app.use("/api/logs", logExplorerRouter({ logStore }));
 
+// Docker Monitoring (lib/services/docker/, lib/routes/docker.js, Phase 22) :
+// strictement en lecture (aucune action de mutation Docker exposée) — voir
+// docs/docker/README.md.
+app.use("/api/docker", dockerRouter());
+
 // --- Temps réel : liste des process (polling léger par client) -----------
 attachProcessSocket(io);
 
@@ -367,6 +376,17 @@ startPolling({
   alertsEvalIntervalMs: ALERTS_EVAL_INTERVAL_MS,
   anomalyEnabled: ANOMALY_DETECTION_ENABLED,
 });
+
+// --- Docker Monitoring (Phase 22, lib/services/docker/) -----------------
+// Poller partagé indépendant de startPolling() ci-dessus (rythme propre,
+// DOCKER_POLL_INTERVAL_MS, par défaut 5s) — voir lib/services/docker/index.js
+// pour le raisonnement. N'empêche jamais le démarrage du serveur HTTP ni le
+// reste du monitoring PM2 si Docker est absent/inaccessible (section 11 du
+// prompt maître) : start() ne fait qu'armer un setInterval, la première
+// collecte (asynchrone) échoue silencieusement vers `available: false` le
+// cas échéant.
+dockerService.start();
+const dockerBus = attachDockerBus(io);
 
 // Maintenance (rollup + purge) de l'historique process, sur son propre
 // intervalle (PROCESS_HISTORY_MAINTENANCE_INTERVAL_MS) indépendant du polling.
@@ -475,6 +495,8 @@ db.init()
 process.on("SIGINT", () => {
   notificationDispatchQueue.stop();
   agentHub.stopStaleSweep();
+  dockerService.stop();
+  dockerBus.stop(); // ferme aussi tout flux de logs Docker encore ouvert (section 5 du prompt maître)
   pm2.disconnect();
   db.close().finally(() => process.exit(0));
 });
