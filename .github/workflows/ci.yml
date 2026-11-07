@@ -2,9 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - dev
+      - "dev/**"
+      - "releases/**"
   pull_request:
-    branches: [main]
+    branches:
+      - "main"
+      - "dev"
+      - "dev/**"
+      - "releases/**"
 
 jobs:
   deploy-script:

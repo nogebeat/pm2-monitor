@@ -427,6 +427,11 @@ pour le détail de ce qui existe et ce qui est prévu.
   DB/au filesystem/aux secrets) — voir
   [Plugin System](#plugin-system-phase-21) et
   [`docs/plugins/README.md`](docs/plugins/README.md).
+- `lib/services/docker/` : monitoring **en lecture seule** des conteneurs
+  Docker via le socket local (client `http` natif, aucune dépendance npm),
+  avec un poller partagé dont le cache alimente WebSocket, REST et
+  Prometheus — voir [Docker Monitoring](#docker-monitoring-onglet-docker-phase-22)
+  et [`docs/docker/README.md`](docs/docker/README.md).
 
 ## Fonctionnalités
 
@@ -1140,6 +1145,42 @@ Monitor **sans modifier le core**.
   création d'un plugin, compatibility, exemple) :
   [`docs/plugins/README.md`](docs/plugins/README.md).
 
+### Docker Monitoring (onglet "Docker", Phase 22)
+
+Monitoring **en lecture seule** des conteneurs Docker de l'hôte, dans le
+même dashboard que les process PM2 : état, CPU, RAM, réseau, I/O disque,
+PIDs, métadonnées et **logs stdout/stderr en temps réel**. PM2 et Docker
+restent deux sources distinctes : Docker n'est jamais requis, et une panne
+Docker ne touche ni le backend, ni le WebSocket, ni le monitoring PM2.
+
+- **Prérequis** : Docker installé (optionnel) et accès au socket
+  `/var/run/docker.sock` (configurable via `DOCKER_SOCKET_PATH`) pour
+  l'utilisateur qui lance PM2 Monitor. **Aucune dépendance npm ajoutée.**
+- **⚠️ Sécurité** : l'accès au socket Docker donne des privilèges très
+  élevés (équivalent root sur l'hôte) au processus qui y accède, même si
+  PM2 Monitor n'y fait que des lectures. Voir les recommandations dans
+  [`docs/docker/README.md`](docs/docker/README.md#accès-au-socket-docker-et-sécurité).
+  `DOCKER_MONITORING_ENABLED=0` garantit que le socket n'est jamais touché.
+- **Strictement read-only** : aucun `start`/`stop`/`restart`/`kill`/
+  `remove`/`exec` n'est exposé (API, UI ou WebSocket).
+- **Léger** : un seul poller partagé (`DOCKER_POLL_INTERVAL_MS`, 5 s par
+  défaut) alimente WebSocket, REST et Prometheus — le coût ne dépend ni du
+  nombre de clients ni du nombre de scrapes. Les logs ne sont streamés que
+  pour le conteneur sélectionné, et le flux est fermé dès qu'on change de
+  conteneur, quitte l'onglet ou perd le WebSocket.
+- **API** : `GET /api/docker/{status,containers,containers/:id,containers/:id/logs}`.
+  **WebSocket** (même serveur Socket.IO) : `docker.snapshot`,
+  `docker:subscribe-logs` / `docker:unsubscribe-logs`, `docker:log`.
+- **Permissions** : `docker_read` (liste, détail, métriques) et
+  `docker_logs` (logs) — `admin`/`operator`/`viewer` : les deux ;
+  `auditor` : lecture seule. Pas de scope par conteneur dans cette version.
+- **Prometheus** : métriques `pm2_monitor_docker_*` ajoutées à `/metrics`.
+- **Local uniquement** pour l'instant (préparé pour le multi-serveur :
+  `serverKey` déjà présent dans les données).
+- Documentation complète (architecture, formule CPU, API, WebSocket,
+  résilience, problèmes courants) :
+  [`docs/docker/README.md`](docs/docker/README.md).
+
 ### Général
 
 - **Interface Vue 3** entièrement componentisée (réactive, sans manipulation
@@ -1229,7 +1270,9 @@ droits, plutôt qu'un unique identifiant/mot de passe partagé (Basic Auth).
   [Reports & Capacity Planning](#reports--capacity-planning-phase-20)), et
   `plugins_read` / `plugins_manage` (voir, liste, activation/désactivation
   et configuration des plugins, voir
-  [Plugin System](#plugin-system-phase-21)).
+  [Plugin System](#plugin-system-phase-21)), et `docker_read` /
+  `docker_logs` (conteneurs Docker et leurs logs, en lecture seule, voir
+  [Docker Monitoring](#docker-monitoring-onglet-docker-phase-22)).
 
 - **Rôles prédéfinis** (Admin/Operator/Viewer/Auditor) : un gabarit qui
   remplit ces mêmes permissions en un clic plutôt que de les cocher une par

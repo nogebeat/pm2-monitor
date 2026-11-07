@@ -14,6 +14,7 @@ import ReportsView from "./components/ReportsView.vue";
 import ServiceDependenciesView from "./components/ServiceDependenciesView.vue";
 import LogExplorerView from "./components/LogExplorerView.vue";
 import DashboardView from "./components/DashboardView.vue";
+import DockerView from "./components/DockerView.vue";
 import ModalHost from "./components/ModalHost.vue";
 import LoginScreen from "./components/LoginScreen.vue";
 
@@ -49,6 +50,7 @@ onMounted(() => {
       <ReportsView v-if="state.view === 'reports'" />
       <ServiceDependenciesView v-if="state.view === 'serviceDependencies'" />
       <LogExplorerView v-if="state.view === 'logExplorer'" />
+      <DockerView v-if="state.view === 'docker'" />
 
       <ModalHost v-if="state.modal" />
 

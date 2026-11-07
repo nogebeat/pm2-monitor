@@ -151,3 +151,5 @@ history.json
 *.db-shm
 
 *:Zone.Identifier
+*.patch
+
