@@ -5,14 +5,14 @@ on:
     branches:
       - main
       - dev
-      - 'dev/**'
-      - 'releases/**'
+      - "dev/**"
+      - "releases/**"
   pull_request:
     branches:
-      - 'main'
-      - 'dev'
-      - 'dev/**'
-      - 'releases/**'
+      - "main"
+      - "dev"
+      - "dev/**"
+      - "releases/**"
 
 jobs:
   deploy-script:
