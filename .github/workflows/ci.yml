@@ -7,12 +7,14 @@ on:
       - dev
       - "dev/**"
       - "releases/**"
+      - "security"
   pull_request:
     branches:
       - "main"
       - "dev"
       - "dev/**"
       - "releases/**"
+      - "security"
 
 jobs:
   deploy-script:

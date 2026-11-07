@@ -2,9 +2,9 @@ name: CodeQL
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev, security]
   pull_request:
-    branches: [main]
+    branches: [main, dev, sécurity]
   schedule:
     # Scan hebdomadaire indépendant des push/PR, pour détecter les
     # nouvelles CVE dans les patterns déjà présents dans le code.
