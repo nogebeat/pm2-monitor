@@ -47,14 +47,15 @@
     "lint:fix": "eslint . --fix && npm --prefix frontend run lint:fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky || true"
+    "prepare": "husky || true",
+    "audit": "npm audit && echo \"Audit Mono completed\" && cd frontend && npm audit && echo \"Audit Frontend completed\""
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^13.0.3",
     "express": "^4.19.2",
     "express-session": "^1.18.0",
-    "nodemailer": "^9.0.5",
+    "nodemailer": "^10.3.1",
     "pm2": "^7.0.3",
     "socket.io": "^4.7.5",
     "socket.io-client": "^4.7.5"
@@ -78,7 +79,7 @@
     "node": ">=22"
   },
   "overrides": {
-    "js-yaml": "5.2.3"
+    "js-yaml": "5.4.1"
   },
   "lint-staged": {
     "*.js": [

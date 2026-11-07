@@ -121,6 +121,29 @@ export const state = reactive({
     loading: false,
   },
 
+  // ---------- Docker Monitoring (onglet "Docker", Phase 22) ----------
+  // Instantané reçu via GET /api/docker/containers ET via le socket
+  // "docker.snapshot" (voir lib/realtime/docker-bus.js) — même conteneurs,
+  // le socket ne fait que rafraîchir plus vite que le polling de secours de
+  // DockerView.vue. `logs.*` ne concerne QUE le conteneur `selectedId` : pas
+  // de flux Docker ouvert pour les autres (voir selectDockerContainer()).
+  docker: {
+    loaded: false,
+    loading: false,
+    enabled: true,
+    available: false,
+    checkedAt: null,
+    containers: [],
+    selectedId: null,
+    selectedFilter: "all", // all | out | err — même vocabulaire que state.filter (logs PM2)
+    logs: [],
+    logCounter: 0,
+    logsError: null, // dernier message de docker:log-error pour le conteneur sélectionné
+    autoscroll: true,
+    paused: false,
+    pausedQueue: [],
+  },
+
   // ---------- Log Explorer (onglet "Logs", Phase 12) ----------
   // Recherche GLOBALE (plusieurs process, plusieurs serveurs) — distincte de
   // `state.logs` ci-dessus (flux en direct d'UN seul process sélectionné,
@@ -886,6 +909,108 @@ export function loadServerProcessAnalytics(serverKey, processName, range) {
   );
 }
 
+// ---------- Docker Monitoring (onglet "Docker", Phase 22) ----------
+
+function mergeDockerSnapshot(snapshot) {
+  state.docker.available = snapshot.available;
+  state.docker.checkedAt = snapshot.checkedAt;
+  state.docker.containers = snapshot.containers || [];
+  // Le conteneur sélectionné a disparu (supprimé) : on ferme proprement le
+  // suivi de logs, même règle que "le conteneur est supprimé" (section 5).
+  if (state.docker.selectedId && !state.docker.containers.some((c) => c.id === state.docker.selectedId)) {
+    unselectDockerContainer();
+  }
+}
+
+export function loadDockerContainers() {
+  state.docker.loading = true;
+  return apiGet("/api/docker/containers")
+    .then(mergeDockerSnapshot)
+    .catch(notifyError)
+    .finally(() => {
+      state.docker.loading = false;
+      state.docker.loaded = true;
+    });
+}
+
+export function selectedDockerContainer() {
+  return state.docker.containers.find((c) => c.id === state.docker.selectedId) || null;
+}
+
+function pushDockerLog(entry) {
+  state.docker.logCounter++;
+  state.docker.logs.push({ ...entry, n: state.docker.logCounter });
+  if (state.docker.logs.length > MAX_LOG_LINES) {
+    state.docker.logs.splice(0, state.docker.logs.length - MAX_LOG_LINES);
+  }
+}
+
+export function visibleDockerLogs() {
+  const f = state.docker.selectedFilter;
+  if (f === "all") return state.docker.logs;
+  return state.docker.logs.filter((l) => l.type === f);
+}
+
+export function toggleDockerPause() {
+  state.docker.paused = !state.docker.paused;
+  if (!state.docker.paused) {
+    state.docker.pausedQueue.forEach((entry) => pushDockerLog(entry));
+    state.docker.pausedQueue = [];
+  }
+}
+
+export function clearDockerLogs() {
+  state.docker.logs = [];
+  state.docker.logCounter = 0;
+}
+
+/**
+ * Sélectionne UN conteneur : charge son historique récent (comme
+ * loadBacklog() pour PM2) puis s'abonne à son flux en direct via le socket
+ * ("docker:subscribe-logs" — voir lib/realtime/docker-bus.js). Changer de
+ * sélection ferme automatiquement le flux précédent côté serveur (section 5
+ * du prompt maître) — le désabonnement explicite ci-dessous n'est qu'une
+ * mesure de propreté supplémentaire (ex: utilisateur sans docker_logs, pour
+ * qui aucun flux n'a de toute façon jamais été ouvert côté serveur).
+ */
+export function selectDockerContainer(id) {
+  if (state.docker.selectedId) socket.emit("docker:unsubscribe-logs");
+  state.docker.selectedId = id;
+  state.docker.logs = [];
+  state.docker.logCounter = 0;
+  state.docker.logsError = null;
+  state.docker.paused = false;
+  state.docker.pausedQueue = [];
+
+  // Sans docker_logs (ex: rôle auditor), aucun flux n'est demandé : le serveur
+  // refuserait de toute façon (voir docker-bus.js), autant ne rien ouvrir.
+  if (!can("docker_logs")) return;
+
+  apiGet(`/api/docker/containers/${encodeURIComponent(id)}/logs?tail=200`)
+    .then((r) => {
+      if (state.docker.selectedId !== id) return; // sélection déjà changée entretemps
+      r.results.forEach((row) =>
+        pushDockerLog({ type: row.type, text: row.text, at: row.at, backlog: true }),
+      );
+      if (r.results.length) {
+        pushDockerLog({ kind: "event", event: "flux en direct ci-dessous", at: Date.now() });
+      }
+    })
+    .catch(() => {
+      /* pas grave : on retombe simplement sur le flux en direct */
+    });
+
+  socket.emit("docker:subscribe-logs", { containerId: id });
+}
+
+export function unselectDockerContainer() {
+  if (state.docker.selectedId) socket.emit("docker:unsubscribe-logs");
+  state.docker.selectedId = null;
+  state.docker.logs = [];
+  state.docker.logCounter = 0;
+  state.docker.logsError = null;
+}
+
 // ---------- Log Explorer (GET /api/logs/search, GET /api/logs/export, Phase 12) ----------
 //
 // Le picker process/serveur de l'Explorer se construit à partir de ce que le
@@ -1162,6 +1287,36 @@ socket.on("server.status", ({ serverId, status }) => {
   const existing = state.servers.items.find((s) => s.serverKey === serverId);
   if (!existing) return;
   existing.status = status;
+});
+
+// Docker Monitoring (Phase 22, lib/realtime/docker-bus.js) : "docker.snapshot"
+// est diffusé à TOUS les clients (comme "server.snapshot" ci-dessus, pas de
+// scope par ressource pour docker_read — voir lib/permissions.js) ; on
+// l'applique toujours, l'onglet lui-même ne s'affiche que si can("docker_read").
+// "docker:log"/"docker:log-error" ne sont émis QUE vers le socket qui s'est
+// explicitement abonné (state.docker.selectedId), jamais un broadcast.
+socket.on("docker.snapshot", (snapshot) => {
+  state.docker.available = snapshot.available;
+  state.docker.checkedAt = snapshot.checkedAt;
+  state.docker.containers = snapshot.containers || [];
+  if (state.docker.selectedId && !state.docker.containers.some((c) => c.id === state.docker.selectedId)) {
+    unselectDockerContainer();
+  }
+});
+
+socket.on("docker:log", ({ containerId, type, text, at }) => {
+  if (state.docker.selectedId !== containerId) return; // sélection déjà changée entretemps
+  const entry = { type, text, at };
+  if (state.docker.paused) {
+    state.docker.pausedQueue.push(entry);
+    return;
+  }
+  pushDockerLog(entry);
+});
+
+socket.on("docker:log-error", ({ containerId, error }) => {
+  if (state.docker.selectedId !== containerId) return;
+  state.docker.logsError = error;
 });
 
 socket.on("metrics.updated", scheduleDashboardRefresh);

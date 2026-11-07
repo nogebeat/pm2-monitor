@@ -7,6 +7,17 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### Ajouté
+
+- **Docker Monitoring (Phase 22)** — monitoring en lecture seule des
+  conteneurs Docker (état, CPU, RAM, réseau, I/O, PIDs, logs stdout/stderr
+  en direct) dans un nouvel onglet « Docker », via le socket Docker local,
+  sans nouvelle dépendance npm. Permissions `docker_read` / `docker_logs`,
+  métriques Prometheus `pm2_monitor_docker_*`, variables
+  `DOCKER_MONITORING_ENABLED`, `DOCKER_SOCKET_PATH`, `DOCKER_POLL_INTERVAL_MS`.
+  Voir `docs/docker/README.md` (dont la section sécurité sur l'accès au
+  socket Docker).
+
 ## [4.0.0] - 2026-08-30
 
 ### Ajouté
