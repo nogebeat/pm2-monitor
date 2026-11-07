@@ -47,7 +47,8 @@
     "lint:fix": "eslint . --fix && npm --prefix frontend run lint:fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky || true"
+    "prepare": "husky || true",
+    "audit": "npm audit && echo \"Audit Mono completed\" && cd frontend && npm audit && echo \"Audit Frontend completed\""
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
