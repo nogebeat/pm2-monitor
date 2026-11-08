@@ -31,6 +31,13 @@ function toggleTheme() {
 
 function togglePm2Menu(e) {
   e.stopPropagation();
+  // Le menu est en position: fixed : on l'ancre sous le bouton, où qu'il soit (la barre
+  // peut passer sur plusieurs lignes ou défiler horizontalement), au lieu d'un `top`
+  // codé en dur qui ne tombait juste que sur un seul affichage.
+  const rect = e.currentTarget.getBoundingClientRect();
+  const menuWidth = 240;
+  const right = Math.max(8, Math.min(window.innerWidth - rect.right, window.innerWidth - menuWidth - 8));
+  state.pm2MenuPos = { top: Math.round(rect.bottom + 6), right: Math.round(right) };
   state.pm2MenuOpen = !state.pm2MenuOpen;
 }
 
@@ -185,7 +192,8 @@ function openPlugins() {
         :title="t('topbar.notificationsTitle')"
         @click="openNotifications"
       >
-        🔔 {{ t("topbar.notifications") }}
+        <span class="btn-ico" aria-hidden="true">🔔</span>
+        <span class="btn-label">{{ t("topbar.notifications") }}</span>
       </button>
       <button
         v-if="can('health_checks_read')"
@@ -193,7 +201,8 @@ function openPlugins() {
         :title="t('topbar.healthChecksTitle')"
         @click="openHealthChecks"
       >
-        ❤ {{ t("topbar.healthChecks") }}
+        <span class="btn-ico" aria-hidden="true">❤</span>
+        <span class="btn-label">{{ t("topbar.healthChecks") }}</span>
       </button>
       <button
         v-if="can('anomaly_read')"
@@ -201,7 +210,8 @@ function openPlugins() {
         :title="t('topbar.anomalyDetectionTitle')"
         @click="openAnomalyDetection"
       >
-        📊 {{ t("topbar.anomalyDetection") }}
+        <span class="btn-ico" aria-hidden="true">📊</span>
+        <span class="btn-label">{{ t("topbar.anomalyDetection") }}</span>
       </button>
       <button
         v-if="can('audit_read')"
@@ -209,7 +219,8 @@ function openPlugins() {
         :title="t('topbar.auditLogTitle')"
         @click="openAuditLog"
       >
-        🧾 {{ t("topbar.auditLog") }}
+        <span class="btn-ico" aria-hidden="true">🧾</span>
+        <span class="btn-label">{{ t("topbar.auditLog") }}</span>
       </button>
       <button
         v-if="can('process_org_read')"
@@ -217,7 +228,8 @@ function openPlugins() {
         :title="t('topbar.organizationTitle')"
         @click="openOrganization"
       >
-        🏷 {{ t("topbar.organization") }}
+        <span class="btn-ico" aria-hidden="true">🏷</span>
+        <span class="btn-label">{{ t("topbar.organization") }}</span>
       </button>
       <button
         v-if="state.auth.user && state.auth.user.isAdmin"
@@ -225,7 +237,8 @@ function openPlugins() {
         :title="t('topbar.usersTitle')"
         @click="openUsers"
       >
-        👤 {{ t("topbar.users") }}
+        <span class="btn-ico" aria-hidden="true">👤</span>
+        <span class="btn-label">{{ t("topbar.users") }}</span>
       </button>
       <button
         v-if="can('api_keys_read')"
@@ -233,7 +246,8 @@ function openPlugins() {
         :title="t('topbar.apiKeysTitle')"
         @click="openApiKeys"
       >
-        🔑 {{ t("topbar.apiKeys") }}
+        <span class="btn-ico" aria-hidden="true">🔑</span>
+        <span class="btn-label">{{ t("topbar.apiKeys") }}</span>
       </button>
       <button
         v-if="can('backup_export') || can('backup_restore')"
@@ -241,7 +255,8 @@ function openPlugins() {
         :title="t('topbar.backupTitle')"
         @click="openBackup"
       >
-        💾 {{ t("topbar.backup") }}
+        <span class="btn-ico" aria-hidden="true">💾</span>
+        <span class="btn-label">{{ t("topbar.backup") }}</span>
       </button>
       <button
         v-if="can('plugins_read')"
@@ -249,8 +264,12 @@ function openPlugins() {
         :title="t('topbar.pluginsTitle')"
         @click="openPlugins"
       >
-        🧩 {{ t("topbar.plugins") }}
+        <span class="btn-ico" aria-hidden="true">🧩</span>
+        <span class="btn-label">{{ t("topbar.plugins") }}</span>
       </button>
+    </div>
+
+    <div class="topbar-controls">
       <LanguageSwitch />
       <button
         class="theme-toggle"
