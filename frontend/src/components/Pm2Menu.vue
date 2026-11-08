@@ -19,7 +19,11 @@ onUnmounted(() => document.removeEventListener("click", closeOnOutsideClick));
 </script>
 
 <template>
-  <div class="pm2-menu" @click.stop>
+  <div
+    class="pm2-menu"
+    :style="{ top: state.pm2MenuPos.top + 'px', right: state.pm2MenuPos.right + 'px' }"
+    @click.stop
+  >
     <button v-if="can('pm2_save')" @click="run('save')">💾 {{ t("pm2Menu.save") }}</button>
     <button v-if="can('pm2_resurrect')" @click="run('resurrect')">♻️ {{ t("pm2Menu.resurrect") }}</button>
     <button v-if="can('pm2_flush_all')" @click="run('flush-all')">🧹 {{ t("pm2Menu.flushAll") }}</button>

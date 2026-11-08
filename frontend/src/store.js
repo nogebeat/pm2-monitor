@@ -1,12 +1,18 @@
 import { reactive } from "vue";
 import { socket } from "./socket";
 import { apiGet, apiPost } from "./api";
+import { i18n } from "./i18n";
+
+// Traduction hors composant (confirmations, toasts) : suit la langue courante.
+const tr = (key, params) => i18n.global.t(key, params);
 
 const MAX_LOG_LINES = 4000;
 const MAX_CPU_HISTORY = 20;
 
 export const state = reactive({
   connected: false,
+  // Mobile (<= 820px) : la vue "Process" affiche soit la liste, soit les logs (voir style.css, .layout).
+  mobilePane: "list", // "list" | "logs"
   view: "dashboard", // "process" | "dashboard" | "system" | "events" | "servers" | "incidents" | "serviceDependencies"
 
   // ---------- Auth / permissions ----------
@@ -139,6 +145,8 @@ export const state = reactive({
     logs: [],
     logCounter: 0,
     logsError: null, // dernier message de docker:log-error pour le conteneur sélectionné
+    streamEnded: false, // le flux s'est interrompu (conteneur redémarré/arrêté) : réabonnement auto quand il repart
+    clearedAt: {}, // containerId -> instant (ms) de la dernière action "Vider" : l'historique plus ancien n'est plus rechargé
     autoscroll: true,
     paused: false,
     pausedQueue: [],
@@ -173,6 +181,7 @@ export const state = reactive({
   },
 
   pm2MenuOpen: false,
+  pm2MenuPos: { top: 64, right: 16 }, // position (px, viewport) du menu PM2, calculée depuis le bouton à l'ouverture
   toast: null, // { kind: "error"|"info", message }
 
   // Modale générique : { type: "more"|"scale"|"env"|"config"|"fulltext"|"gotodate"|"exportrange", process }
@@ -276,6 +285,7 @@ export function logout() {
 
 export function selectProcess(id) {
   state.selected = id;
+  state.mobilePane = "logs";
   state.errCounts[id] = 0;
   state.logs = [];
   state.logCounter = 0;
@@ -285,25 +295,41 @@ export function selectProcess(id) {
   loadBacklog(id);
 }
 
-// Charge les dernières lignes déjà écrites dans les fichiers de log natifs PM2
-// (comme le ferait `pm2 logs`), affichées immédiatement au lieu d'attendre une
-// nouvelle ligne en direct — évite l'impression de "aucun log" sur une app calme.
+// Charge l'historique récent du process (voir GET /api/processes/:id/logs/tail),
+// affiché immédiatement au lieu d'attendre une nouvelle ligne en direct — évite
+// l'impression de "aucun log" sur une app calme.
+//
+// Le serveur renvoie stdout et stderr dans l'ordre réel (avec horodatage) quand
+// il le connaît (source "store"). Sinon (source "native" : lecture brute des
+// fichiers out/err de PM2, qui ne portent aucune heure commune), les deux flux
+// sont simplement mis bout à bout : on l'indique par un séparateur plutôt que
+// de laisser croire que les lignes d'erreur — placées en dernier — sont les
+// plus récentes.
 export function loadBacklog(id) {
   apiGet(`/api/processes/${id}/logs/tail?lines=200`)
     .then((r) => {
       if (state.selected !== id) return; // l'utilisateur a changé de sélection entretemps
+      let previousType = null;
       r.results.forEach((row) => {
+        if (r.source === "native" && previousType !== row.type) {
+          pushLog({
+            kind: "event",
+            event: tr(row.type === "err" ? "logs.historyStderr" : "logs.historyStdout"),
+            at: null,
+          });
+        }
+        previousType = row.type;
         pushLog({
           kind: "log",
           type: row.type,
           data: row.text,
-          at: null, // pas d'horodatage exact disponible pour l'historique natif PM2
+          at: row.at || null, // null : fichier natif sans horodatage
           level: detectLevel(row.text, row.type),
           backlog: true,
         });
       });
       if (r.results.length) {
-        pushLog({ kind: "event", event: "flux en direct ci-dessous", at: Date.now() });
+        pushLog({ kind: "event", event: tr("logs.liveBelow"), at: Date.now() });
       }
     })
     .catch(() => {
@@ -395,9 +421,58 @@ export function togglePause() {
   }
 }
 
-export function clearLogs() {
+// File d'attente pendant la pause : bornée comme l'affichage lui-même, sinon une
+// pause oubliée sur une app bavarde ferait grossir la mémoire du navigateur sans limite.
+function queueWhilePaused(entry) {
+  state.pausedQueue.push(entry);
+  if (state.pausedQueue.length > MAX_LOG_LINES) {
+    state.pausedQueue.splice(0, state.pausedQueue.length - MAX_LOG_LINES);
+  }
+}
+
+export function notifyInfo(message) {
+  state.toast = { kind: "info", message };
+  setTimeout(() => {
+    if (state.toast && state.toast.message === message) state.toast = null;
+  }, 4000);
+}
+
+function wipeLogsView() {
   state.logs = [];
   state.logCounter = 0;
+  state.pausedQueue = [];
+}
+
+/**
+ * "Vider" : vide VRAIMENT les logs du process sélectionné (fichiers out/err de
+ * PM2 + historique persisté du Log Explorer, POST /api/processes/:id/flush),
+ * pas seulement l'affichage. Avant, le bouton ne faisait que vider la liste en
+ * mémoire du navigateur : les lignes revenaient dès qu'on re-sélectionnait le
+ * process (l'historique est relu depuis les fichiers) et le compteur de
+ * fichiers/taille ne bougeait pas.
+ *
+ * Sans le droit "flush" sur ce process, on retombe sur le vidage d'affichage
+ * seul, en le disant explicitement.
+ */
+export function clearLogs() {
+  const proc = selectedProcess();
+  if (!proc) return Promise.resolve();
+
+  if (!can("flush", proc.name)) {
+    wipeLogsView();
+    notifyInfo(tr("logs.clearLocalOnly"));
+    return Promise.resolve();
+  }
+  if (!confirm(tr("logs.clearConfirm", { name: proc.name }))) return Promise.resolve();
+
+  return apiPost(`/api/processes/${proc.id}/flush`)
+    .then(() => {
+      if (state.selected !== proc.id) return;
+      wipeLogsView();
+      loadLogsStats();
+      notifyInfo(tr("logs.clearDone", { name: proc.name }));
+    })
+    .catch(notifyError);
 }
 
 export function visibleLogs() {
@@ -959,9 +1034,41 @@ export function toggleDockerPause() {
   }
 }
 
+// Instant (ms, horloge Docker quand on la connaît) de la dernière vraie ligne affichée.
+function dockerLastLogAt() {
+  for (let i = state.docker.logs.length - 1; i >= 0; i--) {
+    const l = state.docker.logs[i];
+    if (l.kind !== "event" && l.at) return l.at;
+  }
+  return null;
+}
+
+/**
+ * Ouvre le flux en direct APRÈS l'historique déjà chargé : `since` (la ligne
+ * suivante la dernière affichée) évite à la fois le trou et le doublon qu'il y
+ * avait quand historique et flux étaient demandés en parallèle, le flux
+ * démarrant à "maintenant".
+ */
+function subscribeDockerLogs(id) {
+  const from = Math.max(dockerLastLogAt() || 0, state.docker.clearedAt[id] || 0);
+  socket.emit("docker:subscribe-logs", {
+    containerId: id,
+    since: from ? (from + 1) / 1000 : undefined,
+  });
+}
+
+/**
+ * "Vider" côté Docker : Docker Monitoring est strictement en lecture seule
+ * (on ne touche jamais aux logs du conteneur lui-même), donc on vide
+ * l'affichage ET on retient l'instant du vidage pour ne plus recharger
+ * l'historique antérieur quand on revient sur ce conteneur.
+ */
 export function clearDockerLogs() {
+  const id = state.docker.selectedId;
+  if (id) state.docker.clearedAt[id] = dockerLastLogAt() || Date.now();
   state.docker.logs = [];
   state.docker.logCounter = 0;
+  state.docker.pausedQueue = [];
 }
 
 /**
@@ -979,6 +1086,7 @@ export function selectDockerContainer(id) {
   state.docker.logs = [];
   state.docker.logCounter = 0;
   state.docker.logsError = null;
+  state.docker.streamEnded = false;
   state.docker.paused = false;
   state.docker.pausedQueue = [];
 
@@ -988,19 +1096,22 @@ export function selectDockerContainer(id) {
 
   apiGet(`/api/docker/containers/${encodeURIComponent(id)}/logs?tail=200`)
     .then((r) => {
-      if (state.docker.selectedId !== id) return; // sélection déjà changée entretemps
-      r.results.forEach((row) =>
-        pushDockerLog({ type: row.type, text: row.text, at: row.at, backlog: true }),
-      );
-      if (r.results.length) {
-        pushDockerLog({ kind: "event", event: "flux en direct ci-dessous", at: Date.now() });
+      if (state.docker.selectedId !== id) return false; // sélection déjà changée entretemps
+      const clearedAt = state.docker.clearedAt[id] || 0;
+      const rows = r.results.filter((row) => !clearedAt || !row.at || row.at > clearedAt);
+      rows.forEach((row) => pushDockerLog({ type: row.type, text: row.text, at: row.at, backlog: true }));
+      if (rows.length) {
+        pushDockerLog({ kind: "event", event: tr("logs.liveBelow"), at: Date.now() });
       }
+      return true;
     })
     .catch(() => {
       /* pas grave : on retombe simplement sur le flux en direct */
+      return state.docker.selectedId === id;
+    })
+    .then((stillSelected) => {
+      if (stillSelected) subscribeDockerLogs(id);
     });
-
-  socket.emit("docker:subscribe-logs", { containerId: id });
 }
 
 export function unselectDockerContainer() {
@@ -1009,6 +1120,7 @@ export function unselectDockerContainer() {
   state.docker.logs = [];
   state.docker.logCounter = 0;
   state.docker.logsError = null;
+  state.docker.streamEnded = false;
 }
 
 // ---------- Log Explorer (GET /api/logs/search, GET /api/logs/export, Phase 12) ----------
@@ -1217,7 +1329,7 @@ socket.on("log", (entry) => {
   // Le filtrage (type/niveau/recherche) est appliqué à l'affichage par
   // visibleLogs(), pas ici : voir le commentaire au-dessus de passesFilters().
   if (state.paused) {
-    state.pausedQueue.push(full);
+    queueWhilePaused(full);
     return;
   }
   pushLog(full);
@@ -1301,6 +1413,16 @@ socket.on("docker.snapshot", (snapshot) => {
   state.docker.containers = snapshot.containers || [];
   if (state.docker.selectedId && !state.docker.containers.some((c) => c.id === state.docker.selectedId)) {
     unselectDockerContainer();
+    return;
+  }
+  // Le flux de logs s'était arrêté parce que le conteneur a redémarré : sans ça, la console
+  // restait figée sur l'ancien contenu même une fois le conteneur reparti.
+  const selected = selectedDockerContainer();
+  if (selected && state.docker.streamEnded && selected.state === "running" && can("docker_logs")) {
+    state.docker.streamEnded = false;
+    state.docker.logsError = null;
+    pushDockerLog({ kind: "event", event: tr("dockerView.streamResumed"), at: Date.now() });
+    subscribeDockerLogs(selected.id);
   }
 });
 
@@ -1309,14 +1431,20 @@ socket.on("docker:log", ({ containerId, type, text, at }) => {
   const entry = { type, text, at };
   if (state.docker.paused) {
     state.docker.pausedQueue.push(entry);
+    if (state.docker.pausedQueue.length > MAX_LOG_LINES) {
+      state.docker.pausedQueue.splice(0, state.docker.pausedQueue.length - MAX_LOG_LINES);
+    }
     return;
   }
   pushDockerLog(entry);
 });
 
-socket.on("docker:log-error", ({ containerId, error }) => {
+socket.on("docker:log-error", ({ containerId, error, ended }) => {
   if (state.docker.selectedId !== containerId) return;
   state.docker.logsError = error;
+  // `ended` : flux interrompu côté Docker (conteneur arrêté/redémarré/supprimé), pas un refus
+  // de permission — voir le réabonnement automatique dans "docker.snapshot".
+  state.docker.streamEnded = !!ended;
 });
 
 socket.on("metrics.updated", scheduleDashboardRefresh);

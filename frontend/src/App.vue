@@ -37,7 +37,7 @@ onMounted(() => {
       <TopBar />
       <Pm2Menu v-if="state.pm2MenuOpen" />
 
-      <main v-show="state.view === 'process'" class="layout">
+      <main v-show="state.view === 'process'" class="layout" :data-pane="state.mobilePane">
         <ProcessSidebar />
         <LogsPanel />
       </main>
@@ -55,7 +55,7 @@ onMounted(() => {
       <ModalHost v-if="state.modal" />
 
       <Transition name="fade">
-        <div v-if="state.toast" class="toast">{{ state.toast.message }}</div>
+        <div v-if="state.toast" class="toast" :class="state.toast.kind">{{ state.toast.message }}</div>
       </Transition>
     </template>
   </div>

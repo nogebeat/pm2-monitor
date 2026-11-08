@@ -210,7 +210,7 @@
     "pauseTitle": "Mettre le flux en pause",
     "resume": "Reprendre ({count})",
     "pause": "Pause",
-    "clearTitle": "Vider l'affichage",
+    "clearTitle": "Vider les logs (fichiers PM2 + historique)",
     "clear": "Vider",
     "fulltextTitle": "Recherche plein texte dans le fichier complet",
     "fulltext": "Recherche complète",
@@ -225,7 +225,14 @@
     "waitingForLogs": "En attente de logs…",
     "selectAppFirst": "Sélectionne d'abord une app dans la liste.",
     "selectAppFirstShort": "Sélectionne d'abord une app.",
-    "statsLabel": "{files} fichier(s) · {archived} compressé(s) · {size}"
+    "statsLabel": "{files} fichier(s) · {archived} compressé(s) · {size}",
+    "clearConfirm": "Vider les logs de « {name} » ?\n\nCela supprime les fichiers de log PM2 (out + err) et l'historique conservé par le monitor (recherche, export, Log Explorer). Action irréversible.",
+    "clearDone": "Logs de « {name} » vidés.",
+    "clearLocalOnly": "Affichage vidé. Tu n'as pas le droit « flush » sur cette app : les fichiers de log sont conservés.",
+    "historyStdout": "historique stdout (sans heure)",
+    "historyStderr": "historique stderr (sans heure)",
+    "liveBelow": "flux en direct ci-dessous",
+    "backToList": "Processus"
   },
   "modalBase": {
     "confirm": "Confirmer",
@@ -834,6 +841,7 @@
     "logsTitle": "Logs — {name}",
     "logsUnavailable": "Vous n'avez pas la permission de voir les logs des conteneurs Docker.",
     "logsError": "Flux de logs interrompu : {error}",
-    "waitingForLogs": "En attente de logs…"
+    "waitingForLogs": "En attente de logs…",
+    "streamResumed": "flux relancé (le conteneur a redémarré)"
   }
 }

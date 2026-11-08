@@ -28,14 +28,15 @@ function fmtBytesShort(bytes) {
   return (bytes / 1024 / 1024 / 1024).toFixed(2) + " Go";
 }
 
-watch(
-  () => state.logs.length,
-  async () => {
-    if (!state.autoscroll || !logsBodyEl.value) return;
-    await nextTick();
-    logsBodyEl.value.scrollTop = logsBodyEl.value.scrollHeight;
-  },
-);
+// On surveille le COMPTEUR de lignes poussées, pas `state.logs.length` : une fois le
+// plafond atteint (MAX_LOG_LINES), chaque nouvelle ligne en fait sortir une ancienne et
+// la longueur reste constante — l'ancien watcher ne se déclenchait plus et la console
+// semblait figée alors que les logs continuaient d'arriver.
+watch([() => state.logCounter, () => logs.value.length], async () => {
+  if (!state.autoscroll || !logsBodyEl.value) return;
+  await nextTick();
+  logsBodyEl.value.scrollTop = logsBodyEl.value.scrollHeight;
+});
 
 function copyLine(entry) {
   navigator.clipboard?.writeText(entry.data.trim()).catch(() => {});
@@ -66,6 +67,9 @@ function openExportRange() {
 <template>
   <section class="logs-panel">
     <div class="logs-head">
+      <button class="icon-btn logs-back" type="button" @click="state.mobilePane = 'list'">
+        ← {{ t("logs.backToList") }}
+      </button>
       <div class="logs-title">
         <h2>{{ selected ? selected.name : t("logs.selectProcess") }}</h2>
         <span class="logs-sub">
