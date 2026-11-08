@@ -47,6 +47,11 @@ jusqu'ici sous « [Non publié] » dans le CHANGELOG, sans tag ni release.
   sur petit écran), menu PM2 ancré sous son bouton, `100dvh`, grille de la
   vue Process à largeur souple, barres d'outils de logs défilantes sur
   mobile.
+- README mis à jour : arborescence complète du dépôt (22 migrations, tous les
+  services, routes, composants), nouvelle référence des variables
+  d'environnement, section Tests, logs (historique, « Vider »), Docker et
+  responsive ; liens vers des fichiers supprimés retirés, ajout d'un index
+  de la documentation par fonctionnalité.
 
 ### Corrigé
 

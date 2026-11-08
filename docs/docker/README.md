@@ -264,6 +264,7 @@ donnée est absente n'est pas émise (jamais `0` par défaut).
 | Conteneur arrêté                    | Listé, métriques `null`.                                               |
 | Conteneur redémarré                 | Repart d'un nouvel échantillon CPU (`0 %` un tick).                    |
 | Erreur de flux de logs              | `docker:log-error` à l'abonné, flux fermé, rien ne remonte au process. |
+| Flux interrompu (arrêt/redémarrage) | `docker:log-error` (`ended: true`), reprise auto via `since`.          |
 | WebSocket fermé                     | Flux de logs de ce socket fermé.                                       |
 
 ## Problèmes courants
