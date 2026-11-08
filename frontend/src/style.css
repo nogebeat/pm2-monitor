@@ -79,6 +79,8 @@ textarea {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  /* 100vh dépasse la zone visible sur mobile (barre d'adresse) : 100dvh suit la hauteur réelle. */
+  height: 100dvh;
 }
 
 /* ---------- Top bar ---------- */
@@ -136,6 +138,12 @@ textarea {
 }
 
 .view-tabs {
+  order: 3;
+  flex: 1 1 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   gap: 4px;
   background: var(--panel-raised);
@@ -145,6 +153,8 @@ textarea {
 }
 
 .view-tab {
+  flex-shrink: 0;
+  white-space: nowrap;
   background: transparent;
   border: none;
   color: var(--text-muted);
@@ -169,6 +179,33 @@ textarea {
   display: flex;
   align-items: center;
   gap: 22px;
+  min-width: 0;
+}
+
+.topbar-stats > *,
+.topbar-controls > * {
+  flex-shrink: 0;
+}
+
+.topbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.btn-ico {
+  line-height: 1;
+}
+
+/* Ordre de la barre : marque, actions, contrôles ; les onglets passent toujours sur leur propre ligne. */
+.brand {
+  order: 0;
+}
+.topbar-stats {
+  order: 1;
+}
+.topbar-controls {
+  order: 2;
 }
 
 .stat {
@@ -278,9 +315,11 @@ textarea {
 /* ---------- Menu global PM2 ---------- */
 
 .pm2-menu {
-  position: absolute;
-  top: 60px;
-  right: 24px;
+  /* fixed : top/right sont posés en ligne par Pm2Menu.vue depuis la position du bouton. */
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  max-width: calc(100vw - 16px);
   z-index: 40;
   background: var(--panel-raised);
   border: 1px solid var(--border);
@@ -318,7 +357,7 @@ textarea {
 .layout {
   flex: 1;
   display: grid;
-  grid-template-columns: 330px 1fr;
+  grid-template-columns: minmax(280px, 330px) minmax(0, 1fr);
   min-height: 0;
 }
 
@@ -606,7 +645,15 @@ textarea {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Sans min-width: 0, un item de grille ne descend pas sous la largeur de son contenu
+     (lignes de logs longues) et fait déborder toute la page. */
+  min-width: 0;
   background: var(--bg);
+}
+
+/* Retour à la liste : mobile uniquement (voir @media plus bas). */
+.logs-back {
+  display: none;
 }
 
 .logs-head {
@@ -652,7 +699,9 @@ textarea {
   font-size: 11.5px;
   padding: 7px 11px;
   border-radius: var(--radius-sm);
-  width: 200px;
+  flex: 1 1 160px;
+  min-width: 120px;
+  max-width: 280px;
   outline: none;
   transition: border-color 0.15s ease;
 }
@@ -976,6 +1025,7 @@ textarea {
   border-radius: var(--radius-lg);
   width: min(540px, 92vw);
   max-height: 86vh;
+  max-height: 86dvh;
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-lift);
@@ -1076,6 +1126,7 @@ textarea {
 
 .modal-foot {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 18px;
@@ -1120,6 +1171,12 @@ textarea {
   max-width: 90vw;
 }
 
+.toast.info {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* ---------- Scrollbars ---------- */
 
 ::-webkit-scrollbar {
@@ -1139,21 +1196,116 @@ textarea {
 
 /* ---------- Responsive ---------- */
 
+/* Libellés des boutons d'action : seulement quand il y a la place (sinon icônes, le title reste en infobulle). */
+@media (max-width: 1700px) {
+  .btn-label {
+    display: none;
+  }
+}
+
+/* Écrans moyens : actions sur leur propre ligne (défilement horizontal), contrôles à côté de la marque. */
+@media (max-width: 1100px) {
+  .topbar-controls {
+    order: 1;
+  }
+  .topbar-stats {
+    order: 2;
+    flex: 1 1 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .layout {
+    grid-template-columns: minmax(240px, 290px) minmax(0, 1fr);
+  }
+}
+
+/* Mobile : un seul volet à la fois dans la vue Process (liste OU logs, bouton retour). */
 @media (max-width: 820px) {
   .layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .layout[data-pane="list"] .logs-panel {
+    display: none;
+  }
+  .layout[data-pane="logs"] .sidebar {
+    display: none;
   }
   .sidebar {
     border-right: none;
-    border-bottom: 1px solid var(--border);
-    max-height: 280px;
+    max-height: none;
   }
+  .logs-back {
+    display: inline-flex;
+  }
+  .logs-head {
+    padding: 10px 12px;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+  }
+  .logs-title {
+    min-width: 0;
+  }
+  .logs-title h2,
+  .logs-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .logs-toolbar {
+    padding: 8px 12px;
+  }
+  /* Chaque rangée d'outils devient une bande défilable : elle garde sa hauteur au lieu d'occuper l'écran. */
+  .logs-toolbar-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .logs-toolbar-row > * {
+    flex-shrink: 0;
+  }
+  .log-search {
+    flex: 0 0 180px;
+  }
+  .logs-body {
+    padding: 8px 12px 20px;
+  }
+  .log-line {
+    gap: 6px;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 720px) {
   .topbar {
-    position: relative;
+    padding: 10px 12px;
+    gap: 8px;
   }
-  .pm2-menu {
-    right: 14px;
-    top: 122px;
+  .brand-sub,
+  .conn-label {
+    display: none;
+  }
+  .topbar-stats {
+    gap: 14px;
+  }
+  .topbar-controls {
+    gap: 8px;
+  }
+  .user-chip > span {
+    display: none;
+  }
+  .view-tab {
+    padding: 7px 12px;
+  }
+  /* Groupes de filtres (Timeline, Incidents, logs…) : défilent au lieu d'être rognés. */
+  .filter-group {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .chart-head {
+    flex-wrap: wrap;
   }
 }

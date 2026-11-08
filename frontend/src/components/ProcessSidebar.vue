@@ -154,7 +154,7 @@ function resetFilters() {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  padding: 0 0 10px;
+  padding: 0 18px 10px;
 }
 .sidebar-filter-select {
   font-size: 12px;

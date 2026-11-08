@@ -210,7 +210,7 @@
     "pauseTitle": "Pause the stream",
     "resume": "Resume ({count})",
     "pause": "Pause",
-    "clearTitle": "Clear the display",
+    "clearTitle": "Flush the logs (PM2 files + history)",
     "clear": "Clear",
     "fulltextTitle": "Full-text search in the complete file",
     "fulltext": "Full search",
@@ -225,7 +225,14 @@
     "waitingForLogs": "Waiting for logs…",
     "selectAppFirst": "Select an app in the list first.",
     "selectAppFirstShort": "Select an app first.",
-    "statsLabel": "{files} file(s) · {archived} archived · {size}"
+    "statsLabel": "{files} file(s) · {archived} archived · {size}",
+    "clearConfirm": "Flush the logs of \"{name}\"?\n\nThis deletes the PM2 log files (out + err) and the history kept by the monitor (search, export, Log Explorer). This cannot be undone.",
+    "clearDone": "Logs of \"{name}\" flushed.",
+    "clearLocalOnly": "Display cleared. You don't have the \"flush\" permission on this app: the log files are kept.",
+    "historyStdout": "stdout history (no timestamps)",
+    "historyStderr": "stderr history (no timestamps)",
+    "liveBelow": "live stream below",
+    "backToList": "Processes"
   },
   "modalBase": {
     "confirm": "Confirm",
@@ -834,6 +841,7 @@
     "logsTitle": "Logs — {name}",
     "logsUnavailable": "You don't have permission to view Docker container logs.",
     "logsError": "Log stream interrupted: {error}",
-    "waitingForLogs": "Waiting for logs…"
+    "waitingForLogs": "Waiting for logs…",
+    "streamResumed": "stream resumed (the container restarted)"
   }
 }

@@ -85,14 +85,13 @@ function portsLabel(c) {
 
 // ---------- Console de logs (même mécanique d'auto-scroll que LogsPanel.vue) ----------
 const logsBodyEl = ref(null);
-watch(
-  () => state.docker.logs.length,
-  async () => {
-    if (!state.docker.autoscroll) return;
-    await nextTick();
-    if (logsBodyEl.value) logsBodyEl.value.scrollTop = logsBodyEl.value.scrollHeight;
-  },
-);
+// Compteur de lignes poussées plutôt que `.length` : la longueur se fige au plafond
+// (voir le commentaire équivalent dans LogsPanel.vue).
+watch([() => state.docker.logCounter, () => state.docker.logs.length], async () => {
+  if (!state.docker.autoscroll) return;
+  await nextTick();
+  if (logsBodyEl.value) logsBodyEl.value.scrollTop = logsBodyEl.value.scrollHeight;
+});
 </script>
 
 <template>
