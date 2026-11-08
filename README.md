@@ -1,12 +1,16 @@
 # PM2 Monitor
 
 [![CI](https://github.com/nogebeat/pm2-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/nogebeat/pm2-monitor/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/nogebeat/pm2-monitor)](https://github.com/nogebeat/pm2-monitor/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js >= 22](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)](package.json)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 Interface graphique complète pour surveiller tes apps PM2 : liste des process,
 statut, CPU/mémoire, redémarrages, et **logs en direct** (stdout/stderr) via WebSocket.
+Elle va bien au-delà d'une simple liste : alertes et notifications, health
+checks, auto-healing, historique et rapports, multi-serveurs, export
+Prometheus, plugins, et **monitoring Docker en lecture seule**.
 
 Ce n'est pas une page web statique : c'est un petit serveur Node.js à faire
 tourner **sur la machine où PM2 gère déjà tes apps** (il se branche sur l'API
@@ -14,7 +18,8 @@ programmatique de PM2, comme le ferait `pm2 monit` en ligne de commande), avec
 un frontend **Vue 3 + Vite** qui consomme cette API en REST + WebSocket.
 
 🌐 Interface disponible en **français** et **anglais** (sélecteur de langue
-dans la barre du haut). 🤝 Projet open source — contributions bienvenues,
+dans la barre du haut), 📱 **responsive** (mobile, tablette, desktop).
+🤝 Projet open source — contributions bienvenues,
 voir [CONTRIBUTING.md](CONTRIBUTING.md).
 
 <p align="center">
@@ -23,16 +28,16 @@ voir [CONTRIBUTING.md](CONTRIBUTING.md).
   <img src="docs/screenshots/log-explorer.svg" width="32%" alt="Log Explorer avec filtres et recherche" />
 </p>
 
-> Les images ci-dessus sont des aperçus illustratifs générés (voir
-> [`docs/screenshots/README.md`](docs/screenshots/README.md)), pas de vraies
-> captures — à remplacer dès que possible par des captures du dashboard
-> réel.
+> Les images ci-dessus sont des aperçus illustratifs générés
+> (`docs/screenshots/*.svg`), pas de vraies captures — à remplacer dès que
+> possible par des captures du dashboard réel.
 
 ## Stack technique
 
-- **Backend** : Node.js, Express, `pm2` (API programmatique), Socket.IO,
-  `nodemailer` (envoi SMTP pour le provider de notification Email).
-- **Frontend** : Vue 3 (`<script setup>`), Vite, Chart.js, Socket.IO client.
+- **Backend** : Node.js (≥ 22), Express, `pm2` (API programmatique), Socket.IO,
+  `better-sqlite3`, `nodemailer` (envoi SMTP pour le provider de notification
+  Email), `bcryptjs` (mots de passe) ; `mysql2` en dépendance optionnelle.
+- **Frontend** : Vue 3 (`<script setup>`), Vite, Chart.js, `vue-i18n`, Socket.IO client.
   Le frontend est **compilé** (`npm run build`) en fichiers statiques servis
   directement par Express — il n'y a pas de serveur Node séparé à exposer
   en production, un seul port suffit.
@@ -42,80 +47,120 @@ voir [CONTRIBUTING.md](CONTRIBUTING.md).
   [Multi-utilisateurs & permissions](#multi-utilisateurs--permissions).
 - L'historique système et les logs persistés restent en fichiers locaux
   (`data/`), indépendamment de la base choisie ci-dessus.
+- **Docker** (optionnel) : lecture seule via le socket local, avec le client
+  `http` natif de Node — aucune dépendance npm ajoutée. **Prometheus** :
+  endpoint `/metrics` optionnel.
 
 Structure du dépôt :
 
 ```
 pm2-monitor/
 ├── server.js              # orchestration uniquement : config, instanciation des
-│                           # services, montage des routers/temps réel, boot (~260 lignes)
+│                           # services, montage des routers/temps réel, boot (~500 lignes)
 ├── lib/
 │   ├── db/                 # abstraction base de données (sqlite-driver.js, mysql-driver.js)
-│   │   ├── migrations/       # migrations versionnées :
+│   │   ├── migrations/       # 22 migrations versionnées (001 → 022) :
 │   │   │   ├── 001_initial_schema.js    # users, permissions
 │   │   │   ├── 002_job_queue.js         # jobs (file d'attente persistante)
 │   │   │   ├── 003_alert_engine.js      # alert_rules, alerts
 │   │   │   ├── 004_process_metrics.js   # process_metrics_raw, process_metrics_rollup
 │   │   │   ├── 005_process_events.js    # process_events (timeline)
-│   │   │   ├── 006_notifications.js     # notification_providers, notification_routes, notification_history
-│   │   │   ├── 007_notification_routing_templates.js  # colonnes de template sur notification_routes
+│   │   │   ├── 006_notifications.js     # providers, routes, historique d'envoi
+│   │   │   ├── 007_notification_routing_templates.js
 │   │   │   ├── 008_health_checks.js     # health_checks (Phase 6)
-│   │   │   ├── 009_auto_healing.js      # auto_healing_settings/state/audit (Phase 7)
+│   │   │   ├── 009_auto_healing.js      # auto-healing (Phase 7)
 │   │   │   ├── 010_health_checks_process_name.js
-│   │   │   └── 011_audit_log.js         # audit_log append-only (Phase 9)
+│   │   │   ├── 011_audit_log.js         # audit_log append-only (Phase 9)
+│   │   │   ├── 012_servers.js           # registre multi-serveurs (Phase 10)
+│   │   │   ├── 013_process_metrics_analytics.js   # analytics d'historique (Phase 11)
+│   │   │   ├── 014_process_metrics_server_key.js  # historique par serveur
+│   │   │   ├── 015_process_organization.js        # tags / environnements / groupes (Phase 13)
+│   │   │   ├── 016_incidents.js         # incidents et silences (Phase 14)
+│   │   │   ├── 017_servers_last_processes.js
+│   │   │   ├── 018_anomaly_detection.js # détection d'anomalies (Phase 16)
+│   │   │   ├── 019_service_dependencies.js        # carte de dépendances (Phase 17)
+│   │   │   ├── 020_rbac_api_keys.js     # rôles et clés API (Phase 18)
+│   │   │   ├── 021_system_metrics_history.js      # historique système (Phase 20)
+│   │   │   └── 022_plugins.js           # plugins (Phase 21)
 │   │   └── migrator.js        # exécution des migrations (up/down/status)
-│   ├── services/
-│   │   ├── queue/             # file d'attente persistante générique (voir README dédié)
+│   ├── services/            # un dossier par domaine métier (voir lib/services/README.md)
+│   │   ├── queue/             # file d'attente persistante générique
 │   │   ├── alerts/            # moteur d'alertes (seuils, cooldown, dédup)
-│   │   ├── process-history/   # historique CPU/RAM/restarts par process, multi-résolution
+│   │   ├── process-history/   # historique CPU/RAM/restarts, multi-résolution + analytics
 │   │   ├── events/            # timeline d'événements/crashs PM2
 │   │   ├── notifications/     # providers Email/Discord/Telegram/Slack/Webhook, secrets chiffrés
-│   │   ├── health-checks/     # sondes HTTP/TCP/Command indépendantes du statut PM2 (Phase 6)
-│   │   ├── auto-healing/      # redémarrage automatique + garde-fous, désactivé par défaut (Phase 7)
-│   │   └── audit/             # journal d'audit append-only des actions sensibles (Phase 9)
-│   ├── routes/                # routes REST par domaine : alerts.js, events.js, notifications.js,
-│   │   │                       # health-checks.js, auto-healing.js, dashboard.js, audit.js,
-│   │   │                       # auth.js, users.js, processes.js, pm2-daemon.js, system.js, logs.js,
-│   │   │                       # log-explorer.js (recherche globale, Phase 12)
-│   ├── realtime/               # branchement Socket.IO/PM2 hors REST :
+│   │   ├── health-checks/     # sondes HTTP/TCP/Command (Phase 6)
+│   │   ├── auto-healing/      # redémarrage automatique + garde-fous (Phase 7)
+│   │   ├── audit/             # journal d'audit append-only (Phase 9)
+│   │   ├── servers/           # registre des serveurs + agents distants (Phase 10)
+│   │   ├── dashboard/         # instantané global et santé du serveur
+│   │   ├── process-organization/  # tags, environnements, groupes (Phase 13)
+│   │   ├── incidents/         # incidents corrélés + silences (Phase 14)
+│   │   ├── metrics/           # export Prometheus (Phase 15)
+│   │   ├── anomaly-detection/ # détection statistique d'anomalies (Phase 16)
+│   │   ├── service-dependencies/  # carte de dépendances de service (Phase 17)
+│   │   ├── api-keys/          # clés API M2M scopées (Phase 18)
+│   │   ├── backup/            # export / validation / restauration (Phase 19)
+│   │   ├── reports/           # rapports et capacity planning (Phase 20)
+│   │   ├── plugins/           # chargeur de plugins (Phase 21)
+│   │   └── docker/            # monitoring Docker en lecture seule (Phase 22)
+│   ├── routes/                # routes REST par domaine : alerts, anomaly-detection, api-keys,
+│   │   │                       # audit, auth, auto-healing, backup, dashboard, docker, events,
+│   │   │                       # health-checks, incidents, log-explorer, logs, metrics,
+│   │   │                       # notifications, plugins, pm2-daemon, process-organization,
+│   │   │                       # processes, reports, servers, service-dependencies, system, users
+│   ├── realtime/               # branchement Socket.IO hors REST :
 │   │   │                       # process-socket.js (liste process par client), pm2-bus.js (bus
-│   │   │                       # logs/événements PM2 + démarrage du serveur HTTP)
+│   │   │                       # logs/événements PM2 + démarrage du serveur HTTP), docker-bus.js
+│   │   │                       # (flux de logs Docker du conteneur sélectionné), agent-hub.js
+│   │   │                       # (agents distants)
+│   ├── log-store.js            # persistance des logs PM2 (JSONL horodaté, rotation, gzip) + tail()
+│   ├── log-backlog.js          # historique affiché à la sélection d'un process (stdout/stderr
+│   │                           # dans l'ordre réel, voir « Logs »)
 │   ├── polling.js              # les deux boucles setInterval (snapshot système, éval process)
 │   ├── alert-dispatch.js       # fan-out d'une transition d'alerte : notifications/websocket/auto-healing
 │   ├── process-helpers.js      # helpers partagés par les routers process (fmtProcess,
 │   │                           # visibleProcesses, withAppPermission…)
 │   ├── bootstrap.js            # loadDotEnv() + création du compte admin par défaut
-│   ├── auth.js              # sessions, middlewares requireAuth / requirePermission / requireAdmin
-│   ├── user-store.js        # CRUD utilisateurs + permissions
-│   ├── permissions.js        # catalogue des actions (par app / globales) + hasPermission()
-│   └── …                    # actions PM2, stats système, logs, historique
+│   ├── auth.js                 # sessions, middlewares requireAuth / requirePermission / requireAdmin
+│   ├── user-store.js           # CRUD utilisateurs + permissions
+│   ├── permissions.js          # catalogue des actions, rôles, scopes de clés API + hasPermission()
+│   └── …                       # actions PM2 (pm2-actions.js), stats système, historique (history-store.js)
 ├── bin/
+│   ├── agent.js              # agent distant (à exécuter sur la machine surveillée)
+│   ├── backup.js             # CLI de backup / validation / restauration
 │   ├── manage-users.js       # CLI de gestion des comptes (create, grant, revoke, promote…)
-│   └── migrate.js             # CLI de migrations DB (up, down, status)
+│   └── migrate.js            # CLI de migrations DB (up, down, status)
+├── scripts/
+│   ├── check-i18n.js         # vérifie que fr.json et en.json ont les mêmes clés
+│   └── run-tests.js          # lanceur des tests node:test
+├── plugins/                 # plugins déposés à la main (README.md + exemple hello-world/)
 ├── test/
 │   ├── unit/, integration/, helpers/   # voir section Tests
-├── docs/
-│   ├── ARCHITECTURE.md        # décisions d'architecture (migrations, queue, tests)
-│   ├── alerts/README.md       # détail du moteur d'alertes
-│   ├── events/README.md       # détail de la timeline d'événements
-│   ├── health-checks/README.md  # détail des health checks HTTP/TCP/Command (Phase 6)
-│   ├── auto-healing/README.md   # détail Auto-Healing : garde-fous, activation, sécurité (Phase 7)
-│   ├── audit/README.md          # détail de l'audit log : événements, sanitization, sécurité, API (Phase 9)
-│   ├── multi-server/README.md   # multi-serveurs / agents distants : architecture, sécurité, install (Phase 10)
-│   ├── log-explorer/README.md   # recherche globale multi-process/multi-serveur, garde-fous (Phase 12)
-│   └── notifications/
-│       ├── README.md            # architecture, registry, secrets, API, permissions
-│       └── providers/            # un .md par provider (config, sécurité, test, erreurs)
+│   └── deploy/                          # tests bats de deploy.sh
+├── docs/                    # une doc détaillée par fonctionnalité + landing page
+│   ├── index.html             # landing page (GitHub Pages, CNAME, sitemap, robots.txt, assets/)
+│   ├── screenshots/           # aperçus illustratifs (SVG)
+│   ├── <fonctionnalité>/README.md   # alerts, anomaly-detection, audit, auto-healing,
+│   │                                # backup-restore, dashboard, docker, events, health-checks,
+│   │                                # incidents, log-explorer, metrics, multi-server,
+│   │                                # notifications (+ providers/), plugins, process-history,
+│   │                                # process-organization, rbac-api-keys, reports,
+│   │                                # service-dependencies
 ├── frontend/                # source du frontend Vue 3 + Vite
 │   ├── src/
-│   │   ├── components/        # TopBar, ProcessSidebar, LogsPanel, SystemView, EventsView,
-│   │   │                       # ServersView, LogExplorerView, LoginScreen, modales…
-│   │   ├── store.js            # état réactif partagé (process, logs, système, auth)
-│   │   ├── socket.js, api.js, format.js
+│   │   ├── components/        # TopBar, ProcessSidebar, LogsPanel, DashboardView, SystemView,
+│   │   │                       # EventsView, IncidentsView, ServersView, LogExplorerView,
+│   │   │                       # ReportsView, ServiceDependenciesView, DockerView, LoginScreen,
+│   │   │                       # modals/ (une modale par fonctionnalité)…
+│   │   ├── i18n/              # vue-i18n + locales/{fr,en}.json
+│   │   ├── store.js            # état réactif partagé (process, logs, système, auth, Docker)
+│   │   ├── main.js, App.vue, socket.js, api.js, format.js
 │   │   └── style.css
 │   └── vite.config.js
 ├── public/                  # ⚠️ généré par `npm run build` — ne pas éditer à la main
-└── deploy.sh
+├── deploy.sh
+└── CHANGELOG.md, CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md, RELEASE_NOTES_*.md
 ```
 
 ## Installation
@@ -267,6 +312,84 @@ npm run dev:client   # terminal 2 — Vite sur :5173
 > contenu directement, tes changements seraient écrasés au prochain build.
 > Tout le code source du frontend vit dans `frontend/`.
 
+## Configuration (variables d'environnement)
+
+Toute la configuration passe par le fichier `.env` à la racine (copie
+[`.env.example`](.env.example), qui reste la référence commentée). Les
+variables en gras sont celles à fixer explicitement en production (sinon une
+valeur aléatoire est générée à chaque redémarrage) ; les autres ont une
+valeur par défaut raisonnable.
+
+**Serveur et authentification**
+
+| Variable                     | Défaut                       | Rôle                                                                                                |
+| ---------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| `PORT`                       | `4200`                       | Port d'écoute du dashboard.                                                                         |
+| `PM2_MONITOR_USER` / `_PASS` | —                            | Compte admin créé **une seule fois** au premier démarrage (base d'utilisateurs vide).               |
+| `PM2_MONITOR_DISABLE_AUTH`   | —                            | `1` désactive l'authentification (déconseillé si le port est exposé).                               |
+| **`SESSION_SECRET`**         | aléatoire à chaque démarrage | Signature des cookies de session ; sans valeur fixe, tout le monde est déconnecté à chaque restart. |
+| `SESSION_COOKIE_SECURE`      | —                            | `1` quand le dashboard est servi en HTTPS (cookies `secure`).                                       |
+
+**Chiffrement des secrets**
+
+| Variable                           | Défaut               | Rôle                                                                                                                 |
+| ---------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **`NOTIFICATIONS_ENCRYPTION_KEY`** | aléatoire en mémoire | Chiffre (AES-256-GCM) les secrets de providers de notification ; sans clé fixe ils deviennent illisibles au restart. |
+| `BACKUP_ENCRYPTION_KEY`            | —                    | Clé **distincte** pour les secrets embarqués dans un backup ; sans elle, un export avec secrets échoue.              |
+| `BACKUP_MAX_BODY_SIZE`             | `20mb`               | Taille maximale du corps JSON de `/api/backup` (export / validation / restauration).                                 |
+
+**Base de données** (comptes et permissions)
+
+| Variable                                          | Défaut              | Rôle                                                                     |
+| ------------------------------------------------- | ------------------- | ------------------------------------------------------------------------ |
+| `DB_DRIVER`                                       | `sqlite`            | `sqlite` ou `mysql`.                                                     |
+| `DB_SQLITE_PATH`                                  | `./data/monitor.db` | Fichier SQLite.                                                          |
+| `DB_HOST` `DB_PORT` `DB_USER` `DB_PASS` `DB_NAME` | —                   | Connexion MySQL/MariaDB (`npm install mysql2` requis, `DB_PORT` = 3306). |
+
+**Logs, alertes, historique, événements, health checks, audit**
+
+| Variable                              | Défaut                | Rôle                                                                          |
+| ------------------------------------- | --------------------- | ----------------------------------------------------------------------------- |
+| `LOG_ROTATE_SIZE_MB`                  | `5`                   | Taille à partir de laquelle un fichier de logs est roté puis compressé.       |
+| `ALERTS_ENABLED`                      | `1`                   | Active le moteur d'alertes.                                                   |
+| `ALERTS_EVAL_INTERVAL_MS`             | `15000`               | Intervalle d'évaluation des règles.                                           |
+| `NOTIFICATIONS_DISPATCH_ENABLED`      | `1`                   | Coupe seulement l'envoi des notifications (sans effet si `ALERTS_ENABLED=0`). |
+| `PROCESS_HISTORY_ENABLED`             | `1`                   | Active l'historique par process.                                              |
+| `PROCESS_HISTORY_*`                   | voir `.env.example`   | Intervalles de collecte/maintenance, rétentions, buckets, points max (500).   |
+| `EVENTS_ENABLED`                      | `1`                   | Active la timeline d'événements.                                              |
+| `EVENTS_RETENTION_MS`                 | 90 jours              | Durée de conservation avant purge (`EVENTS_MAINTENANCE_INTERVAL_MS` : 1 h).   |
+| `HEALTH_CHECKS_ENABLED`               | `1`                   | Coupe l'exécution périodique (l'API de gestion reste disponible).             |
+| `HEALTH_CHECKS_SCHEDULER_INTERVAL_MS` | `5000`                | Fréquence à laquelle le scheduler cherche les checks dus.                     |
+| `AUDIT_RETENTION_MS`                  | `0` (jamais de purge) | Rétention de l'audit log (`AUDIT_MAINTENANCE_INTERVAL_MS` : 1 h).             |
+| `ANOMALY_DETECTION_ENABLED`           | `1`                   | Coupe la boucle d'évaluation des anomalies (l'API des règles reste dispo).    |
+
+**Multi-serveurs (hub) et agent distant**
+
+| Variable                                                         | Défaut          | Rôle                                                                 |
+| ---------------------------------------------------------------- | --------------- | -------------------------------------------------------------------- |
+| `PM2_MONITOR_LOCAL_SERVER_NAME`                                  | `Serveur local` | Nom affiché pour l'hôte local dans l'onglet Serveurs.                |
+| `AGENT_HEARTBEAT_INTERVAL_MS`                                    | `10000`         | Heartbeat attendu d'un agent (identique côté hub et agent).          |
+| `AGENT_HEARTBEAT_TIMEOUT_MS`                                     | `30000`         | Silence au-delà duquel un agent passe OFFLINE.                       |
+| `AGENT_STALE_SWEEP_INTERVAL_MS`                                  | `5000`          | Fréquence du balayage qui bascule les agents expirés.                |
+| `AGENT_ACTION_ACK_TIMEOUT_MS`                                    | `15000`         | Délai d'attente de l'accusé d'une action distante.                   |
+| `PM2_MONITOR_HUB_URL` `_SERVER_KEY` `_AGENT_TOKEN` `_AGENT_NAME` | —               | Lues **par `bin/agent.js`** (machine distante), pas par `server.js`. |
+
+**Prometheus, plugins, Docker**
+
+| Variable                    | Défaut                  | Rôle                                                                                  |
+| --------------------------- | ----------------------- | ------------------------------------------------------------------------------------- |
+| `METRICS_ENABLED`           | `1`                     | Active `GET /metrics`.                                                                |
+| `METRICS_TOKEN`             | —                       | Jeton `Authorization: Bearer` requis pour `/metrics`.                                 |
+| `METRICS_ALLOWED_IPS`       | —                       | IP autorisées (séparées par des virgules) ; sans token ni IP, seul `localhost` passe. |
+| `PM2_MONITOR_PLUGINS_DIR`   | `plugins/`              | Dossier scanné au démarrage pour découvrir les plugins.                               |
+| `DOCKER_MONITORING_ENABLED` | `1`                     | `0` garantit que le socket Docker n'est jamais touché.                                |
+| `DOCKER_SOCKET_PATH`        | `/var/run/docker.sock`  | Chemin du socket Docker.                                                              |
+| `DOCKER_POLL_INTERVAL_MS`   | `5000` (minimum `1000`) | Intervalle du snapshot Docker partagé.                                                |
+
+**Variables de `deploy.sh`** (à passer en ligne de commande, pas dans `.env`) :
+`DEPLOY_SKIP_HEALTHCHECK`, `DEPLOY_SKIP_TESTS`, `HEALTH_TIMEOUT` — voir
+[Installation](#option-rapide--script-de-déploiement-automatique).
+
 ## Base de données : migrations
 
 Le schéma (tables `users`, `permissions`, `jobs`…) est géré par un système de
@@ -299,9 +422,7 @@ risque : les migrations réutilisent le même schéma et n'écrasent aucune
 donnée existante.
 
 Les fichiers de migration vivent dans `lib/db/migrations/` (un fichier par
-migration, `{ version, up(db), down(db) }`). Le détail des choix
-d'architecture (transactions, limites connues sous MySQL…) est documenté
-dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+migration, `{ version, up(db), down(db) }`).
 
 ## Tests
 
@@ -309,12 +430,27 @@ dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 npm test               # tous les tests (unitaires + intégration)
 npm run test:unit       # tests unitaires seulement
 npm run test:integration  # tests d'intégration seulement (sous-process réels)
+npm run test:deploy     # tests bats de deploy.sh (nécessite `bats`)
 ```
 
-Basé sur `node:test` (natif, aucune dépendance ajoutée — voir
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) pour la justification face à
-Vitest). Chaque test utilise un fichier SQLite temporaire isolé (créé et
-détruit automatiquement), aucun test ne touche à une base de données réelle.
+Plus de **1 200 tests** (unitaires + intégration), basés sur `node:test`
+(natif, aucune dépendance ajoutée) et lancés par `scripts/run-tests.js`.
+Chaque test utilise un fichier SQLite temporaire isolé (créé et détruit
+automatiquement), aucun test ne touche à une base de données réelle. La CI
+(`.github/workflows/ci.yml`) rejoue le contrôle de `deploy.sh` (shellcheck +
+bats), lint, format, parité i18n, tests unitaires et d'intégration, et build
+du frontend.
+
+Qualité du code :
+
+```bash
+npm run lint           # ESLint (lint:fix pour corriger)
+npm run format:check   # Prettier (format pour appliquer)
+npm run check:i18n     # fr.json / en.json : mêmes clés
+```
+
+Des hooks git (husky) lancent `lint-staged` avant chaque commit et
+vérifient le message avec commitlint — voir [Contribution](#contribution).
 
 Couverture notable : `test/unit/alert-engine.test.js` (seuils, durée,
 cooldown, déduplication, machine à états, acquittement — moteur d'alertes
@@ -339,7 +475,11 @@ actions enregistrées `success`/`failed`/`denied`, et le test de sécurité
 obligatoire — injection de secrets, vérification qu'ils n'apparaissent
 jamais en base ni dans les réponses API, voir
 [`docs/audit/README.md`](docs/audit/README.md)) ; `test/unit/audit-retention.test.js`
-(purge par rétention, désactivée par défaut, opt-in via `AUDIT_RETENTION_MS`).
+(purge par rétention, désactivée par défaut, opt-in via `AUDIT_RETENTION_MS`) ;
+`test/unit/log-backlog.test.js` et `log-store-tail.test.js` (historique de
+logs : stdout/stderr dans l'ordre réel, sans doublon avec les fichiers
+natifs PM2) ; `test/integration/docker-api.test.js` et
+`docker-service.test.js` (monitoring Docker contre un faux socket Docker).
 
 `./deploy.sh install`/`update` exécutent `npm test` avant de démarrer/
 redémarrer l'application (`run_tests` dans `deploy.sh`) : un test qui échoue
@@ -350,13 +490,11 @@ bloque le déploiement (contournable via `DEPLOY_SKIP_TESTS=1`, déconseillé).
 Les futures fonctionnalités métier (alertes, notifications, métriques…)
 vivent dans `lib/services/`, séparées de `server.js` (qui reste la couche
 HTTP/WebSocket). Voir [`lib/services/README.md`](lib/services/README.md)
-pour le détail de ce qui existe et ce qui est prévu.
+pour le détail de ce qui existe.
 
 - `lib/services/queue/` : file d'attente persistante générique (jobs stockés
   dans la table `jobs`, survivent à un redémarrage du process), sans
-  dépendance externe (pas de Redis requis) — voir
-  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) pour la justification du
-  choix face à `better-queue`/`bee-queue`.
+  dépendance externe (pas de Redis requis).
 - `lib/services/alerts/` : moteur d'alertes (règles CPU/RAM/disque/
   température/restarts/statut) — voir [Alertes](#alertes) et
   [`docs/alerts/README.md`](docs/alerts/README.md).
@@ -400,7 +538,7 @@ pour le détail de ce qui existe et ce qui est prévu.
 - `lib/services/metrics/` : export Prometheus (`GET /metrics`) qui met en
   forme les métriques déjà collectées ailleurs (process, système, alertes,
   health checks, registre de serveurs) — aucune nouvelle collecte, Prometheus
-  reste optionnel — voir [Export Prometheus](#export-prometheus-metrics-phase-15)
+  reste optionnel — voir [Export Prometheus](#export-prometheus--metrics-phase-15)
   et [`docs/metrics/README.md`](docs/metrics/README.md).
 - `lib/services/anomaly-detection/` : détection statistique locale
   (moyenne mobile/écart-type/z-score, aucune API IA externe) sur les
@@ -447,7 +585,7 @@ pour le détail de ce qui existe et ce qui est prévu.
   - Watch ON/OFF
   - Modifier les variables d'environnement (appliqué au redémarrage)
   - Modifier le script / les arguments / le mode fork↔cluster
-  - Flush des logs de cette app
+  - Flush des logs de cette app (même action que le bouton « Vider » de la console)
   - Réinitialiser le compteur de restarts
   - Supprimer le process
 - **Actions globales PM2** (menu "PM2 ⋯" en haut à droite) :
@@ -849,11 +987,24 @@ démarrage et reste la seule source de vérité pour ses propres process.
 
 ### Logs
 
+- **Historique immédiat** : en sélectionnant une app, la console affiche
+  tout de suite ses dernières lignes, **stdout et stderr entremêlés dans
+  leur ordre réel**. Elles viennent du journal horodaté que le monitor tient
+  lui-même (`data/logs/`) ; les fichiers `out` / `error` de PM2 ne servent
+  qu'à compléter ce qui est plus ancien, sans doublon. Pour une app que le
+  monitor n'a encore jamais vue, repli sur ces fichiers : stdout puis stderr,
+  chacun précédé d'un libellé « sans heure » (PM2 n'écrit pas d'horodatage
+  commun aux deux flux, l'ordre entre eux est alors inconnu).
 - **Flux en direct** : filtre "Tout / stdout / stderr", filtre par niveau
   (info/warn/error/debug, détecté par heuristique sur le texte), recherche
   texte **ou regex**, coloration **ANSI**, numéros de ligne, auto-scroll,
   bouton **copier** par ligne, **pause du flux** (les lignes manquées sont
-  comptées et rejouées à la reprise).
+  comptées et rejouées à la reprise). L'affichage garde les 4 000 dernières
+  lignes et l'auto-scroll continue de suivre au-delà.
+- **Vider** : supprime réellement les logs de l'app — fichiers PM2 `out` +
+  `error` **et** historique conservé par le monitor (recherche, export,
+  Log Explorer) — après confirmation. Irréversible. Sans la permission
+  `flush` sur l'app, le bouton ne vide que l'affichage et le dit.
 - **Recherche plein texte** dans l'historique complet du fichier (pas
   seulement ce qui a défilé à l'écran), avec filtre regex/niveau.
 - **Aller à une date** : retrouve les lignes autour d'un horodatage précis.
@@ -1167,10 +1318,15 @@ Docker ne touche ni le backend, ni le WebSocket, ni le monitoring PM2.
   défaut) alimente WebSocket, REST et Prometheus — le coût ne dépend ni du
   nombre de clients ni du nombre de scrapes. Les logs ne sont streamés que
   pour le conteneur sélectionné, et le flux est fermé dès qu'on change de
-  conteneur, quitte l'onglet ou perd le WebSocket.
+  conteneur, quitte l'onglet ou perd le WebSocket. À l'ouverture, les 200
+  dernières lignes puis le direct s'enchaînent sans trou ni doublon ; si le
+  conteneur redémarre, le flux reprend tout seul. « Vider » ne vide que
+  l'affichage (lecture seule : les logs du conteneur ne sont jamais touchés)
+  et l'historique antérieur ne revient pas en revenant sur le conteneur.
 - **API** : `GET /api/docker/{status,containers,containers/:id,containers/:id/logs}`.
   **WebSocket** (même serveur Socket.IO) : `docker.snapshot`,
-  `docker:subscribe-logs` / `docker:unsubscribe-logs`, `docker:log`.
+  `docker:subscribe-logs` / `docker:unsubscribe-logs`, `docker:log`,
+  `docker:log-error`.
 - **Permissions** : `docker_read` (liste, détail, métriques) et
   `docker_logs` (logs) — `admin`/`operator`/`viewer` : les deux ;
   `auditor` : lecture seule. Pas de scope par conteneur dans cette version.
@@ -1187,6 +1343,9 @@ Docker ne touche ni le backend, ni le WebSocket, ni le monitoring PM2.
   manuelle du DOM), polices `Space Grotesk` / `JetBrains Mono` auto-hébergées
   (aucune dépendance à un CDN de polices en production).
 - **Thème clair / sombre** : bouton ◐ en haut à droite, préférence mémorisée.
+- **Responsive** : barre du haut sur deux lignes (onglets défilables, actions
+  réduites à leur icône sur écran moyen), et sur mobile la vue Process affiche
+  la liste **ou** les logs en plein écran, avec un bouton « ← Processus ».
 - **Multi-utilisateurs avec permissions par app et par action** : chaque
   compte se connecte par identifiant/mot de passe (session, plus de mot de
   passe partagé) et ne voit / ne peut agir que sur ce qui lui a été accordé
@@ -1272,7 +1431,10 @@ droits, plutôt qu'un unique identifiant/mot de passe partagé (Basic Auth).
   et configuration des plugins, voir
   [Plugin System](#plugin-system-phase-21)), et `docker_read` /
   `docker_logs` (conteneurs Docker et leurs logs, en lecture seule, voir
-  [Docker Monitoring](#docker-monitoring-onglet-docker-phase-22)).
+  [Docker Monitoring](#docker-monitoring-onglet-docker-phase-22)), et
+  `process_org_read` / `process_org_manage` (tags, environnements et groupes,
+  voir
+  [Organisation des process](#organisation-des-process--tags-environnements-groupes-phase-13)).
 
 - **Rôles prédéfinis** (Admin/Operator/Viewer/Auditor) : un gabarit qui
   remplit ces mêmes permissions en un clic plutôt que de les cocher une par
@@ -1356,8 +1518,29 @@ premier compte admin. Lance ensuite `./deploy.sh update` (qui fait tourner
 ## Pour aller plus loin
 
 - 🖥️ Landing page du projet : [`docs/index.html`](docs/index.html).
-- Backlog non engagé d'idées de fonctionnalités (avec effort estimé et point
-  de départ dans le code) : [`docs/features.md`](docs/features.md).
+- 📝 Historique des versions : [`CHANGELOG.md`](CHANGELOG.md) et
+  [releases GitHub](https://github.com/nogebeat/pm2-monitor/releases).
+- 📚 Documentation détaillée par fonctionnalité (`docs/<fonctionnalité>/README.md`) :
+  [alertes](docs/alerts/README.md),
+  [détection d'anomalies](docs/anomaly-detection/README.md),
+  [audit](docs/audit/README.md),
+  [auto-healing](docs/auto-healing/README.md),
+  [backup & restore](docs/backup-restore/README.md),
+  [dashboard](docs/dashboard/README.md),
+  [Docker](docs/docker/README.md),
+  [événements](docs/events/README.md),
+  [health checks](docs/health-checks/README.md),
+  [incidents](docs/incidents/README.md),
+  [Log Explorer](docs/log-explorer/README.md),
+  [Prometheus](docs/metrics/README.md),
+  [multi-serveurs](docs/multi-server/README.md),
+  [notifications](docs/notifications/README.md),
+  [plugins](docs/plugins/README.md),
+  [historique des process](docs/process-history/README.md),
+  [organisation des process](docs/process-organization/README.md),
+  [RBAC & clés API](docs/rbac-api-keys/README.md),
+  [rapports](docs/reports/README.md),
+  [dépendances de service](docs/service-dependencies/README.md).
 
 ## Notes importantes
 
@@ -1415,6 +1598,14 @@ nouvelles fonctionnalités, de traductions ou simplement de rapports de bug.
 - 🔒 Signaler une vulnérabilité : [SECURITY.md](SECURITY.md)
 - 📝 Historique des changements : [CHANGELOG.md](CHANGELOG.md)
 - ⚖️ Licence : [MIT](LICENSE)
+
+Conventions : branche `fix/…` ou `feat/…` créée depuis `main`, pull request
+vers `main`, messages de commit au format
+[Conventional Commits](https://www.conventionalcommits.org/) (vérifié par
+commitlint), et une entrée dans la section « Non publié » du
+[CHANGELOG](CHANGELOG.md). Les versions suivent
+[SemVer](https://semver.org/lang/fr/) et sont publiées par tag `vX.Y.Z`,
+avec des notes de release (`RELEASE_NOTES_<version>.md`).
 
 Pour démarrer rapidement :
 
