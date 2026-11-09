@@ -7,6 +7,20 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### Ajouté
+
+- **Mises à jour (Phase 23, étape 1 — lecture seule)** : bouton « ⬆ Mises à
+  jour » dans la barre du haut (permission `updates_read`, admin par défaut)
+  qui affiche la version installée, les releases GitHub plus récentes avec leurs
+  notes (tags stables `vX.Y.Z` uniquement, jusqu'à 5 versions typées
+  correctif / mineure / majeure), un diagnostic de l'installation et la
+  commande `deploy.sh update` à lancer soi-même. **Aucune mise à jour n'est
+  exécutée depuis l'interface.** Un seul appel `GET` vers l'API GitHub toutes
+  les 6 h, sans donnée de l'installation, avec cache disque et ETag ;
+  désactivable (`UPDATE_CHECK_ENABLED=0`). Nouvelles routes
+  `GET /api/updates/status`, `POST /api/updates/check`,
+  `GET /api/updates/diagnostics`. Voir `docs/updates/README.md`.
+
 ## [4.1.2] - 2026-11-08
 
 ### Ajouté

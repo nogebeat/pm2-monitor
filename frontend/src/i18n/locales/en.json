@@ -63,6 +63,9 @@
     "backupTitle": "Backup / restore configuration",
     "backup": "Backup",
     "pluginsTitle": "Settings → Plugins (third-party extensions)",
+    "updates": "Updates",
+    "updatesTitle": "View the installed version and available updates",
+    "updatesAvailableTitle": "Update v{version} available",
     "plugins": "Plugins",
     "tabDocker": "Docker"
   },
@@ -843,5 +846,100 @@
     "logsError": "Log stream interrupted: {error}",
     "waitingForLogs": "Waiting for logs…",
     "streamResumed": "stream resumed (the container restarted)"
+  },
+  "updatesModal": {
+    "title": "Updates",
+    "loading": "Loading…",
+    "unavailable": "Update information unavailable.",
+    "installed": "Installed version",
+    "disabled": "Update checking is disabled on this server (UPDATE_CHECK_ENABLED=0).",
+    "available": "New version available: v{version}",
+    "upToDate": "You are up to date.",
+    "invalidCurrent": "The installed version has an unrecognized format: it cannot be compared.",
+    "checkedAt": "Last checked: {date}",
+    "neverChecked": "Not checked yet (first check shortly after startup).",
+    "recheck": "Check again",
+    "checking": "Checking…",
+    "throttled": "A check already ran less than a minute ago.",
+    "typePatch": "patch",
+    "typeMinor": "minor",
+    "typeMajor": "major",
+    "majorWarning": "Major version: it may contain breaking changes. Read the notes before updating.",
+    "notes": "Release notes",
+    "noNotes": "No notes published for this version.",
+    "viewOnGithub": "View on GitHub",
+    "diagnostic": "Can this installation update itself?",
+    "canUpdate": "Yes: no blocking issue detected.",
+    "cannotUpdate": "Not with deploy.sh update: at least one blocking issue (✗) below.",
+    "howTo": "How to update",
+    "runOnServer": "Run this command on the server:",
+    "copy": "Copy",
+    "copied": "Copied ✓",
+    "copyFailed": "Copy failed: select the command manually.",
+    "branchNote": "Today, deploy.sh update pulls the latest commit of the tracked branch ({branch}), not a specific version: it may contain changes not yet published in a release.",
+    "backupHint": {
+      "sqlite": "Before updating: back up the database (copy data/monitor.db, or your DB_SQLITE_PATH). deploy.sh neither backs it up nor restores it on rollback.",
+      "mysql": "Before updating: dump your MySQL/MariaDB database. deploy.sh neither backs it up nor restores it on rollback."
+    },
+    "readOnly": "This interface does not run any update: it only tells you which command to run.",
+    "noteContainer": "Container install: updating means pulling the new image and recreating the container.",
+    "noteArchive": "Install without a git repository (archive): download the new release from GitHub and replace the files.",
+    "error": {
+      "network": "GitHub is unreachable (network down or isolated server). It will retry automatically later.",
+      "timeout": "GitHub did not answer in time. It will retry automatically later.",
+      "rate_limited": "GitHub rate limit reached. It will retry automatically after the reset.",
+      "not_found": "Repository not found on GitHub (UPDATE_CHECK_REPO?).",
+      "bad_response": "Unexpected response from GitHub.",
+      "too_large": "GitHub response too large, ignored.",
+      "bad_config": "Invalid API URL (UPDATE_CHECK_API_URL?).",
+      "generic": "Check failed (code: {code})."
+    },
+    "check": {
+      "install_type": "Installation type",
+      "node_version": "Node.js version",
+      "process_manager": "Process manager",
+      "run_as_root": "Service user",
+      "database": "Database",
+      "write_access": "Write access",
+      "disk_space": "Free disk space",
+      "deploy_script": "deploy.sh script",
+      "git_available": "git installed",
+      "git_branch": "Tracked branch",
+      "git_upstream": "Upstream branch",
+      "git_clean": "Local changes",
+      "git_remote": "Origin repository"
+    },
+    "detail": {
+      "install_type": {
+        "container": "container: no in-place update",
+        "archive": "no git repository (archive)",
+        "git": "git repository"
+      },
+      "process_manager": {
+        "not_pm2": "not started by PM2: deploy.sh restarts the app through PM2"
+      },
+      "run_as_root": {
+        "root": "root: a dashboard flaw would grant root rights, prefer a dedicated user"
+      },
+      "write_access": {
+        "not_writable": "the service cannot write to its folder"
+      },
+      "deploy_script": {
+        "not_executable": "not executable (the command uses bash)",
+        "missing": "not found"
+      },
+      "git_branch": {
+        "detached": "detached HEAD ({value}): deploy.sh update cannot pull, go back to the main branch"
+      },
+      "git_upstream": {
+        "no_upstream": "no upstream branch: git pull would fail"
+      },
+      "git_remote": {
+        "no_origin": "no \"origin\" remote"
+      },
+      "node_version": {
+        "too_old": "version too old: Node ≥ {value} required"
+      }
+    }
   }
 }

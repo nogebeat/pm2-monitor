@@ -6,6 +6,13 @@ import LanguageSwitch from "./LanguageSwitch.vue";
 
 const { t } = useI18n();
 
+const updateAvailable = computed(() => state.updates.status?.updateAvailable === true);
+const updateVersion = computed(() => state.updates.status?.latest?.version || "");
+
+function openUpdates() {
+  state.modal = { type: "updates" };
+}
+
 const online = computed(() => state.processes.filter((p) => p.status === "online").length);
 const down = computed(() => state.processes.filter((p) => p.status !== "online").length);
 
@@ -266,6 +273,20 @@ function openPlugins() {
       >
         <span class="btn-ico" aria-hidden="true">🧩</span>
         <span class="btn-label">{{ t("topbar.plugins") }}</span>
+      </button>
+      <button
+        v-if="can('updates_read')"
+        class="icon-btn update-btn"
+        :class="{ 'has-update': updateAvailable }"
+        :title="
+          updateAvailable
+            ? t('topbar.updatesAvailableTitle', { version: updateVersion })
+            : t('topbar.updatesTitle')
+        "
+        @click="openUpdates"
+      >
+        <span class="btn-ico" aria-hidden="true">⬆</span>
+        <span class="btn-label">{{ updateAvailable ? `v${updateVersion}` : t("topbar.updates") }}</span>
       </button>
     </div>
 

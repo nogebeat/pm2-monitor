@@ -103,12 +103,13 @@ pm2-monitor/
 │   │   ├── backup/            # export / validation / restauration (Phase 19)
 │   │   ├── reports/           # rapports et capacity planning (Phase 20)
 │   │   ├── plugins/           # chargeur de plugins (Phase 21)
-│   │   └── docker/            # monitoring Docker en lecture seule (Phase 22)
+│   │   ├── docker/            # monitoring Docker en lecture seule (Phase 22)
+│   │   └── updates/           # version, release disponible, diagnostic d'installation (Phase 23, lecture seule)
 │   ├── routes/                # routes REST par domaine : alerts, anomaly-detection, api-keys,
 │   │   │                       # audit, auth, auto-healing, backup, dashboard, docker, events,
 │   │   │                       # health-checks, incidents, log-explorer, logs, metrics,
 │   │   │                       # notifications, plugins, pm2-daemon, process-organization,
-│   │   │                       # processes, reports, servers, service-dependencies, system, users
+│   │   │                       # processes, reports, servers, service-dependencies, system, updates, users
 │   ├── realtime/               # branchement Socket.IO hors REST :
 │   │   │                       # process-socket.js (liste process par client), pm2-bus.js (bus
 │   │   │                       # logs/événements PM2 + démarrage du serveur HTTP), docker-bus.js
@@ -386,6 +387,15 @@ valeur par défaut raisonnable.
 | `DOCKER_SOCKET_PATH`        | `/var/run/docker.sock`  | Chemin du socket Docker.                                                              |
 | `DOCKER_POLL_INTERVAL_MS`   | `5000` (minimum `1000`) | Intervalle du snapshot Docker partagé.                                                |
 
+**Mises à jour** (lecture seule, voir [Mises à jour](#mises-à-jour-bouton--phase-23))
+
+| Variable                   | Défaut                   | Rôle                                                                          |
+| -------------------------- | ------------------------ | ----------------------------------------------------------------------------- |
+| `UPDATE_CHECK_ENABLED`     | `1`                      | `0` : aucun appel sortant vers GitHub (serveur isolé, politique réseau).      |
+| `UPDATE_CHECK_INTERVAL_MS` | `21600000` (6 h)         | Intervalle de vérification des releases (minimum 1 h).                        |
+| `UPDATE_CHECK_REPO`        | `nogebeat/pm2-monitor`   | Dépôt `propriétaire/nom` interrogé (un fork qui publie ses propres releases). |
+| `UPDATE_CHECK_API_URL`     | `https://api.github.com` | Base de l'API (GitHub Enterprise Server, miroir interne).                     |
+
 **Variables de `deploy.sh`** (à passer en ligne de commande, pas dans `.env`) :
 `DEPLOY_SKIP_HEALTHCHECK`, `DEPLOY_SKIP_TESTS`, `HEALTH_TIMEOUT` — voir
 [Installation](#option-rapide--script-de-déploiement-automatique).
@@ -570,6 +580,12 @@ pour le détail de ce qui existe.
   avec un poller partagé dont le cache alimente WebSocket, REST et
   Prometheus — voir [Docker Monitoring](#docker-monitoring-onglet-docker-phase-22)
   et [`docs/docker/README.md`](docs/docker/README.md).
+- `lib/services/updates/` : vérification des mises à jour en **lecture
+  seule** — version installée, releases GitHub plus récentes (tags stables
+  `vX.Y.Z` uniquement, avec leurs notes) et diagnostic de l'installation. Il
+  n'exécute **aucune** mise à jour : il indique la commande à lancer — voir
+  [Mises à jour](#mises-à-jour-bouton--phase-23) et
+  [`docs/updates/README.md`](docs/updates/README.md).
 
 ## Fonctionnalités
 
@@ -1378,6 +1394,38 @@ Docker ne touche ni le backend, ni le WebSocket, ni le monitoring PM2.
   a rien à retrouver. Détails et raisonnement complets :
   [Limites connues de `docs/log-explorer/README.md`](docs/log-explorer/README.md#limites-connues).
 
+### Mises à jour (bouton ⬆, Phase 23)
+
+Un bouton **⬆ Mises à jour** dans la barre du haut (réservé à l'admin par
+défaut, permission `updates_read`) indique :
+
+- la **version installée** ;
+- si une **release plus récente** est publiée sur GitHub, avec ses **notes de
+  version** — les versions intermédiaires sont listées aussi (jusqu'à 5), chacune
+  typée correctif / mineure / majeure, et une version **majeure** affiche un
+  avertissement ; une pastille apparaît sur le bouton ;
+- un **diagnostic de l'installation** : peut-elle se mettre à jour avec
+  `./deploy.sh update` ? (dépôt git, branche et branche amont, modifications
+  locales, droits d'écriture, espace disque, version de Node, utilisateur du
+  service, gestionnaire de processus…) ;
+- la **commande exacte à lancer** sur le serveur, avec un bouton « Copier ».
+
+> **Strictement en lecture seule : l'interface n'exécute aucune mise à jour.**
+> Réécrire le code d'une application depuis l'application elle-même, pour
+> un projet installé par n'importe qui n'importe comment, est un risque qu'on
+> ne prend pas : elle informe et indique la commande. Raisonnement complet
+> dans [`docs/updates/README.md`](docs/updates/README.md).
+
+- **Sobre côté réseau** : un seul appel `GET` vers l'API GitHub toutes les 6 h
+  (cache sur disque, ETag), **sans aucune donnée de l'installation**. Désactivable
+  avec `UPDATE_CHECK_ENABLED=0` pour un serveur isolé.
+- **Contenu distant non fiable** : les notes sont affichées en texte brut, jamais
+  interprétées comme du HTML.
+- À savoir : `deploy.sh update` tire la **branche suivie**, pas un tag précis, et
+  **ne sauvegarde pas la base** avant de migrer — l'interface le rappelle.
+- API : `GET /api/updates/status`, `POST /api/updates/check` (1/min),
+  `GET /api/updates/diagnostics`.
+
 ## Multi-utilisateurs & permissions
 
 Depuis la v3, le monitor gère **plusieurs comptes**, chacun avec ses propres
@@ -1434,7 +1482,10 @@ droits, plutôt qu'un unique identifiant/mot de passe partagé (Basic Auth).
   [Docker Monitoring](#docker-monitoring-onglet-docker-phase-22)), et
   `process_org_read` / `process_org_manage` (tags, environnements et groupes,
   voir
-  [Organisation des process](#organisation-des-process--tags-environnements-groupes-phase-13)).
+  [Organisation des process](#organisation-des-process--tags-environnements-groupes-phase-13)),
+  et `updates_read` (version installée, mises à jour disponibles et diagnostic
+  d'installation — **admin uniquement par défaut**, absente des rôles
+  prédéfinis et des clés API, voir [Mises à jour](#mises-à-jour-bouton--phase-23)).
 
 - **Rôles prédéfinis** (Admin/Operator/Viewer/Auditor) : un gabarit qui
   remplit ces mêmes permissions en un clic plutôt que de les cocher une par
@@ -1528,6 +1579,7 @@ premier compte admin. Lance ensuite `./deploy.sh update` (qui fait tourner
   [backup & restore](docs/backup-restore/README.md),
   [dashboard](docs/dashboard/README.md),
   [Docker](docs/docker/README.md),
+  [mises à jour](docs/updates/README.md),
   [événements](docs/events/README.md),
   [health checks](docs/health-checks/README.md),
   [incidents](docs/incidents/README.md),
