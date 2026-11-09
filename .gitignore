@@ -157,4 +157,9 @@ history.json
 
 *.kate-swp
 
+public/assets/*.woff
+public/assets/*.woff2
+public/assets/*.js
+public/assets/*.css
+
 
