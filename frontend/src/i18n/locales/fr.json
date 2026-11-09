@@ -63,6 +63,9 @@
     "backupTitle": "Sauvegarder / restaurer la configuration",
     "backup": "Backup",
     "pluginsTitle": "Settings → Plugins (extensions tierces)",
+    "updates": "Mises à jour",
+    "updatesTitle": "Voir la version installée et les mises à jour disponibles",
+    "updatesAvailableTitle": "Mise à jour v{version} disponible",
     "plugins": "Plugins",
     "tabDocker": "Docker"
   },
@@ -843,5 +846,100 @@
     "logsError": "Flux de logs interrompu : {error}",
     "waitingForLogs": "En attente de logs…",
     "streamResumed": "flux relancé (le conteneur a redémarré)"
+  },
+  "updatesModal": {
+    "title": "Mises à jour",
+    "loading": "Chargement…",
+    "unavailable": "Informations de mise à jour indisponibles.",
+    "installed": "Version installée",
+    "disabled": "La vérification des mises à jour est désactivée sur ce serveur (UPDATE_CHECK_ENABLED=0).",
+    "available": "Nouvelle version disponible : v{version}",
+    "upToDate": "Vous êtes à jour.",
+    "invalidCurrent": "La version installée n'a pas un format reconnu : impossible de la comparer.",
+    "checkedAt": "Dernière vérification : {date}",
+    "neverChecked": "Pas encore vérifié (première vérification peu après le démarrage).",
+    "recheck": "Revérifier",
+    "checking": "Vérification…",
+    "throttled": "Une vérification a déjà eu lieu il y a moins d'une minute.",
+    "typePatch": "correctif",
+    "typeMinor": "mineure",
+    "typeMajor": "majeure",
+    "majorWarning": "Version majeure : elle peut contenir des changements incompatibles. Lisez les notes avant de mettre à jour.",
+    "notes": "Notes de version",
+    "noNotes": "Aucune note publiée pour cette version.",
+    "viewOnGithub": "Voir sur GitHub",
+    "diagnostic": "Cette installation peut-elle se mettre à jour ?",
+    "canUpdate": "Oui : aucun point bloquant détecté.",
+    "cannotUpdate": "Pas avec deploy.sh update : au moins un point bloquant (✗) ci-dessous.",
+    "howTo": "Comment mettre à jour",
+    "runOnServer": "Lancez cette commande sur le serveur :",
+    "copy": "Copier",
+    "copied": "Copié ✓",
+    "copyFailed": "Copie impossible : sélectionnez la commande à la main.",
+    "branchNote": "Aujourd'hui, deploy.sh update récupère le dernier commit de la branche suivie ({branch}), pas une version précise : elle peut contenir des changements pas encore publiés dans une release.",
+    "backupHint": {
+      "sqlite": "Avant de mettre à jour : sauvegardez la base (copie de data/monitor.db, ou du chemin DB_SQLITE_PATH). deploy.sh ne la sauvegarde pas et ne l'annule pas en cas de retour arrière.",
+      "mysql": "Avant de mettre à jour : faites un dump de votre base MySQL/MariaDB. deploy.sh ne la sauvegarde pas et ne l'annule pas en cas de retour arrière."
+    },
+    "readOnly": "Cette interface n'exécute aucune mise à jour : elle vous indique seulement la commande à lancer.",
+    "noteContainer": "Installation en conteneur : la mise à jour consiste à récupérer la nouvelle image et à recréer le conteneur.",
+    "noteArchive": "Installation sans dépôt git (archive) : téléchargez la nouvelle release depuis GitHub et remplacez les fichiers.",
+    "error": {
+      "network": "GitHub est injoignable (réseau coupé ou serveur isolé). Nouvelle tentative automatique plus tard.",
+      "timeout": "GitHub n'a pas répondu à temps. Nouvelle tentative automatique plus tard.",
+      "rate_limited": "Limite de requêtes GitHub atteinte. Nouvelle tentative automatique après sa réinitialisation.",
+      "not_found": "Dépôt introuvable sur GitHub (UPDATE_CHECK_REPO ?).",
+      "bad_response": "Réponse inattendue de GitHub.",
+      "too_large": "Réponse de GitHub trop volumineuse, ignorée.",
+      "bad_config": "URL de l'API invalide (UPDATE_CHECK_API_URL ?).",
+      "generic": "Vérification impossible (code : {code})."
+    },
+    "check": {
+      "install_type": "Type d'installation",
+      "node_version": "Version de Node.js",
+      "process_manager": "Gestionnaire de processus",
+      "run_as_root": "Utilisateur du service",
+      "database": "Base de données",
+      "write_access": "Droits d'écriture",
+      "disk_space": "Espace disque libre",
+      "deploy_script": "Script deploy.sh",
+      "git_available": "git installé",
+      "git_branch": "Branche suivie",
+      "git_upstream": "Branche amont",
+      "git_clean": "Modifications locales",
+      "git_remote": "Dépôt d'origine"
+    },
+    "detail": {
+      "install_type": {
+        "container": "conteneur : pas de mise à jour sur place",
+        "archive": "pas de dépôt git (archive)",
+        "git": "dépôt git"
+      },
+      "process_manager": {
+        "not_pm2": "non lancé par PM2 : deploy.sh redémarre l'application via PM2"
+      },
+      "run_as_root": {
+        "root": "root : une faille du dashboard donnerait les droits root, préférez un utilisateur dédié"
+      },
+      "write_access": {
+        "not_writable": "le service ne peut pas écrire dans son dossier"
+      },
+      "deploy_script": {
+        "not_executable": "non exécutable (la commande utilise bash)",
+        "missing": "introuvable"
+      },
+      "git_branch": {
+        "detached": "HEAD détaché ({value}) : deploy.sh update ne peut pas tirer, revenez sur la branche principale"
+      },
+      "git_upstream": {
+        "no_upstream": "aucune branche amont : git pull échouerait"
+      },
+      "git_remote": {
+        "no_origin": "aucun remote « origin »"
+      },
+      "node_version": {
+        "too_old": "version trop ancienne : Node ≥ {value} requis"
+      }
+    }
   }
 }

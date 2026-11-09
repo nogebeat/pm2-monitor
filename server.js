@@ -34,6 +34,7 @@ const { createPm2Bus } = require("./lib/realtime/pm2-bus");
 const { attachAgentHub } = require("./lib/realtime/agent-hub");
 const { attachDockerBus } = require("./lib/realtime/docker-bus");
 const dockerService = require("./lib/services/docker");
+const { createUpdateService } = require("./lib/services/updates");
 
 const authRouter = require("./lib/routes/auth");
 const usersRouter = require("./lib/routes/users");
@@ -61,6 +62,7 @@ const backupRouter = require("./lib/routes/backup");
 const reportsRouter = require("./lib/routes/reports");
 const reportsSystemHistory = require("./lib/services/reports/system-history-store");
 const dockerRouter = require("./lib/routes/docker");
+const updatesRouter = require("./lib/routes/updates");
 
 // --- Config / .env minimal (pas de dépendance dotenv) -----------------
 
@@ -363,6 +365,12 @@ app.use("/api/logs", logExplorerRouter({ logStore }));
 // docs/docker/README.md.
 app.use("/api/docker", dockerRouter());
 
+// Mises à jour (lib/services/updates/, lib/routes/updates.js, Phase 23) : LECTURE
+// SEULE — version installée, release disponible, diagnostic de l'installation.
+// Aucune mise à jour n'est exécutée depuis l'interface (voir docs/updates/README.md).
+const updateService = createUpdateService();
+app.use("/api/updates", updatesRouter({ updateService }));
+
 // --- Temps réel : liste des process (polling léger par client) -----------
 attachProcessSocket(io);
 
@@ -386,6 +394,7 @@ startPolling({
 // collecte (asynchrone) échoue silencieusement vers `available: false` le
 // cas échéant.
 dockerService.start();
+updateService.start();
 const dockerBus = attachDockerBus(io);
 
 // Maintenance (rollup + purge) de l'historique process, sur son propre
@@ -496,6 +505,7 @@ process.on("SIGINT", () => {
   notificationDispatchQueue.stop();
   agentHub.stopStaleSweep();
   dockerService.stop();
+  updateService.stop();
   dockerBus.stop(); // ferme aussi tout flux de logs Docker encore ouvert (section 5 du prompt maître)
   pm2.disconnect();
   db.close().finally(() => process.exit(0));

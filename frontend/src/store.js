@@ -180,6 +180,9 @@ export const state = reactive({
     live: false, // en plus des résultats paginés : ajoute en tête les nouvelles lignes correspondantes
   },
 
+  // Mises à jour (étape 1, LECTURE SEULE) : version installée, release disponible, diagnostic
+  // d'installation. `status` = GET /api/updates/status ; `diagnostics` = GET /api/updates/diagnostics.
+  updates: { status: null, diagnostics: null, checking: false },
   pm2MenuOpen: false,
   pm2MenuPos: { top: 64, right: 16 }, // position (px, viewport) du menu PM2, calculée depuis le bouton à l'ouverture
   toast: null, // { kind: "error"|"info", message }
@@ -1476,6 +1479,50 @@ socket.on("dependency.impact", (payload) => {
 
 // ---------- Chargement initial ----------
 
+// ---------- Mises à jour (GET /api/updates/status, étape 1 : lecture seule) ----------
+
+export function loadUpdateStatus() {
+  if (!can("updates_read")) return Promise.resolve();
+  return apiGet("/api/updates/status")
+    .then((status) => {
+      state.updates.status = status;
+    })
+    .catch(() => {
+      /* indicateur de confort : une erreur ne doit jamais gêner le reste de l'interface */
+    });
+}
+
+/** Revérifie maintenant (limité à 1/minute côté serveur). Renvoie true si la requête a été limitée. */
+export function checkUpdatesNow() {
+  state.updates.checking = true;
+  return apiPost("/api/updates/check")
+    .then((status) => {
+      const throttled = status.throttled === true;
+      state.updates.status = status;
+      return throttled;
+    })
+    .catch(notifyError)
+    .finally(() => {
+      state.updates.checking = false;
+    });
+}
+
+export function loadUpdateDiagnostics(refresh = false) {
+  return apiGet(`/api/updates/diagnostics${refresh ? "?refresh=1" : ""}`)
+    .then((diagnostics) => {
+      state.updates.diagnostics = diagnostics;
+    })
+    .catch(notifyError);
+}
+
+// Rafraîchit l'indicateur de temps en temps pour une session laissée ouverte (le serveur ne
+// ré-interroge GitHub que toutes les 6 h : ceci ne coûte qu'une lecture de son cache).
+let updateStatusTimer = null;
+function scheduleUpdateStatusRefresh() {
+  if (updateStatusTimer) return;
+  updateStatusTimer = setInterval(loadUpdateStatus, 30 * 60 * 1000);
+}
+
 export function bootstrap() {
   if (state.auth.authEnabled && !state.auth.user) return; // pas connecté : rien à charger
 
@@ -1501,5 +1548,10 @@ export function bootstrap() {
         state.system = snap;
       })
       .catch(() => {});
+  }
+
+  if (can("updates_read")) {
+    loadUpdateStatus();
+    scheduleUpdateStatusRefresh();
   }
 }
