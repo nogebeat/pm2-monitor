@@ -6,6 +6,7 @@
  *
  * Usage :
  *   node bin/migrate.js status
+ *   node bin/migrate.js pending          # écrit UNIQUEMENT le nombre de migrations en attente
  *   node bin/migrate.js up               # applique toutes les migrations en attente
  *   node bin/migrate.js up --to 002_job_queue
  *   node bin/migrate.js down             # annule la dernière migration appliquée
@@ -67,8 +68,8 @@ async function printStatus() {
 async function main() {
   const { command, opts } = parseArgs(process.argv.slice(2));
 
-  if (!command || !["up", "down", "status"].includes(command)) {
-    console.error("Usage: node bin/migrate.js <up|down|status> [--to <version>] [--steps <n>]");
+  if (!command || !["up", "down", "status", "pending"].includes(command)) {
+    console.error("Usage: node bin/migrate.js <up|down|status|pending> [--to <version>] [--steps <n>]");
     process.exitCode = 1;
     return;
   }
@@ -76,7 +77,12 @@ async function main() {
   await db.init();
 
   try {
-    if (command === "status") {
+    if (command === "pending") {
+      // Sortie volontairement minimale : deploy.sh la lit pour savoir si une
+      // sauvegarde de la base est nécessaire avant d'appliquer les migrations.
+      const { pending } = await migrator.status();
+      console.log(String(pending.length));
+    } else if (command === "status") {
       await printStatus();
     } else if (command === "up") {
       const applied = await migrator.up({ to: opts.to });

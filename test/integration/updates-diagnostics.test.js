@@ -62,34 +62,38 @@ test("runDiagnostics — dépôt git sain", async () => {
     assert.equal(byId(r, "deploy_script").status, "ok");
     assert.equal(byId(r, "process_manager").status, "ok");
     assert.equal(r.canSelfUpdate, true);
-    assert.equal(r.command, `cd '${dir}' && ./deploy.sh update`);
+    assert.equal(r.command, `cd '${dir}' && ./deploy.sh update --latest`);
+    assert.equal(byId(r, "db_backup").status, "ok");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test("runDiagnostics — cas bloquants et avertissements", async (t) => {
-  await t.test("HEAD détaché sur un tag : bloquant (deploy.sh update tire une branche)", async () => {
-    const dir = makeRepo();
-    try {
-      git(dir, "tag", "v1.0.0");
-      git(dir, "checkout", "-q", "--detach", "v1.0.0");
-      const r = await runDiagnostics({ ...base, rootDir: dir });
-      assert.equal(byId(r, "git_branch").status, "fail");
-      assert.equal(byId(r, "git_branch").detail, "detached:v1.0.0");
-      assert.equal(r.install.tag, "v1.0.0");
-      assert.equal(r.canSelfUpdate, false);
-    } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  });
+  await t.test(
+    "HEAD détaché sur un tag : avertissement seulement (update --to avance sans branche)",
+    async () => {
+      const dir = makeRepo();
+      try {
+        git(dir, "tag", "v1.0.0");
+        git(dir, "checkout", "-q", "--detach", "v1.0.0");
+        const r = await runDiagnostics({ ...base, rootDir: dir });
+        assert.equal(byId(r, "git_branch").status, "warn");
+        assert.equal(byId(r, "git_branch").detail, "detached:v1.0.0");
+        assert.equal(r.install.tag, "v1.0.0");
+        assert.equal(r.canSelfUpdate, true);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
 
-  await t.test("branche sans amont : bloquant", async () => {
+  await t.test("branche sans amont : avertissement seulement (update --to n'en a pas besoin)", async () => {
     const dir = makeRepo();
     try {
       const r = await runDiagnostics({ ...base, rootDir: dir });
-      assert.equal(byId(r, "git_upstream").status, "fail");
-      assert.equal(r.canSelfUpdate, false);
+      assert.equal(byId(r, "git_upstream").status, "warn");
+      assert.equal(r.canSelfUpdate, true);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -172,7 +176,7 @@ test("runDiagnostics — cas bloquants et avertissements", async (t) => {
     try {
       const r = await runDiagnostics({ ...base, rootDir: dir });
       assert.equal(byId(r, "deploy_script").status, "warn");
-      assert.match(r.command, /&& bash deploy\.sh update$/);
+      assert.match(r.command, /&& bash deploy\.sh update --latest$/);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -289,6 +293,49 @@ test("runDiagnostics — hors dépôt git et environnement", async (t) => {
   });
 });
 
+test("runDiagnostics — sauvegarde de la base avant migration (db_backup)", async (t) => {
+  await t.test("mysql sans mysqldump/mysql dans le PATH : bloquant, avec les outils manquants", async () => {
+    const dir = makeRepo();
+    try {
+      const r = await runDiagnostics({
+        ...base,
+        rootDir: dir,
+        env: { DB_DRIVER: "mysql", PATH: "/nonexistent" },
+      });
+      assert.equal(byId(r, "db_backup").status, "fail");
+      assert.equal(byId(r, "db_backup").detail, "no_mysqldump,no_mysql_client");
+      assert.equal(r.canSelfUpdate, false);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  await t.test("sqlite : ok, même si la base n'existe pas encore (rien à sauvegarder)", async () => {
+    const dir = makeRepo();
+    try {
+      const r = await runDiagnostics({
+        ...base,
+        rootDir: dir,
+        env: { DB_SQLITE_PATH: path.join(dir, "absente.db") },
+      });
+      assert.equal(byId(r, "db_backup").status, "ok");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  await t.test("DB_DRIVER invalide : signalé", async () => {
+    const dir = makeRepo();
+    try {
+      const r = await runDiagnostics({ ...base, rootDir: dir, env: { DB_DRIVER: "oracle" } });
+      assert.equal(byId(r, "db_backup").status, "fail");
+      assert.equal(byId(r, "db_backup").detail, "invalid_driver");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 test("maskRemoteUrl — jamais d'identifiants dans la réponse", async (t) => {
   await t.test("retire utilisateur et jeton d'une URL https", () => {
     assert.equal(maskRemoteUrl("https://user:ghp_SECRET@github.com/a/b.git\n"), "https://github.com/a/b.git");
@@ -304,7 +351,43 @@ test("maskRemoteUrl — jamais d'identifiants dans la réponse", async (t) => {
 
 test("buildUpdateCommand / shellQuote — chemin sûr à copier-coller", async (t) => {
   await t.test("met le chemin entre apostrophes", () => {
-    assert.equal(buildUpdateCommand("/opt/pm2 monitor"), "cd '/opt/pm2 monitor' && ./deploy.sh update");
+    assert.equal(
+      buildUpdateCommand("/opt/pm2 monitor"),
+      "cd '/opt/pm2 monitor' && ./deploy.sh update --latest",
+    );
+  });
+  await t.test("cible connue : update --to <tag> exact", () => {
+    assert.equal(
+      buildUpdateCommand("/opt/app", { target: { tag: "v4.2.0", type: "minor" } }),
+      "cd '/opt/app' && ./deploy.sh update --to v4.2.0",
+    );
+  });
+  await t.test(
+    "version majeure : la commande ne contient JAMAIS --allow-major (à ajouter en connaissance de cause)",
+    () => {
+      const cmd = buildUpdateCommand("/opt/app", { target: { tag: "v5.0.0", type: "major" } });
+      assert.equal(cmd, "cd '/opt/app' && ./deploy.sh update --to v5.0.0");
+      assert.ok(!cmd.includes("--allow-major"));
+    },
+  );
+  await t.test("un tag distant malveillant n'est JAMAIS inséré dans la commande à copier-coller", () => {
+    for (const tag of [
+      "v1.0.0; rm -rf /",
+      "v1.0.0$(id)",
+      "v1.0.0`id`",
+      "main",
+      "v1.0.0-rc1",
+      "../v1.0.0",
+      "v1.0.0\nrm -rf /",
+      "",
+    ]) {
+      const cmd = buildUpdateCommand("/opt/app", { target: { tag, type: "patch" } });
+      assert.equal(
+        cmd,
+        "cd '/opt/app' && ./deploy.sh update --latest",
+        `tag accepté à tort : ${JSON.stringify(tag)}`,
+      );
+    }
   });
   await t.test("neutralise une apostrophe dans le chemin", () => {
     assert.equal(shellQuote("/tmp/it's"), "'/tmp/it'\\''s'");

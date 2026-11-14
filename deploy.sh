@@ -13,7 +13,7 @@
 #
 # Usage :
 #   ./deploy.sh install [options]
-#   ./deploy.sh update
+#   ./deploy.sh update [--to vX.Y.Z | --latest] [--allow-major] [--no-db-backup] [--yes]
 #   ./deploy.sh status | logs | restart | stop
 #   ./deploy.sh users <list|create|passwd|delete|grant|revoke|promote|demote|role> [args…]
 #   ./deploy.sh migrate <up|down|status> [--to <version>] [--steps <n>]
@@ -40,6 +40,20 @@
 #   --db-user <user>       Utilisateur MySQL
 #   --db-pass <pass>       Mot de passe MySQL
 #   --db-name <name>       Base MySQL (défaut : pm2_monitor)
+#
+# Options de mise à jour (update) :
+#   (aucune)               Tire le dernier commit de la branche suivie (peut contenir des
+#                           changements pas encore publiés dans une release).
+#   --to <vX.Y.Z>          Met à jour vers CETTE release précise (tag stable, jamais une branche).
+#   --latest               Met à jour vers la dernière release stable.
+#   --allow-major          Autorise un saut de version MAJEURE (changements incompatibles possibles).
+#   --no-db-backup         Ne sauvegarde pas la base avant les migrations (déconseillé).
+#                           Sinon la base est sauvegardée dans data/backups/ (SQLite : copie
+#                           cohérente ; MySQL : mysqldump) et restaurée en cas de retour arrière.
+#   Avec --to/--latest : refus d'un retour en arrière, d'un tag déplacé ou inconnu, d'un
+#   historique divergent. En cas d'échec (tests, migrations, redémarrage…), retour automatique
+#   au code ET à la base d'avant la mise à jour.
+#
 #   --yes                  Mode non-interactif (répond "oui" aux confirmations)
 #   -h, --help             Affiche cette aide
 #
@@ -85,6 +99,14 @@ DB_PORT="3306"
 DB_USER=""
 DB_PASS=""
 DB_NAME="pm2_monitor"
+
+# Options de `update` (voir cmd_update)
+UPDATE_TO=""        # --to vX.Y.Z : release précise
+UPDATE_LATEST="0"   # --latest    : dernière release stable
+ALLOW_MAJOR="0"     # --allow-major : autorise un saut de version majeure
+NO_DB_BACKUP="0"    # --no-db-backup : ne sauvegarde pas la base avant les migrations
+BACKUP_DIR="$SCRIPT_DIR/data/backups"
+BACKUP_KEEP="5"     # nombre de sauvegardes pre-update conservées
 
 # ---------------------------------------------------------------------
 # Utilitaires d'affichage
@@ -694,26 +716,321 @@ cmd_install() {
 # prévient toujours clairement l'utilisateur plutôt que de prétendre avoir
 # réparé silencieusement (ex: si les migrations de la nouvelle version ne
 # sont pas réversibles, rollback du code seul ≠ retour à un état 100% sain).
-rollback_update() {
-  local prev_commit="$1"
-  error "La nouvelle version ne démarre pas correctement. Tentative de rollback vers ${prev_commit}…"
-  if ! git reset --hard "$prev_commit"; then
+# ---------------------------------------------------------------------
+# Mise à jour vers une release précise (update --to vX.Y.Z / --latest)
+# ---------------------------------------------------------------------
+#
+# Sans option, `update` garde son comportement historique : il tire le dernier
+# commit de la branche suivie (`git pull --ff-only`), qui peut contenir des
+# changements pas encore publiés dans une release. Avec --to / --latest, il
+# n'installe QUE le code d'un tag de release précis, après avoir vérifié que :
+#   - le nom du tag est EXACTEMENT vMAJEUR.MINEUR.PATCH (jamais une branche, une
+#     pré-version ou une chaîne arbitraire) ;
+#   - le tag existe sur le dépôt distant et n'a pas été DÉPLACÉ depuis qu'on l'a
+#     vu (un tag git est modifiable : refus s'il pointe ailleurs que la copie
+#     locale) ;
+#   - c'est bien une avancée de l'installation (jamais un retour en arrière, qui
+#     laisserait l'ancien code sur un schéma de base déjà migré) ;
+#   - une version majeure n'est installée que sur demande explicite
+#     (--allow-major) : elle peut contenir des changements incompatibles.
+
+RELEASE_TAG_RE='^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$'
+
+validate_release_tag() {
+  # validate_release_tag v4.2.0 -> 0 si le format est EXACTEMENT vMAJEUR.MINEUR.PATCH
+  [[ "${1:-}" =~ $RELEASE_TAG_RE ]]
+}
+
+version_cmp() {
+  # version_cmp 4.1.2 4.2.0 -> affiche -1, 0 ou 1 (comparaison NUMÉRIQUE : 4.10.0 > 4.9.0)
+  local -a pa pb
+  local i
+  IFS=. read -r -a pa <<< "${1#v}"
+  IFS=. read -r -a pb <<< "${2#v}"
+  for i in 0 1 2; do
+    if (( 10#${pa[i]:-0} > 10#${pb[i]:-0} )); then echo 1; return 0; fi
+    if (( 10#${pa[i]:-0} < 10#${pb[i]:-0} )); then echo -1; return 0; fi
+  done
+  echo 0
+}
+
+release_kind() {
+  # release_kind COURANTE CIBLE -> same | older | patch | minor | major
+  local cur="${1#v}" tgt="${2#v}" cmp
+  cur="${cur%%[-+]*}" # une pré-version (4.2.0-beta.1) se compare sur ses chiffres
+  cmp="$(version_cmp "$cur" "$tgt")"
+  if [ "$cmp" = "0" ]; then
+    # Une pré-version (4.2.0-beta.1) est antérieure à la version finale 4.2.0.
+    if [[ "${1#v}" == *-* ]]; then echo patch; else echo same; fi
+    return 0
+  fi
+  if [ "$cmp" = "1" ]; then echo older; return 0; fi
+  local -a pc pt
+  IFS=. read -r -a pc <<< "$cur"
+  IFS=. read -r -a pt <<< "$tgt"
+  if (( 10#${pc[0]:-0} != 10#${pt[0]:-0} )); then echo major
+  elif (( 10#${pc[1]:-0} != 10#${pt[1]:-0} )); then echo minor
+  else echo patch
+  fi
+}
+
+read_package_version() {
+  # Version du projet (premier "version" de package.json), sans dépendre de node.
+  sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SCRIPT_DIR/package.json" | head -n 1
+}
+
+remote_tag_commit() {
+  # remote_tag_commit v4.2.0 -> SHA du COMMIT pointé par le tag sur « origin »
+  # (vide si le tag n'existe pas ; code 1 si le dépôt distant est injoignable).
+  local tag="$1" out sha
+  out="$(git ls-remote --tags origin "refs/tags/${tag}" "refs/tags/${tag}^{}")" || return 1
+  # Tag annoté : la ligne ^{} donne le commit ; tag léger : la ligne simple.
+  sha="$(printf '%s\n' "$out" | awk -v t="refs/tags/${tag}^{}" '$2 == t { print $1 }')"
+  [ -n "$sha" ] || sha="$(printf '%s\n' "$out" | awk -v t="refs/tags/${tag}" '$2 == t { print $1 }')"
+  printf '%s' "$sha"
+}
+
+latest_release_tag() {
+  # Dernier tag stable vX.Y.Z (comparaison numérique) du dépôt distant ; les
+  # pré-versions et tags d'une autre forme sont ignorés.
+  local refs t
+  refs="$(git ls-remote --tags --refs origin 'refs/tags/v*')" || return 1
+  printf '%s\n' "$refs" | awk '{ sub("refs/tags/", "", $2); print $2 }' | while read -r t; do
+    if validate_release_tag "$t"; then echo "$t"; fi
+  done | sort -t. -k1.2,1n -k2,2n -k3,3n | tail -n 1
+}
+
+TARGET_TAG=""
+TARGET_COMMIT=""
+UPDATE_NOOP="0"
+
+resolve_update_target() {
+  # Détermine TARGET_TAG / TARGET_COMMIT et applique TOUTES les règles ci-dessus
+  # AVANT de modifier quoi que ce soit. Quitte (exit 1) au moindre doute.
+  local tag="$UPDATE_TO" head remote_sha local_sha current kind ahead
+  if [ ! -d .git ]; then
+    error "--to / --latest nécessitent une installation par git (pas une archive)."
+    exit 1
+  fi
+  if ! git remote get-url origin >/dev/null 2>&1; then
+    error "Aucun remote « origin » configuré : impossible de vérifier les releases."
+    exit 1
+  fi
+
+  if [ "$UPDATE_LATEST" = "1" ]; then
+    info "Recherche de la dernière release stable…"
+    if ! tag="$(latest_release_tag)"; then
+      error "Dépôt distant injoignable (réseau ?) : impossible de chercher la dernière release."
+      exit 1
+    fi
+    if [ -z "$tag" ]; then
+      error "Aucune release stable vX.Y.Z trouvée sur le dépôt distant."
+      exit 1
+    fi
+  fi
+
+  if ! validate_release_tag "$tag"; then
+    error "Tag invalide : « ${tag} ». Format exigé : vMAJEUR.MINEUR.PATCH (ex : v4.2.0)."
+    exit 1
+  fi
+
+  if ! remote_sha="$(remote_tag_commit "$tag")"; then
+    error "Dépôt distant injoignable (réseau ?) : impossible de vérifier le tag ${tag}."
+    exit 1
+  fi
+  if [ -z "$remote_sha" ]; then
+    error "Le tag ${tag} n'existe pas sur le dépôt distant."
+    exit 1
+  fi
+
+  # Un tag déjà connu localement doit pointer sur le MÊME commit que sur le dépôt
+  # distant. Sinon il a été déplacé après coup : on ne sait plus ce qu'on installerait.
+  local_sha="$(git rev-parse -q --verify "refs/tags/${tag}^{commit}" 2>/dev/null || true)"
+  if [ -n "$local_sha" ] && [ "$local_sha" != "$remote_sha" ]; then
+    error "Le tag ${tag} a été DÉPLACÉ : localement ${local_sha:0:10}, sur le dépôt distant ${remote_sha:0:10}."
+    error "Refus par sécurité (un tag de release publié ne devrait jamais changer)."
+    error "Vérifie auprès des mainteneurs ce qui s'est passé avant de continuer."
+    exit 1
+  fi
+  # Récupère l'objet SANS --force : n'écrase jamais un tag local existant.
+  if ! git fetch --quiet origin "refs/tags/${tag}:refs/tags/${tag}"; then
+    error "Impossible de récupérer le tag ${tag} depuis le dépôt distant."
+    exit 1
+  fi
+  TARGET_TAG="$tag"
+  TARGET_COMMIT="$(git rev-parse "refs/tags/${tag}^{commit}")"
+  if [ "$TARGET_COMMIT" != "$remote_sha" ]; then
+    error "Incohérence entre le tag récupéré et le dépôt distant : refus."
+    exit 1
+  fi
+
+  head="$(git rev-parse HEAD)"
+  if [ "$head" = "$TARGET_COMMIT" ]; then
+    ok "Déjà sur ${TARGET_TAG} : rien à faire."
+    UPDATE_NOOP="1"
+    return 0
+  fi
+  if git merge-base --is-ancestor "$TARGET_COMMIT" "$head"; then
+    error "Cette installation est déjà EN AVANCE sur ${TARGET_TAG} (commits non publiés dans cette release)."
+    error "Pas de retour en arrière automatique : il laisserait l'ancien code sur une base déjà migrée."
+    exit 1
+  fi
+  if ! git merge-base --is-ancestor "$head" "$TARGET_COMMIT"; then
+    error "L'historique local a DIVERGÉ de ${TARGET_TAG} (commits locaux absents de la release)."
+    error "Résous manuellement (git status / git log) puis relance."
+    exit 1
+  fi
+
+  current="$(read_package_version)"
+  kind="$(release_kind "$current" "$TARGET_TAG")"
+  ahead="$(git rev-list --count "HEAD..${TARGET_COMMIT}")"
+  info "Version installée : v${current:-?}  →  cible : ${TARGET_TAG} (${kind}, ${ahead} commit(s))."
+  if [ "$kind" = "major" ] && [ "$ALLOW_MAJOR" != "1" ]; then
+    error "${TARGET_TAG} est une version MAJEURE : elle peut contenir des changements incompatibles."
+    error "Lis d'abord les notes de version (CHANGELOG.md / page des releases), sauvegarde, puis relance avec --allow-major."
+    exit 1
+  fi
+}
+
+# ---------------------------------------------------------------------
+# Sauvegarde de la base autour d'une mise à jour
+# ---------------------------------------------------------------------
+#
+# Les migrations s'appliquent AVANT le redémarrage et le contrôle de santé : si
+# la nouvelle version ne démarre pas, revenir au code précédent ne suffit pas
+# (il se retrouverait sur un schéma déjà migré). On sauvegarde donc la base
+# juste avant les migrations — et seulement s'il y en a — puis on la restaure en
+# cas de retour arrière. Détails : lib/db/snapshot.js.
+
+DB_BACKUP_FILE=""
+
+db_backup_prereqs() {
+  # Contrôle bash, AVANT toute modification : les clients MySQL sont-ils là ?
+  [ "$NO_DB_BACKUP" = "1" ] && return 0
+  if [ "$DB_DRIVER" = "mysql" ]; then
+    if ! command -v mysqldump >/dev/null 2>&1 || ! command -v mysql >/dev/null 2>&1; then
+      error "DB_DRIVER=mysql : les clients « mysqldump » et « mysql » sont requis pour sauvegarder la base avant la mise à jour."
+      error "Installe-les (paquet mysql-client / mariadb-client), ou relance avec --no-db-backup (à tes risques : pas de retour arrière possible pour la base)."
+      exit 1
+    fi
+  fi
+}
+
+count_pending_migrations() {
+  # Affiche le nombre de migrations en attente (avec le code qui vient d'être installé).
+  node bin/migrate.js pending | tail -n 1
+}
+
+backup_database() {
+  # backup_database VERSION_ACTUELLE CIBLE -> renseigne DB_BACKUP_FILE
+  DB_BACKUP_FILE="$(node bin/db-snapshot.js backup --out-dir "$BACKUP_DIR" --label "pre-update-v${1}-to-${2}")" || return 1
+  [ -f "$DB_BACKUP_FILE" ]
+}
+
+restore_database() {
+  node bin/db-snapshot.js restore "$DB_BACKUP_FILE" --out-dir "$BACKUP_DIR"
+}
+
+prune_database_backups() {
+  # Ne garde que les BACKUP_KEEP sauvegardes pre-update les plus récentes (jamais celle qu'on vient de faire).
+  node bin/db-snapshot.js prune --out-dir "$BACKUP_DIR" --keep "$BACKUP_KEEP" --protect "$DB_BACKUP_FILE" \
+    || warn "Nettoyage des anciennes sauvegardes impossible (sans gravité)."
+}
+
+# ---------------------------------------------------------------------
+# Retour arrière
+# ---------------------------------------------------------------------
+
+UPDATE_PREV_COMMIT=""
+UPDATE_PREV_VERSION=""
+UPDATE_STAGE=""
+UPDATE_STASHED="0"
+MIGRATIONS_STARTED="0"
+
+restore_previous_version() {
+  # restore_previous_version "raison" — ne revient JAMAIS (exit 1).
+  # Remet le code, et la base si des migrations ont été lancées, dans l'état
+  # d'avant la mise à jour, puis relance l'ancienne version quand c'est utile.
+  local reason="$1" restart="0" db_restore="0"
+  trap - ERR
+  error "${reason}."
+  if [ -z "$UPDATE_PREV_COMMIT" ]; then
+    error "Aucun commit git précédent connu : pas de retour arrière automatique possible."
+    error "Corrige le problème (./deploy.sh logs) ou restaure les fichiers manuellement."
+    exit 1
+  fi
+  error "Retour à la version précédente (${UPDATE_PREV_COMMIT:0:10})…"
+
+  # Des migrations ont été lancées : l'application (ancienne ou nouvelle) tourne sur
+  # un schéma modifié → il faut l'arrêter, restaurer la base, puis relancer l'ancien code.
+  if [ "$MIGRATIONS_STARTED" = "1" ]; then
+    restart="1"
+    if [ -n "$DB_BACKUP_FILE" ] && [ -f "$DB_BACKUP_FILE" ]; then
+      db_restore="1"
+    else
+      warn "Des migrations ont été lancées mais AUCUNE sauvegarde n'existe (--no-db-backup) : la base n'est PAS restaurée."
+    fi
+  elif [ "$UPDATE_STAGE" = "restart" ]; then
+    restart="1" # la nouvelle version a été (re)lancée
+  fi
+
+  if [ "$db_restore" = "1" ]; then
+    if command -v pm2 >/dev/null 2>&1 && pm2 describe "$APP_NAME" >/dev/null 2>&1; then
+      info "Arrêt de l'application avant de restaurer la base…"
+      pm2 stop "$APP_NAME" >/dev/null 2>&1 || true
+    fi
+    info "Restauration de la base depuis ${DB_BACKUP_FILE}…"
+    if ! restore_database; then
+      error "RESTAURATION DE LA BASE IMPOSSIBLE. Le code n'est PAS remis à l'ancienne version (il serait incohérent avec la base)."
+      error "Sauvegarde disponible : ${DB_BACKUP_FILE}"
+      error "Restauration manuelle (application arrêtée) : node bin/db-snapshot.js restore '${DB_BACKUP_FILE}'"
+      exit 1
+    fi
+    ok "Base restaurée (l'état défaillant est conservé à côté pour analyse)."
+  fi
+
+  if ! git reset --hard "$UPDATE_PREV_COMMIT"; then
     error "Rollback git impossible. Le service est peut-être dans un état cassé : ./deploy.sh logs"
     exit 1
   fi
   npm install --omit=dev || true
   ensure_native_modules_rebuilt || true
   ensure_frontend_build || true
-  if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
-    pm2 restart "$APP_NAME" --update-env >/dev/null 2>&1 || true
-  fi
-  if wait_for_health; then
-    warn "Rollback effectué : le service tourne à nouveau sur l'ancienne version (${prev_commit})."
-    warn "N'applique pas le même update tant que le problème sur la nouvelle version n'est pas corrigé."
+
+  if [ "$restart" = "1" ]; then
+    if command -v pm2 >/dev/null 2>&1 && pm2 describe "$APP_NAME" >/dev/null 2>&1; then
+      pm2 restart "$APP_NAME" --update-env >/dev/null 2>&1 || true
+    fi
+    if wait_for_health; then
+      warn "Retour arrière effectué : le service tourne à nouveau sur l'ancienne version (${UPDATE_PREV_COMMIT:0:10})."
+    else
+      error "Le retour arrière n'a pas rétabli un service qui répond. Intervention manuelle nécessaire (./deploy.sh logs)."
+    fi
   else
-    error "Le rollback n'a pas rétabli un service qui répond. Intervention manuelle nécessaire (./deploy.sh logs)."
+    warn "Retour arrière effectué. L'application n'avait pas été redémarrée : l'ancienne version tourne toujours."
   fi
+  if [ "$UPDATE_STASHED" = "1" ]; then
+    warn "Tes modifications locales sont dans « git stash list » (mises de côté avant la mise à jour)."
+  fi
+  warn "N'applique pas la même mise à jour tant que le problème n'est pas corrigé."
   exit 1
+}
+
+on_update_error() {
+  # Filet de sécurité (trap ERR) : toute commande qui échoue pendant la mise à jour
+  # (npm, build, tests, migrations…) déclenche le retour arrière au lieu de laisser
+  # un code à moitié mis à jour.
+  trap - ERR
+  local hint=""
+  if [ "$UPDATE_STAGE" = "tests" ]; then
+    hint=" (DEPLOY_SKIP_TESTS=1 permet de les ignorer, déconseillé)"
+  fi
+  restore_previous_version "Échec à l'étape « ${UPDATE_STAGE} » de la mise à jour${hint}"
+}
+
+update_fail() {
+  # Échec détecté explicitement (message déjà adapté) : retour arrière puis sortie.
+  restore_previous_version "$1"
 }
 
 cmd_update() {
@@ -721,10 +1038,58 @@ cmd_update() {
   detect_privileges
   cd "$SCRIPT_DIR"
   title "Mise à jour"
-  local prev_commit=""
+
+  if [ -n "$UPDATE_TO" ] && [ "$UPDATE_LATEST" = "1" ]; then
+    error "--to et --latest sont exclusifs."
+    exit 1
+  fi
+  local pinned="0"
+  if [ -n "$UPDATE_TO" ] || [ "$UPDATE_LATEST" = "1" ]; then
+    pinned="1"
+  fi
+
+  UPDATE_PREV_COMMIT=""
   if [ -d .git ]; then
-    prev_commit="$(git rev-parse HEAD 2>/dev/null || echo "")"
-    info "Dépôt git détecté, git pull…"
+    UPDATE_PREV_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo "")"
+  fi
+  UPDATE_PREV_VERSION="$(read_package_version)"
+
+  # Tout ce qui peut être refusé l'est AVANT la moindre modification.
+  db_backup_prereqs
+  if [ "$pinned" = "1" ]; then
+    resolve_update_target
+    if [ "$UPDATE_NOOP" = "1" ]; then
+      return 0
+    fi
+    if [ "$NO_DB_BACKUP" = "1" ]; then
+      warn "--no-db-backup : la base ne sera PAS sauvegardée avant les migrations (pas de retour arrière possible pour la base)."
+    fi
+    confirm "Mettre à jour vers ${TARGET_TAG} ?" || { warn "Abandon : rien n'a été modifié."; exit 0; }
+  else
+    info "Mode branche : tire le dernier commit de la branche suivie (peut contenir des changements non publiés)."
+    info "Pour viser une release précise : ./deploy.sh update --latest   ou   --to vX.Y.Z"
+  fi
+
+  # À partir d'ici le code va changer : on arme le retour arrière automatique.
+  set -o errtrace
+  trap on_update_error ERR
+  MIGRATIONS_STARTED="0"
+  DB_BACKUP_FILE=""
+  UPDATE_STAGE="code"
+
+  if [ -d .git ]; then
+    if [ "$pinned" = "1" ]; then
+      info "Passage sur ${TARGET_TAG}…"
+    else
+      info "Dépôt git détecté, git pull…"
+    fi
+
+    # De VRAIES modifications locales (hors public/, que ce script vide lui-même juste
+    # après) : seules celles-ci méritent d'être signalées à l'utilisateur.
+    local real_local_changes="0"
+    if ! git diff --quiet -- . ':(exclude)public' 2>/dev/null || ! git diff --quiet --cached -- . ':(exclude)public' 2>/dev/null; then
+      real_local_changes="1"
+    fi
 
     # public/ est un dossier de build versionné dans le repo mais régénéré par
     # `npm run build` juste après : on le vide avant de tirer pour éviter tout
@@ -740,39 +1105,77 @@ cmd_update() {
     # mode), on les met de côté plutôt que de planter la mise à jour.
     if ! git diff --quiet -- . 2>/dev/null || ! git diff --quiet --cached -- . 2>/dev/null; then
       warn "Modifications locales détectées, mises de côté (git stash) avant la mise à jour."
-      git stash push -m "deploy.sh: mis de côté avant update $(date +%F_%T)" || true
+      if git stash push -m "deploy.sh: mis de côté avant update $(date +%F_%T)" && [ "$real_local_changes" = "1" ]; then
+        UPDATE_STASHED="1"
+      fi
     fi
 
-    if ! git pull --ff-only; then
-      error "git pull a échoué (historique divergent ?). Résous manuellement (git status / git log) puis relance."
-      exit 1
+    if [ "$pinned" = "1" ]; then
+      git merge --ff-only "$TARGET_COMMIT" || update_fail "Impossible d'avancer sur ${TARGET_TAG} (fast-forward refusé)"
+    else
+      git pull --ff-only || update_fail "git pull a échoué (historique divergent ?)"
     fi
   else
     info "Pas de dépôt git : remplace les fichiers du projet manuellement avant de relancer."
   fi
+
+  UPDATE_STAGE="deps"
   npm install --omit=dev
   if [ "$DB_DRIVER" = "mysql" ]; then
     info "DB_DRIVER=mysql (.env) : vérification de la dépendance mysql2…"
     npm install mysql2 --omit=dev --no-save || warn "Échec d'installation de mysql2, vérifie ta connexion npm."
   fi
   ensure_native_modules_rebuilt
+  UPDATE_STAGE="build"
   ensure_frontend_build
+  UPDATE_STAGE="tests"
   run_tests
+
+  # Sauvegarde de la base juste avant les migrations — et seulement s'il y en a.
+  UPDATE_STAGE="backup"
+  local pending new_version
+  pending="$(count_pending_migrations)" || pending=""
+  if ! [[ "$pending" =~ ^[0-9]+$ ]]; then
+    update_fail "Impossible de lire l'état des migrations de la nouvelle version"
+  fi
+  new_version="${TARGET_TAG:-v$(read_package_version)}"
+  if [ "$pending" -gt 0 ]; then
+    info "${pending} migration(s) de base de données en attente."
+    if [ "$NO_DB_BACKUP" = "1" ]; then
+      warn "Base NON sauvegardée (--no-db-backup)."
+    else
+      info "Sauvegarde de la base avant migration…"
+      backup_database "${UPDATE_PREV_VERSION:-inconnue}" "$new_version" \
+        || update_fail "Sauvegarde de la base impossible (relance avec --no-db-backup pour passer outre, à tes risques)"
+      ok "Base sauvegardée : ${DB_BACKUP_FILE}"
+    fi
+    MIGRATIONS_STARTED="1"
+  else
+    info "Aucune migration en attente : pas de sauvegarde de la base nécessaire."
+  fi
+  UPDATE_STAGE="migrations"
   run_migrations
+
+  UPDATE_STAGE="restart"
   if command -v pm2 >/dev/null 2>&1 && pm2 describe "$APP_NAME" >/dev/null 2>&1; then
     pm2 restart "$APP_NAME" --update-env
     if wait_for_health; then
+      trap - ERR
       pm2 save >/dev/null
       ok "Application redémarrée."
-    elif [ -n "$prev_commit" ]; then
-      rollback_update "$prev_commit"
     else
-      error "L'application ne répond pas après la mise à jour, et aucun commit git précédent n'est disponible pour un rollback automatique."
-      error "Corrige le problème (./deploy.sh logs) ou restaure les fichiers manuellement."
-      exit 1
+      update_fail "L'application ne répond pas après la mise à jour"
     fi
   else
+    trap - ERR
     warn "Aucun process PM2 '$APP_NAME' trouvé, lance : ./deploy.sh install"
+  fi
+
+  trap - ERR
+  ok "Mise à jour terminée : v${UPDATE_PREV_VERSION:-?} → ${new_version}."
+  if [ -n "$DB_BACKUP_FILE" ]; then
+    info "Sauvegarde de la base d'avant migration : ${DB_BACKUP_FILE}"
+    prune_database_backups
   fi
 }
 
@@ -827,7 +1230,7 @@ cmd_uninstall() {
 }
 
 print_help() {
-  sed -n '2,48p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,58p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 # ---------------------------------------------------------------------
@@ -927,11 +1330,22 @@ while [ $# -gt 0 ]; do
     --db-pass) DB_PASS="$2"; shift 2 ;;
     --db-name) DB_NAME="$2"; shift 2 ;;
     --purge) PURGE="--purge"; shift ;;
+    --to)
+      if [ $# -lt 2 ]; then error "--to requiert une valeur (ex : --to v4.2.0)"; exit 1; fi
+      UPDATE_TO="$2"; shift 2 ;;
+    --latest) UPDATE_LATEST="1"; shift ;;
+    --allow-major) ALLOW_MAJOR="1"; shift ;;
+    --no-db-backup) NO_DB_BACKUP="1"; shift ;;
     --yes) NON_INTERACTIVE="1"; shift ;;
     -h|--help) print_help; exit 0 ;;
     *) error "Option inconnue : $1"; print_help; exit 1 ;;
   esac
 done
+
+if [ "$COMMAND" != "update" ] && { [ -n "$UPDATE_TO" ] || [ "$UPDATE_LATEST" = "1" ] || [ "$ALLOW_MAJOR" = "1" ] || [ "$NO_DB_BACKUP" = "1" ]; }; then
+  error "--to, --latest, --allow-major et --no-db-backup ne s'appliquent qu'à « update »."
+  exit 1
+fi
 
 if [ "$DB_DRIVER" != "sqlite" ] && [ "$DB_DRIVER" != "mysql" ]; then
   error "--db-driver invalide : ${DB_DRIVER} (valeurs acceptées : sqlite, mysql)"

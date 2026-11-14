@@ -876,10 +876,9 @@
     "copy": "Copy",
     "copied": "Copied ✓",
     "copyFailed": "Copy failed: select the command manually.",
-    "branchNote": "Today, deploy.sh update pulls the latest commit of the tracked branch ({branch}), not a specific version: it may contain changes not yet published in a release.",
     "backupHint": {
-      "sqlite": "Before updating: back up the database (copy data/monitor.db, or your DB_SQLITE_PATH). deploy.sh neither backs it up nor restores it on rollback.",
-      "mysql": "Before updating: dump your MySQL/MariaDB database. deploy.sh neither backs it up nor restores it on rollback."
+      "sqlite": "The database is backed up automatically in data/backups/ right before migrations (and restored on failure). The 5 latest backups are kept; keep your own too.",
+      "mysql": "The database is backed up with mysqldump before migrations (mysqldump and mysql clients required on the server, otherwise the update is refused)."
     },
     "readOnly": "This interface does not run any update: it only tells you which command to run.",
     "noteContainer": "Container install: updating means pulling the new image and recreating the container.",
@@ -907,7 +906,8 @@
       "git_branch": "Tracked branch",
       "git_upstream": "Upstream branch",
       "git_clean": "Local changes",
-      "git_remote": "Origin repository"
+      "git_remote": "Origin repository",
+      "db_backup": "Database backup"
     },
     "detail": {
       "install_type": {
@@ -929,17 +929,29 @@
         "missing": "not found"
       },
       "git_branch": {
-        "detached": "detached HEAD ({value}): deploy.sh update cannot pull, go back to the main branch"
+        "detached": "detached HEAD ({value}): the command moves forward to the chosen release, but a plain « deploy.sh update » will no longer be able to pull the branch"
       },
       "git_upstream": {
-        "no_upstream": "no upstream branch: git pull would fail"
+        "no_upstream": "no upstream branch: a plain « deploy.sh update » would fail (the command below does not need one)"
       },
       "git_remote": {
         "no_origin": "no \"origin\" remote"
       },
       "node_version": {
         "too_old": "version too old: Node ≥ {value} required"
+      },
+      "db_backup": {
+        "sqlite": "SQLite: consistent copy before migration",
+        "mysql": "MySQL: mysqldump available",
+        "no_mysqldump": "mysqldump not found",
+        "no_mysql_client": "mysql client not found",
+        "no_better_sqlite3": "better-sqlite3 dependency missing",
+        "invalid_driver": "invalid DB_DRIVER"
       }
-    }
+    },
+    "exactNote": "This command installs exactly release {tag} (not the branch), backs up the database before migrations and, if anything fails (tests, migrations, restart), automatically goes back to the previous code and database.",
+    "latestNote": "No specific release is known here: the command looks up the latest stable release of the repository itself.",
+    "majorCommandNote": "This release is a major version (possibly breaking changes): deploy.sh will refuse to install it unless you add --allow-major to the command. Read the release notes first.",
+    "majorAlsoAvailable": "A major version ({tag}) is also available. It is never targeted by default: read its notes, then add --allow-major to the command (with --to {tag}) if you want it."
   }
 }

@@ -225,13 +225,34 @@ de s'appliquer normalement.
 ./deploy.sh logs        # logs en direct
 ./deploy.sh restart     # redémarrer
 ./deploy.sh stop        # arrêter
-./deploy.sh update      # git pull (si dépôt git) + npm install + build frontend + restart
+./deploy.sh update --latest      # met à jour vers la dernière release stable (recommandé)
+./deploy.sh update --to v4.2.0   # … ou vers CETTE release précise
+./deploy.sh update               # tire la branche suivie (mode historique, peut inclure des commits non publiés)
 ./deploy.sh users …     # gérer comptes / permissions en ligne de commande (voir plus bas)
 ./deploy.sh uninstall           # retire le process PM2
 ./deploy.sh uninstall --purge   # + supprime .env, node_modules (serveur + frontend), le build public/, config nginx
 ```
 
 Voir toutes les options : `./deploy.sh --help`
+
+**Mettre à jour (`update`)** — `--to vX.Y.Z` / `--latest` n'installent que le code d'un
+**tag de release précis** et refusent, _avant de modifier quoi que ce soit_ : un nom qui
+n'est pas exactement `vMAJEUR.MINEUR.PATCH` (branche, pré-version, chaîne arbitraire),
+un tag inconnu ou **déplacé** depuis qu'on l'a vu, un retour en arrière, un historique
+local divergé, ou une version **majeure** sans `--allow-major` (changements possiblement
+incompatibles). La mise à jour demande confirmation (sauf `--yes`) et :
+
+1. met de côté les modifications locales (`git stash`), avance sur le tag (`git merge --ff-only`) ;
+2. installe, construit et teste ;
+3. **sauvegarde la base juste avant les migrations** — seulement s'il y en a — dans
+   `data/backups/` (SQLite : copie cohérente ; MySQL/MariaDB : `mysqldump`, clients requis) ;
+4. applique les migrations, redémarre, vérifie que l'application répond ;
+5. **au moindre échec** (tests, migrations, redémarrage, santé), revient **automatiquement au
+   code ET à la base** d'avant (la base défaillante est conservée à côté pour analyse).
+
+`--no-db-backup` désactive la sauvegarde (déconseillé : plus de retour arrière possible pour
+la base). Les 5 dernières sauvegardes sont gardées. Détails, limites et restauration manuelle :
+[`docs/updates/README.md`](docs/updates/README.md).
 
 **Variables d'environnement utiles :**
 
@@ -1405,9 +1426,9 @@ défaut, permission `updates_read`) indique :
   typée correctif / mineure / majeure, et une version **majeure** affiche un
   avertissement ; une pastille apparaît sur le bouton ;
 - un **diagnostic de l'installation** : peut-elle se mettre à jour avec
-  `./deploy.sh update` ? (dépôt git, branche et branche amont, modifications
-  locales, droits d'écriture, espace disque, version de Node, utilisateur du
-  service, gestionnaire de processus…) ;
+  `./deploy.sh update` ? (dépôt git, modifications locales, droits d'écriture,
+  espace disque, version de Node, utilisateur du service, gestionnaire de
+  processus, prérequis de la sauvegarde de la base…) ;
 - la **commande exacte à lancer** sur le serveur, avec un bouton « Copier ».
 
 > **Strictement en lecture seule : l'interface n'exécute aucune mise à jour.**
@@ -1421,8 +1442,10 @@ défaut, permission `updates_read`) indique :
   avec `UPDATE_CHECK_ENABLED=0` pour un serveur isolé.
 - **Contenu distant non fiable** : les notes sont affichées en texte brut, jamais
   interprétées comme du HTML.
-- À savoir : `deploy.sh update` tire la **branche suivie**, pas un tag précis, et
-  **ne sauvegarde pas la base** avant de migrer — l'interface le rappelle.
+- La commande proposée est `./deploy.sh update --to vX.Y.Z` vers la dernière release **non
+  majeure** (jamais avec `--allow-major` : une version majeure se vise en connaissance de
+  cause, après lecture des notes). `deploy.sh` sauvegarde la base avant les migrations et
+  revient en arrière au moindre échec — voir [Mettre à jour](#option-rapide--script-de-déploiement-automatique).
 - API : `GET /api/updates/status`, `POST /api/updates/check` (1/min),
   `GET /api/updates/diagnostics`.
 

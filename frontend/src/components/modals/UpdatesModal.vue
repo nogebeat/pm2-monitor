@@ -80,6 +80,16 @@ function checkLabel(check) {
 function detailText(check) {
   const detail = check.detail;
   if (!detail) return "";
+  // db_backup : liste de causes séparées par des virgules (« no_mysqldump,no_mysql_client »).
+  if (check.id === "db_backup") {
+    return String(detail)
+      .split(",")
+      .map((code) => {
+        const key = `updatesModal.detail.db_backup.${code}`;
+        return te(key) ? t(key) : code;
+      })
+      .join(", ");
+  }
   const [code, ...rest] = String(detail).split(":");
   const key = `updatesModal.detail.${check.id}.${code}`;
   return te(key) ? t(key, { value: rest.join(":") }) : String(detail);
@@ -95,6 +105,24 @@ const installNote = computed(() => {
 const databaseKind = computed(
   () => diagnostics.value?.checks?.find((c) => c.id === "database")?.detail || "sqlite",
 );
+
+// La commande contient `--to <tag>` quand une release précise est connue, sinon `--latest`.
+const commandMode = computed(() =>
+  (diagnostics.value?.command || "").includes(" --to ") ? "exact" : "latest",
+);
+
+// La commande vise la release RECOMMANDÉE (dernière non majeure) ; une version majeure n'est ciblée
+// d'office que si c'est la seule disponible, et la commande n'y ajoute JAMAIS --allow-major.
+// Tag visé par la commande affichée (même règle que le serveur : recommandée, sinon la plus récente).
+const targetTag = computed(() => status.value?.recommended?.tag || status.value?.latest?.tag || "");
+const targetIsMajor = computed(() => {
+  const s = status.value;
+  return !!s && !s.recommended && s.latest?.type === "major";
+});
+const majorAlsoAvailable = computed(() => {
+  const s = status.value;
+  return s && s.recommended && s.latest?.type === "major" ? s.latest : null;
+});
 
 async function copyCommand() {
   const text = diagnostics.value?.command;
@@ -207,8 +235,15 @@ async function copyCommand() {
                 {{ copied ? t("updatesModal.copied") : t("updatesModal.copy") }}
               </button>
             </div>
-            <p v-if="diagnostics.install.branch" class="up-muted">
-              {{ t("updatesModal.branchNote", { branch: diagnostics.install.branch }) }}
+            <p v-if="commandMode !== 'latest'" class="up-muted">
+              {{ t("updatesModal.exactNote", { tag: targetTag }) }}
+            </p>
+            <p v-else class="up-muted">{{ t("updatesModal.latestNote") }}</p>
+            <p v-if="targetIsMajor" class="up-banner up-banner-major">
+              {{ t("updatesModal.majorCommandNote") }}
+            </p>
+            <p v-if="majorAlsoAvailable" class="up-banner">
+              {{ t("updatesModal.majorAlsoAvailable", { tag: majorAlsoAvailable.tag }) }}
             </p>
           </template>
           <p v-else class="up-muted">{{ installNote }}</p>

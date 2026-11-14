@@ -876,10 +876,9 @@
     "copy": "Copier",
     "copied": "Copié ✓",
     "copyFailed": "Copie impossible : sélectionnez la commande à la main.",
-    "branchNote": "Aujourd'hui, deploy.sh update récupère le dernier commit de la branche suivie ({branch}), pas une version précise : elle peut contenir des changements pas encore publiés dans une release.",
     "backupHint": {
-      "sqlite": "Avant de mettre à jour : sauvegardez la base (copie de data/monitor.db, ou du chemin DB_SQLITE_PATH). deploy.sh ne la sauvegarde pas et ne l'annule pas en cas de retour arrière.",
-      "mysql": "Avant de mettre à jour : faites un dump de votre base MySQL/MariaDB. deploy.sh ne la sauvegarde pas et ne l'annule pas en cas de retour arrière."
+      "sqlite": "La base est sauvegardée automatiquement dans data/backups/ juste avant les migrations (et restaurée en cas d'échec). Les 5 dernières sauvegardes sont gardées ; gardez aussi les vôtres.",
+      "mysql": "La base est sauvegardée avec mysqldump avant les migrations (clients mysqldump et mysql requis sur le serveur, sinon la mise à jour est refusée)."
     },
     "readOnly": "Cette interface n'exécute aucune mise à jour : elle vous indique seulement la commande à lancer.",
     "noteContainer": "Installation en conteneur : la mise à jour consiste à récupérer la nouvelle image et à recréer le conteneur.",
@@ -907,7 +906,8 @@
       "git_branch": "Branche suivie",
       "git_upstream": "Branche amont",
       "git_clean": "Modifications locales",
-      "git_remote": "Dépôt d'origine"
+      "git_remote": "Dépôt d'origine",
+      "db_backup": "Sauvegarde de la base"
     },
     "detail": {
       "install_type": {
@@ -929,17 +929,29 @@
         "missing": "introuvable"
       },
       "git_branch": {
-        "detached": "HEAD détaché ({value}) : deploy.sh update ne peut pas tirer, revenez sur la branche principale"
+        "detached": "HEAD détaché ({value}) : la commande avance sur la release choisie, mais « deploy.sh update » sans option ne pourra plus tirer la branche"
       },
       "git_upstream": {
-        "no_upstream": "aucune branche amont : git pull échouerait"
+        "no_upstream": "aucune branche amont : « deploy.sh update » sans option échouerait (la commande ci-dessous n'en a pas besoin)"
       },
       "git_remote": {
         "no_origin": "aucun remote « origin »"
       },
       "node_version": {
         "too_old": "version trop ancienne : Node ≥ {value} requis"
+      },
+      "db_backup": {
+        "sqlite": "SQLite : copie cohérente avant migration",
+        "mysql": "MySQL : mysqldump disponible",
+        "no_mysqldump": "mysqldump introuvable",
+        "no_mysql_client": "client mysql introuvable",
+        "no_better_sqlite3": "dépendance better-sqlite3 manquante",
+        "invalid_driver": "DB_DRIVER invalide"
       }
-    }
+    },
+    "exactNote": "Cette commande installe exactement la release {tag} (pas la branche), sauvegarde la base avant les migrations et, si quelque chose échoue (tests, migrations, redémarrage), revient automatiquement au code et à la base d'avant.",
+    "latestNote": "Aucune release précise n'est connue ici : la commande cherche elle-même la dernière release stable du dépôt.",
+    "majorCommandNote": "Cette release est une version majeure (changements possiblement incompatibles) : deploy.sh refusera de l'installer tant que vous n'ajoutez pas --allow-major à la commande. Lisez d'abord les notes de version.",
+    "majorAlsoAvailable": "Une version majeure ({tag}) est aussi disponible. Elle n'est jamais visée par défaut : lisez ses notes, puis ajoutez --allow-major à la commande (avec --to {tag}) si vous voulez l'installer."
   }
 }

@@ -300,3 +300,81 @@ test("getDiagnostics — mis en cache 60 s, rafraîchissable", async () => {
   cleanup();
   assert.equal(n, 3);
 });
+
+test("getDiagnostics — la cible de la commande est la dernière release NON majeure ; une majeure seule reste visée sans option dangereuse", async () => {
+  const seen = [];
+  let releases = [rel("v4.2.0"), rel("v4.1.2")];
+  const { service, clock, cleanup } = makeService({
+    fetchReleases: async () => ({ ok: true, notModified: false, etag: null, releases }),
+    options: {
+      runDiagnostics: async (args) => {
+        seen.push(args.target);
+        return { canSelfUpdate: true, checks: [] };
+      },
+    },
+  });
+  await service.getDiagnostics(); // pas encore de vérification : aucune cible connue
+  await service.check();
+  await service.getDiagnostics(); // v4.2.0 (mineure)
+  await service.getDiagnostics(); // même cible, cache valide : pas de recalcul
+  // Une majeure apparaît EN PLUS : la cible par défaut reste la mineure
+  releases = [rel("v5.0.0"), rel("v4.2.0"), rel("v4.1.2")];
+  clock.t += service.INTERVAL_MS + 1;
+  await service.check();
+  await service.getDiagnostics(); // recalculé (le cache de 60 s a expiré) mais la cible reste v4.2.0, jamais la majeure
+  // Plus rien d'autre qu'une majeure à installer
+  releases = [rel("v5.0.0"), rel("v4.1.2")];
+  clock.t += service.INTERVAL_MS + 1;
+  await service.check();
+  await service.getDiagnostics(); // nouvelle cible : la majeure (sans --allow-major dans la commande)
+  cleanup();
+  assert.deepEqual(seen, [
+    null,
+    { tag: "v4.2.0", type: "minor" },
+    { tag: "v4.2.0", type: "minor" },
+    { tag: "v5.0.0", type: "major" },
+  ]);
+});
+
+test("getStatus — recommended : la plus récente version non majeure", async (t) => {
+  await t.test("majeure + mineure : la mineure est recommandée, la majeure reste latest", async () => {
+    const { service, cleanup } = makeService({
+      fetchReleases: async () => ({
+        ok: true,
+        notModified: false,
+        etag: null,
+        releases: [rel("v5.0.0"), rel("v4.2.0"), rel("v4.1.3")],
+      }),
+    });
+    await service.check();
+    const s = service.getStatus();
+    cleanup();
+    assert.deepEqual(s.latest, { tag: "v5.0.0", version: "5.0.0", type: "major" });
+    assert.deepEqual(s.recommended, { tag: "v4.2.0", version: "4.2.0", type: "minor" });
+  });
+  await t.test("majeure seule : aucune release recommandée", async () => {
+    const { service, cleanup } = makeService({
+      fetchReleases: async () => ({
+        ok: true,
+        notModified: false,
+        etag: null,
+        releases: [rel("v5.0.0"), rel("v4.1.2")],
+      }),
+    });
+    await service.check();
+    const s = service.getStatus();
+    cleanup();
+    assert.equal(s.recommended, null);
+    assert.equal(s.latest.type, "major");
+  });
+  await t.test("à jour : ni latest ni recommended", async () => {
+    const { service, cleanup } = makeService({
+      fetchReleases: async () => ({ ok: true, notModified: false, etag: null, releases: [rel("v4.1.2")] }),
+    });
+    await service.check();
+    const s = service.getStatus();
+    cleanup();
+    assert.equal(s.recommended, null);
+    assert.equal(s.latest, null);
+  });
+});

@@ -139,6 +139,16 @@ test("bin/migrate.js CLI (process réel, pas juste la lib)", async (t) => {
     },
   );
 
+  await t.test("pending écrit UNIQUEMENT le nombre de migrations en attente (lu par deploy.sh)", async () => {
+    const dbPath = tmpDbPath();
+    const before = await runMigrate(["pending"], dbPath);
+    assert.match(before.stdout.trim(), /^\d+$/);
+    assert.ok(Number(before.stdout.trim()) > 0);
+    await runMigrate(["up"], dbPath);
+    const after = await runMigrate(["pending"], dbPath);
+    assert.equal(after.stdout.trim(), "0");
+  });
+
   await t.test("down annule la dernière migration puis status le reflète", async () => {
     const dbPath = tmpDbPath();
     await runMigrate(["up"], dbPath);

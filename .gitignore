@@ -13,6 +13,9 @@ lerna-debug.log*
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Runtime data
+# Base SQLite, logs persistés et sauvegardes de base avant mise à jour (hashes de mots
+# de passe, secrets chiffrés) : ne doit JAMAIS finir dans un commit.
+/data/
 pids
 *.pid
 *.seed
@@ -156,10 +159,5 @@ history.json
 *.swp
 
 *.kate-swp
-
-public/assets/*.woff
-public/assets/*.woff2
-public/assets/*.js
-public/assets/*.css
 
 

@@ -20,6 +20,37 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
   désactivable (`UPDATE_CHECK_ENABLED=0`). Nouvelles routes
   `GET /api/updates/status`, `POST /api/updates/check`,
   `GET /api/updates/diagnostics`. Voir `docs/updates/README.md`.
+- **`deploy.sh update --to vX.Y.Z` / `--latest` (Phase 23, étape 2)** : met à jour vers
+  une release précise, jamais vers « ce qu'il y a au bout de la branche ». Refuse, avant de
+  modifier quoi que ce soit : un nom qui n'est pas exactement `vMAJEUR.MINEUR.PATCH`, un tag
+  inconnu ou **déplacé** depuis qu'on l'a vu, un retour en arrière, un historique local
+  divergé, une version **majeure** sans `--allow-major`. Demande confirmation (sauf `--yes`).
+- **Sauvegarde de la base avant les migrations, restauration au retour arrière** :
+  `bin/db-snapshot.js` (`check`, `backup`, `restore`, `prune`) et `lib/db/snapshot.js`. SQLite :
+  copie cohérente via l'API de sauvegarde en ligne, contrôlée par `PRAGMA integrity_check`, en
+  un seul fichier autonome ; MySQL/MariaDB : `mysqldump --single-transaction` (clients
+  `mysqldump` et `mysql` requis), restauration qui supprime d'abord toutes les tables. Fichiers
+  en 600 dans `data/backups/` (dossier 700), les 5 dernières `pre-update-*` sont gardées,
+  l'état défaillant est conservé à côté à la restauration. `--no-db-backup` pour l'omettre.
+- `bin/migrate.js pending` : écrit uniquement le nombre de migrations en attente (lu par
+  `deploy.sh` pour ne sauvegarder la base que s'il y en a).
+- Tests : `test/deploy/update_release.bats` (41 scénarios contre de vrais dépôts git
+  temporaires), `test/integration/db-snapshot.test.js` (SQLite, et MySQL/MariaDB avec
+  `TEST_MYSQL_HOST`), `test/integration/deploy-db-backup.test.js` (raccord réel `deploy.sh` ↔
+  CLI Node). Le CI lance désormais tout `test/deploy/` (et plus un seul fichier bats).
+
+### Modifié
+
+- `deploy.sh update` (y compris **sans option**) : un échec à n'importe quelle étape après le
+  changement de code (installation, build, tests, migrations, redémarrage, santé) déclenche un
+  retour arrière automatique du **code et de la base**. Avant, le retour arrière ne couvrait
+  que l'échec de santé, ne restaurait pas la base (l'ancien code se retrouvait sur un schéma
+  déjà migré), et un échec de tests ou de migration laissait un code à moitié mis à jour.
+- L'interface « Mises à jour » propose désormais `./deploy.sh update --to <dernière release non
+  majeure>` (ou `--latest` si aucune n'est connue) et n'ajoute jamais `--allow-major` ; le
+  diagnostic contrôle aussi les prérequis de la sauvegarde de la base, et ne bloque plus un
+  HEAD détaché ou l'absence de branche amont (inutiles à `--to`).
+- `.gitignore` : `/data/` (base, logs et sauvegardes de base contiennent des données sensibles).
 
 ## [4.1.2] - 2026-11-08
 
